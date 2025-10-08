@@ -37,7 +37,8 @@ static unsigned int indices[] = {
 };
 namespace engine {
 void Renderer::Init() {
- m_shader = Shader::Create("res/shaders/shader.sh");
+    m_shader = Shader::Create("res/shaders/shader.sh");
+    m_modelShader = Shader::Create("res/shaders/model_shader.sh");
     m_vao = VertexArrayObject::Create();
 
     m_vbo = VertexBuffer::Create(vertices, sizeof(vertices));
@@ -84,9 +85,30 @@ void Renderer::DrawCube(const glm::vec3& position, const glm::vec3& color, float
     m_shader->Unbind();
 }
 
+void Renderer::DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& camPos)
+{
+    glm::mat4 modelmat = glm::mat4(1.0f);
+    modelmat = glm::translate(modelmat, position);
+    m_modelShader->Bind();
+    m_modelShader->SetMat4("u_model", modelmat);
+    m_modelShader->SetMat4("u_view", m_viewMat);
+    m_modelShader->SetMat4("u_projection", m_projectionMat);
+    m_modelShader->SetVec3("viewPos", camPos);
+    m_modelShader->SetVec3("light.position", glm::vec3(500.0f, 200.0f, 100.0f));
+    m_modelShader->SetVec3("light.ambient", glm::vec3(0.2f));
+    m_modelShader->SetVec3("light.diffuse", glm::vec3(0.8f));
+    m_modelShader->SetVec3("light.specular", glm::vec3(1.0f));
+    model.Draw(*m_modelShader);
+}
+
 void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
     glClearColor(0.1, 0.1, 0.1, 1.0f);
+    
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW); 
     m_viewMat = view;
     m_projectionMat = projection;
 }

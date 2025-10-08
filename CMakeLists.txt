@@ -6,16 +6,19 @@ set(CMAKE_CUDA_STANDARD 17)
 
 find_package(OpenGL REQUIRED)
 find_package(glfw3 REQUIRED)
-
+find_package(assimp REQUIRED)
 # Включаем директории
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+)   
+add_library(stb STATIC libs/stbi/stb_image.cc)
+target_include_directories(stb PUBLIC libs/stbi)
 
 file(GLOB_RECURSE SOURCE_FILES 
     src/main.cc
-    src/core/simulation.cu
     src/core/*.cc
+    src/data/*.cc
+    src/core/simulation.cu
     src/graphics/*.cc
     src/graphics/OpenGL/*.cc
     src/scene/*.cc
@@ -35,12 +38,15 @@ target_link_libraries(disaster_sim
     OpenGL::GL
     glfw
     glad
+    assimp::assimp
+    stb
 )
 
 target_include_directories(disaster_sim PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     libs/glad/include/
+    libs/stbi/
     ${CUDA_INCLUDE_DIRS}
 )
 

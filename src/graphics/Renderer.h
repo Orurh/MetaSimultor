@@ -1,9 +1,9 @@
 #pragma once
 #include "Shader.h"
-#include "VertexArrayObject.h"
 #include <glm/vec3.hpp>
 #include <memory>
 #include <core/agent.h>
+#include "Model.h"
 namespace engine {
 class Renderer {
 public:
@@ -11,6 +11,7 @@ public:
   void Shutdown();
   void DrawAgents(const std::vector<Agent>& agents);
   void DrawCube(const glm::vec3& position, const glm::vec3& color, float scale);
+  void DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& camPos);
   void BeginScene(const glm::mat4& view, const glm::mat4& projection);
   void EndScene();
 private:
@@ -19,6 +20,7 @@ private:
   glm::mat4 m_viewMat;
 
   std::unique_ptr<Shader> m_shader;
+  std::shared_ptr<Shader> m_modelShader;
   std::shared_ptr<VertexArrayObject> m_vao;
   std::shared_ptr<VertexBuffer> m_vbo;
   std::shared_ptr<IndexBuffer> m_ebo;

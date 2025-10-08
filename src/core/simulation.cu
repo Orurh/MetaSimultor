@@ -16,13 +16,13 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
     
     Agent* agent = &agents[idx];
     
-    if (agent->type == AgentType::Tree) { 
+    if (agent->type == AgentType::TREE) { 
         int burning_neighbors = 0;
         for (int i = 0; i < count; i++) {
             if (i == idx) continue;
             
             Agent* other = &agents[i];
-            if (other->type == AgentType::Fire) { 
+            if (other->type == AgentType::FIRE) { 
 
                 float dx = agent->pos_x - other->pos_x;
                 float dy = agent->pos_y - other->pos_y;
@@ -35,7 +35,7 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
         }
         
         if (burning_neighbors >= 1) {
-            agent->type = AgentType::Fire; 
+            agent->type = AgentType::FIRE; 
             agent->intensity = 1.0f;
             agent->fuel = 30.0f;
         }
@@ -45,7 +45,7 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
         agent->intensity = agent->fuel / 30.0f;
         
         if (agent->fuel <= 0.0f) {
-            agent->type = AgentType::NONE;
+            agent->type = AgentType::BURNED;
             agent->intensity = 0.0f;
         }
     }

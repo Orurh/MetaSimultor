@@ -3,7 +3,7 @@
 #include "core/Application.h"
 
 int main() {
-    engine::Application app(1200, 800, "Sim");
+    engine::Application app(1920, 1080, "Sim");
     app.Run();
     
     return 0;

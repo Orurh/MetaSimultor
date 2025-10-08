@@ -2,7 +2,7 @@
 #include "Components.h"
 #include "graphics/Renderer.h"
 #include "core/AgentManager.h"
-
+#include "Camera.h"
 namespace engine {
 class Entity;
 class Scene {
@@ -11,15 +11,18 @@ public:
   void Init();
   void Update(float dt);
   void Render();
-  void AddTree(float x, float y) { m_agentManager.AddTree(x, y, 100.0f); }
+  void AddTree(float x, float y);
   void AddFire(float x, float y) { m_agentManager.AddFire(x, y, 1.0f); }
-  void SetViewProjection(const glm::mat4 &view, const glm::mat4& proj);
-
+  void Generate();
 private:
+  std::vector<Agent> LoadAgentsFromGPU();
+  void RenderAgent(const Agent& agent);
+
   AgentManager m_agentManager;
   Renderer m_renderer;
-  glm::mat4 m_view;
-  glm::mat4 m_projection;
-
+  std::shared_ptr<Model> m_treeModel;
+  std::shared_ptr<Model> m_burningModel;
+  std::shared_ptr<Model> m_burnedModel;
+  Camera m_camera;
 };
 } // namespace engine
