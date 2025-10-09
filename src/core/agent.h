@@ -4,48 +4,48 @@
 
 enum AgentType {
     TREE = 0,
-    TREE_BRANCH = 1,  // Ветка дерева
-    FIRE = 2,         // Огонь на ветке
-    BURNED = 3        // Сгоревшая ветка
+    FIRE_SOURCE = 1,    // Точка горения (бывшая ветка)
+    BURNED = 2
 };
 
-struct TreeBranch {
-    float length;
-    float thickness;
-    int parent_id;     // ID родительской ветки (-1 для ствола)
-    bool is_trunk;     // Это ствол?
+struct FireCollider {
+    float bounds_min[3];  // min x,y,z
+    float bounds_max[3];  // max x,y,z  
+    float heat_points[12][3]; // 12 точек горения (x,y,z для каждой)
+    float fuels[12];         // топливо для каждой точки
+    float intensities[12];   // интенсивность для каждой точки
+    int point_count;        // сколько точек реально используется
+    
+    __host__ __device__
+    FireCollider() : point_count(0) {
+        for (int i = 0; i < 3; i++) {
+            bounds_min[i] = 0.0f;
+            bounds_max[i] = 0.0f;
+        }
+    }
 };
 
 struct Agent {
-    float pos_x, pos_y, pos_z;  // 3D позиция
-    float intensity;            // Интенсивность огня
-    float fuel;                 // Количество топлива
+    float pos_x, pos_y, pos_z;  // Позиция объекта
     AgentType type;
-    int tree_id;               // ID дерева для группировки веток
-    TreeBranch branch_info;     // Информация о ветке
+    float intencity;
+    int object_id;              // ID объекта
+    
+    // Универсальный коллайдер для огня
+    FireCollider fire_collider;
     
     __host__ __device__
-    Agent() : pos_x(0), pos_y(0), pos_z(0), intensity(0), fuel(0), 
-              type(AgentType::TREE_BRANCH), tree_id(-1), branch_info() {}
+    Agent() : pos_x(0), pos_y(0), pos_z(0), type(TREE), object_id(-1) {}
     
     __host__ __device__
-    Agent(float x, float y, float z, float intensity, float fuel, 
-          AgentType type, int tree_id) 
-        : pos_x(x), pos_y(y), pos_z(z), intensity(intensity), fuel(fuel),
-          type(type), tree_id(tree_id), branch_info() {}
+    Agent(float x, float y, float z, AgentType type, int id) 
+        : pos_x(x), pos_y(y), pos_z(z), type(type), object_id(id) {}
     
     __host__ __device__
     bool isBurning() const { 
-        return type == FIRE && intensity > 0.1f; 
-    }
-    
-    __host__ __device__
-    bool hasFuel() const { 
-        return fuel > 0.0f; 
-    }
-    
-    __host__ __device__
-    bool canIgnite() const {
-        return type == TREE_BRANCH && fuel > 0.0f;
+        for (int i = 0; i < fire_collider.point_count; i++) {
+            if (fire_collider.intensities[i] > 0.1f) return true;
+        }
+        return false;
     }
 };

@@ -1,9 +1,9 @@
 #include "AgentManager.h"
 #include <cuda_runtime.h>
-#include <device_launch_parameters.h> 
 #include <vector>
 #include <random>
 #include <iostream>
+
 AgentManager::AgentManager(int max_agents) : m_capacity(max_agents), m_count(0) {
     cudaMalloc(&m_agents, max_agents * sizeof(Agent));
 }
@@ -12,34 +12,97 @@ AgentManager::~AgentManager() {
     cudaFree(m_agents);
 }
 
-void AgentManager::AddTree(int tree_id, float base_x, float base_z, 
-                                              int max_branches) {
-    Agent trunk;
-    trunk.tree_id = tree_id;    
-    trunk.pos_x = base_x;
-    trunk.pos_z = base_z;
-    trunk.pos_y = 0.0f;  
-    trunk.type = TREE;
-    trunk.fuel = 100.0f;  
-    trunk.branch_info.is_trunk = true;
-    trunk.branch_info.parent_id = -1;
-    trunk.branch_info.length = 0.1f;
-    trunk.branch_info.thickness = 2.0f;
+void AgentManager::AddTree(int tree_id, float base_x, float base_z) {
+    Agent tree;
+    tree.type = TREE;
+    tree.object_id = tree_id;
+    tree.pos_x = base_x;
+    tree.pos_z = base_z;
+    tree.pos_y = 0.0f;
     
-    AddAgent(trunk);
+    // Настраиваем FireCollider для дерева
+    setupTreeFireCollider(tree, base_x, base_z);
     
-    BranchConfig trunk_config{5.0f, 0.0f, 4, 0.7f};
-    generateBranch(tree_id, m_count-1, glm::vec3(base_x, 0.5, base_z), trunk_config, 0, 4);
-}
-void AgentManager::AddFire(float x, float y, float intencity) {
-    if(m_capacity <= m_count) return;
-    Agent fire(x, y, intencity, 100.0f, 100.0f, AgentType::FIRE, -1);
-    cudaMemcpy(&m_agents[m_count], &fire, sizeof(Agent), cudaMemcpyHostToDevice);
-    m_count++;
+    AddAgent(tree);
 }
 
-void AgentManager::AddAgent(const Agent &agent)
-{
+void AgentManager::setupTreeFireCollider(Agent& tree, float base_x, float base_z) {
+    // Bounding box дерева
+    tree.fire_collider.bounds_min[0] = base_x - 2.0f; // min X
+    tree.fire_collider.bounds_min[1] = 0.0f;          // min Y  
+    tree.fire_collider.bounds_min[2] = base_z - 2.0f; // min Z
+    
+    tree.fire_collider.bounds_max[0] = base_x + 2.0f; // max X
+    tree.fire_collider.bounds_max[1] = 8.0f;          // max Y (высота дерева)
+    tree.fire_collider.bounds_max[2] = base_z + 2.0f; // max Z
+    
+    // Генерируем точки горения в виде "ёлки"
+    generateTreeHeatPoints(tree.fire_collider, base_x, base_z);
+}
+
+void AgentManager::generateTreeHeatPoints(FireCollider& collider, float base_x, float base_z) {
+    collider.point_count = 8; 
+    
+    // Уровни высоты для точек
+    float heights[] = {1.0f, 3.0f, 5.0f, 7.0f};
+    float radii[] = {0.5f, 1.0f, 1.5f, 1.0f}; 
+    
+    int point_index = 0;
+    for (int level = 0; level < 4; level++) {
+        for (int side = 0; side < 2; side++) {
+            float angle = side * 180.0f; 
+            float rad = glm::radians(angle);
+            
+            collider.heat_points[point_index][0] = base_x + cos(rad) * radii[level]; // X
+            collider.heat_points[point_index][1] = heights[level];                   // Y
+            collider.heat_points[point_index][2] = base_z + sin(rad) * radii[level]; // Z
+            
+            collider.fuels[point_index] = 25.0f;
+            collider.intensities[point_index] = 0.0f;
+            
+            point_index++;
+        }
+    }
+}
+
+void AgentManager::AddFire(float x, float y, float intensity) {
+    if(m_count >= m_capacity) return;
+    
+    Agent fire;
+    fire.type = FIRE_SOURCE;
+    fire.object_id = -1;
+    fire.pos_x = x;
+    fire.pos_z = y;
+    fire.pos_y = 0.0f;
+    
+    // Простой FireCollider для источника огня
+    setupFireSourceCollider(fire, x, y);
+    
+    // Зажигаем точку
+    fire.fire_collider.intensities[0] = intensity;
+    
+    AddAgent(fire);
+}
+
+void AgentManager::setupFireSourceCollider(Agent& fire, float x, float y) {
+    fire.fire_collider.bounds_min[0] = x - 0.5f;
+    fire.fire_collider.bounds_min[1] = 0.0f;  
+    fire.fire_collider.bounds_min[2] = y - 0.5f;
+    
+    fire.fire_collider.bounds_max[0] = x + 0.5f;
+    fire.fire_collider.bounds_max[1] = 2.0f;
+    fire.fire_collider.bounds_max[2] = y + 0.5f;
+    
+    // Одна точка в центре
+    fire.fire_collider.point_count = 1;
+    fire.fire_collider.heat_points[0][0] = x;
+    fire.fire_collider.heat_points[0][1] = 1.0f;
+    fire.fire_collider.heat_points[0][2] = y;
+    fire.fire_collider.fuels[0] = 50.0f;
+    fire.fire_collider.intensities[0] = 0.0f;
+}
+
+void AgentManager::AddAgent(const Agent &agent) {
     if (m_count >= m_capacity) {
         std::cerr << "AgentManager: capacity exceeded!" << std::endl;
         return;
@@ -47,68 +110,4 @@ void AgentManager::AddAgent(const Agent &agent)
     
     cudaMemcpy(m_agents + m_count, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
     m_count++;
-}
-void AgentManager::generateBranch(int tree_id, int parent_id, const glm::vec3 &start_pos, const BranchConfig &config, int depth, int max_depth)
-{
-    if(depth >= max_depth || m_count >= m_capacity) return;
-
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_real_distribution<float> angle_dist(0.0f, 360.0f); // Полный круг 0-360°
-    std::uniform_real_distribution<float> tilt_dist(15.0f, 45.0f);  // Наклон веток
-    std::uniform_real_distribution<float> length_dist(0.3f, 0.8f);
-
-    for(int i = 0; i < config.children_count; ++i) {
-        if(m_count >= m_capacity) return;
-        
-        float horizontal_angle = angle_dist(gen); // Горизонтальный угол (вокруг ствола)
-        float vertical_tilt = tilt_dist(gen);     // Вертикальный наклон
-        float len = config.length * length_dist(gen);
-
-        // Конвертируем в радианы
-        float rad_horizontal = glm::radians(horizontal_angle);
-        float rad_vertical = glm::radians(vertical_tilt);
-
-        // Вычисляем позицию конца ветки (сферические координаты)
-        glm::vec3 end_pos = start_pos + glm::vec3(
-            sin(rad_horizontal) * sin(rad_vertical) * len,  // X
-            cos(rad_vertical) * len,                        // Y (вверх)
-            cos(rad_horizontal) * sin(rad_vertical) * len   // Z
-        );
-
-        Agent branch;
-        branch.tree_id = tree_id;
-        branch.pos_x = end_pos.x;
-        branch.pos_y = end_pos.y;
-        branch.pos_z = end_pos.z;
-        branch.type = TREE_BRANCH;
-        branch.fuel = 20.0f + (max_depth - depth) * 5.0f;
-        branch.intensity = 0.0f; // ← ВАЖНО: инициализируй intensity!
-        branch.branch_info.is_trunk = false;
-        branch.branch_info.parent_id = parent_id;
-        branch.branch_info.length = len;
-        branch.branch_info.thickness = config.thickness_factor * (1.0f - depth * 0.2f);
-
-        AddAgent(branch);
-
-        if(depth < max_depth - 1) {
-            BranchConfig child_config = randomBranchConfig(depth + 1);
-            generateBranch(tree_id, m_count-1, end_pos, child_config, depth + 1, max_depth);
-        }
-    }
-}
-
-BranchConfig AgentManager::randomBranchConfig(int depth)
- {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_real_distribution<float> length_dist(1.0f, 3.0f);
-        std::uniform_int_distribution<int> count_dist(1, 3);
-
-        return BranchConfig{
-            length_dist(gen) * (1.0f - depth * 0.2f), 
-            0.0f,
-            count_dist(gen),
-            0.6f - depth * 0.1f
-        };
 }

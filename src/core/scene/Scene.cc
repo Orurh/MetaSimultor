@@ -60,14 +60,14 @@ void Scene::Render() {
     m_renderer.BeginScene(view, projection);
     auto agents = LoadAgentsFromGPU();
     for(const auto& agent : agents) {
-        if (agent.type != AgentType::TREE_BRANCH) {  
+        if (agent.type != AgentType::FIRE_SOURCE) {  
             RenderAgent(agent);
         }
     }
-   std::vector<Agent> burningBranches;
+    std::vector<Agent> burningBranches;
     
     for (const auto& agent : agents) {
-        if ((agent.type == AgentType::TREE_BRANCH || agent.type == AgentType::BURNED) ) {
+        if ((agent.type == AgentType::FIRE_SOURCE || agent.type == AgentType::BURNED) ) {
             burningBranches.push_back(agent);
         }
     }

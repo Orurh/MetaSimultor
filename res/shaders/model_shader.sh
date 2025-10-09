@@ -1,0 +1,72 @@
+#shader vertex
+#version 330 core
+layout (location = 0) in vec3 a_position;
+layout (location = 1) in vec3 a_normal;
+layout (location = 2) in vec2 a_texCoords;
+layout (location = 3) in vec3 a_tangent;
+layout (location = 4) in vec3 a_bitangent;
+
+out vec2 TexCoords;
+out vec3 Normal;
+out vec3 FragPos;
+
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+
+void main() {
+    FragPos = vec3(u_model * vec4(a_position, 1.0));
+    Normal = mat3(transpose(inverse(u_model))) * a_normal;  
+    TexCoords = a_texCoords;
+    
+    gl_Position = u_projection * u_view * vec4(FragPos, 1.0);
+}
+
+#shader fragment
+#version 330 core
+out vec4 FragColor;
+
+in vec2 TexCoords;
+in vec3 Normal;
+in vec3 FragPos;
+
+struct Material {
+    vec3 diffuse;
+    vec3 specular;
+    float shininess;
+    sampler2D texture_diffuse1;
+    sampler2D texture_specular1;
+    sampler2D texture_normal1;
+};
+
+struct Light {
+    vec3 position;
+    vec3 ambient;
+    vec3 diffuse;
+    vec3 specular;
+};
+
+uniform Material material;
+uniform Light light;
+uniform vec3 viewPos;
+
+void main() {
+    // Ambient
+    vec3 ambient = light.ambient * material.diffuse;
+    
+    // Diffuse 
+    vec3 norm = normalize(Normal);
+    vec3 lightDir = normalize(light.position - FragPos);
+    float diff = max(dot(norm, lightDir), 0.0);
+    vec3 diffuse = light.diffuse * diff * material.diffuse;
+    
+    // Specular
+    vec3 viewDir = normalize(viewPos - FragPos);
+    vec3 reflectDir = reflect(-lightDir, norm);
+    float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
+    vec3 specular = light.specular * spec * material.specular;
+    
+    
+    vec3 result = ambient + diffuse + specular;
+    FragColor = vec4(result, 1.0);
+}
