@@ -70,6 +70,7 @@
         "list": "cpp",
         "locale": "cpp",
         "stream_ref": "cpp",
-        "unordered_set": "cpp"
+        "unordered_set": "cpp",
+        "__bit_reference": "cpp"
     }
 }

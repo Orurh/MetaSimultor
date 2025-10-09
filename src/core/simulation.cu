@@ -66,10 +66,10 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
                     (other_agent->fire_collider.bounds_min[2] + other_agent->fire_collider.bounds_max[2]) * 0.5f
                 );
                 
-                if (box_dist < 15.0f) { // Объекты достаточно близко
+                if (box_dist < 15.0f) { 
                     // Проверяем все точки в другом агенте
                     for (int j = 0; j < other_agent->fire_collider.point_count; j++) {
-                        if (other_agent->fire_collider.intensities[j] > 0.1f) continue; // Уже горит
+                        if (other_agent->fire_collider.intensities[j] > 0.1f) continue; 
                         
                         glm::vec3 other_point_pos = glm::vec3(
                             other_agent->fire_collider.heat_points[j][0],
@@ -82,16 +82,14 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
                             other_point_pos.x, other_point_pos.y, other_point_pos.z
                         );
                         
-                        if (point_dist < 3.0f) { // Точки достаточно близко
-                            // Вероятность распространения зависит от интенсивности и расстояния
+                        if (point_dist < 3.0f) { 
                             float spread_prob = agent->fire_collider.intensities[i] * (1.0f - point_dist / 3.0f) * dt * 10.0f;
                             
-                            // Простой рандом (можно улучшить)
                             unsigned int seed = idx + other_idx + i + j;
                             float random_val = (float)((seed * 9301 + 49297) % 233280) / 233280.0f;
                             
                             if (random_val < spread_prob) {
-                                other_agent->fire_collider.intensities[j] = 0.2f; // Зажигаем
+                                other_agent->fire_collider.intensities[j] = 0.2f; 
                             }
                         }
                     }

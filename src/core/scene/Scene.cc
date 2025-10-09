@@ -3,6 +3,7 @@
 #include "core/simulation.cuh"
 #include <cuda_runtime.h>
 #include <iostream>
+#include <chrono>
 #include "core/Input.h"
 #include "core/Window.h"
 namespace engine {
@@ -55,26 +56,42 @@ void Scene::Update(float dt) {
 }
 
 void Scene::Render() {
+    
     auto projection = glm::perspective(m_camera.GetZoom(), (float)1920 / (float)1080, 0.1f, 2000.0f);
     auto view = m_camera.GetViewMatrix();
     m_renderer.BeginScene(view, projection);
-    auto agents = LoadAgentsFromGPU();
+    
+    auto agents = LoadAgentsFromGPU(); 
+    
+    
     for(const auto& agent : agents) {
         if (agent.type != AgentType::FIRE_SOURCE) {  
             RenderAgent(agent);
         }
     }
-    std::vector<Agent> burningBranches;
     
+    
+    std::vector<Agent> burningBranches;
     for (const auto& agent : agents) {
-        if ((agent.type == AgentType::TREE || agent.type == AgentType::BURNED) ) {
+        if ((agent.type == AgentType::TREE || agent.type == AgentType::BURNED)) {
             burningBranches.push_back(agent);
         }
     }
+    m_renderer.UploadAgentsData(agents); // Горящие агенты → GPU
+    m_renderer.RenderWithGeometryShader();
+    // auto start_time = std::chrono::high_resolution_clock::now();
     
-    if (burningBranches.empty()) return;
-    m_renderer.DrawAgents(burningBranches);
-    m_renderer.RenderFire(agents, 0.016f); 
+    // m_renderer.DrawAgents(burningBranches);
+    
+    // auto end_time = std::chrono::high_resolution_clock::now();
+    
+    // // Вывод времени выполнения
+    // auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    
+    // std::cout 
+    //           << "Total=" << total_duration.count() << "ms, "
+    //           << "Agents=" << agents.size() << std::endl;
+    
     m_renderer.EndScene();
 }
 
@@ -87,8 +104,8 @@ void Scene::AddTree(float x, float y)
 
 void Scene::Generate()
 {
-    for(int i = 0; i < 5; i+=5){
-        for(int j = 0; j < 5; j+=5) {
+    for(int i = 0; i < 50; i+=3){
+        for(int j = 0; j < 50; j+=3) {
             AddTree(500 + i, 500 + j);
         }
     }

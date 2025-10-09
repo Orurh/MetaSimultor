@@ -39,6 +39,7 @@ namespace engine {
 void Renderer::Init() {
     m_shader = Shader::Create("res/shaders/shader.sh");
     m_modelShader = Shader::Create("res/shaders/model_shader.sh");
+    m_fireGeometryShader = Shader::Create("res/shaders/fire_geom.sh");
     m_vao = VertexArrayObject::Create();
 
     m_vbo = VertexBuffer::Create(vertices, sizeof(vertices));
@@ -63,6 +64,16 @@ void Renderer::Init() {
     glVertexAttribDivisor(3, 1);
     glVertexAttribDivisor(4, 1);
     glVertexAttribDivisor(5, 1);
+
+    m_agentVAO = VertexArrayObject::Create();
+    m_agentVBO = VertexBuffer::Create(1000 * sizeof(AgentRenderData));
+    m_agentVBO->SetLayout({
+        {ShaderDataType::Float3, "a_position"},
+        {ShaderDataType::Float, "a_intensity"},
+        {ShaderDataType::Float3, "a_bounds_min"},
+        {ShaderDataType::Float3, "a_bounds_max"}
+    });
+    m_agentVAO->AddVertexBuffer(m_agentVBO);
 }
 
 void Renderer::Shutdown()
@@ -112,83 +123,138 @@ void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
     m_viewMat = view;
     m_projectionMat = projection;
 }
+void Renderer::UploadAgentsData(const std::vector<Agent> &agents)
+{
+     m_agentRenderData.clear();
+    
+    for (const auto& agent : agents) {
+        if (!agent.isBurning()) continue; // Только горящие!
+        
+        AgentRenderData data;
+        data.position = glm::vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+        data.intensity = agent.getOverallIntensity(); // Самый горящий
+        
+        // Bounds из fire_collider
+        data.bounds_min = glm::vec3(
+            agent.fire_collider.bounds_min[0],
+            agent.fire_collider.bounds_min[1],
+            agent.fire_collider.bounds_min[2]
+        );
+        data.bounds_max = glm::vec3(
+            agent.fire_collider.bounds_max[0], 
+            agent.fire_collider.bounds_max[1],
+            agent.fire_collider.bounds_max[2]
+        );
+        
+        m_agentRenderData.push_back(data);
+    }
+    if(!m_agentRenderData.empty()) {
+        m_agentVBO->Bind();
+        m_agentVBO->SetData(m_agentRenderData.data(), m_agentRenderData.size() * sizeof(AgentRenderData));
+    }
+}
 void Renderer::UpdateFireParticles(float dt, const std::vector<Agent> &burningAgents)
 {
-    // for (auto it = m_fireParticles.begin(); it != m_fireParticles.end();) {
-    //     it->lifetime -= dt;
-    //     it->velocity.y += 3.0f * dt; 
-    //     it->position += it->velocity * dt;
-    //     it->size *= 0.95f;
-        
-    //     if (it->lifetime <= 0.0f) {
-    //         it = m_fireParticles.erase(it);
-    //     } else {
-    //         ++it;
-    //     }
-    // }
+     std::cout << "UpdateFireParticles: " << burningAgents.size() << " burning agents, " 
+              << m_fireParticles.size() << " existing particles" << std::endl;
     
-    // for (const auto& agent : burningAgents) {
-    //     int numParticles = 1 + static_cast<int>(agent.intensity * 5);
+    for (auto it = m_fireParticles.begin(); it != m_fireParticles.end();) {
+        it->lifetime -= dt;
+        it->velocity.y += 2.0f * dt; // Гравитация
+        it->position += it->velocity * dt;
+        it->size *= 0.98f; // Постепенно уменьшаем
         
-    //     for (int i = 0; i < numParticles && m_fireParticles.size() < 1; i++) {
-    //         FireParticle particle;
-    //         particle.position = glm::vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+        if (it->lifetime <= 0.0f) {
+            it = m_fireParticles.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    // Спауним новые частицы для горящих агентов
+    m_particleSpawnTimer += dt;
+    if (m_particleSpawnTimer >= 0.016f) { // ~60 FPS
+        m_particleSpawnTimer = 0.0f;
+        
+        for (const auto& agent : burningAgents) {
+            if (!agent.isBurning()) continue;
             
-    //         float angle = static_cast<float>(rand()) / RAND_MAX * 6.2832f; 
-    //         float speed = 1.0f + static_cast<float>(rand()) / RAND_MAX * 2.0f;
-            
-    //         particle.velocity = glm::vec3(
-    //             cos(angle) * 0.5f,
-    //             speed * 2.0f, 
-    //             sin(angle) * 0.5f
-    //         );
-            
-    //         particle.lifetime = 0.8f + static_cast<float>(rand()) / RAND_MAX * 0.4f;
-    //         particle.maxLifetime = particle.lifetime;
-    //         particle.size = 0.1f + agent.intensity * 0.3f;
-            
-    //         m_fireParticles.push_back(particle);
-    //     }
-    // }
+            // Находим горящие точки для этого агента
+            for (int i = 0; i < agent.fire_collider.point_count; i++) {
+                float intensity = agent.fire_collider.intensities[i];
+                if (intensity <= 0.1f) continue;
+                
+                glm::vec3 point_pos = glm::vec3(
+                    agent.fire_collider.heat_points[i][0],  
+                    agent.fire_collider.heat_points[i][1],  
+                    agent.fire_collider.heat_points[i][2]   
+                );
+                
+                // Количество частиц зависит от интенсивности
+                int particles_to_spawn = 1 + static_cast<int>(intensity * 3);
+                
+                for (int p = 0; p < particles_to_spawn && m_fireParticles.size() < 1000; p++) {
+                    FireParticle particle;
+                    particle.position = point_pos;
+                    
+                    // Случайное направление
+                    float angle = static_cast<float>(rand()) / RAND_MAX * 6.2832f;
+                    float speed = 1.0f + static_cast<float>(rand()) / RAND_MAX * 2.0f;
+                    
+                    particle.velocity = glm::vec3(
+                        cos(angle) * 0.3f,
+                        speed * 1.5f, 
+                        sin(angle) * 0.3f
+                    );
+                    
+                    particle.lifetime = 0.5f + static_cast<float>(rand()) / RAND_MAX * 0.3f;
+                    particle.max_lifetime = particle.lifetime;
+                    particle.size = 0.2f + intensity * 0.4f;
+                    
+                    // Цвет от желтого к красному
+                    float color_mix = static_cast<float>(rand()) / RAND_MAX;
+                    particle.color = glm::mix(
+                        glm::vec3(1.0f, 0.8f, 0.1f), // Желтый
+                        glm::vec3(1.0f, 0.3f, 0.0f), // Красный
+                        color_mix
+                    );
+                    
+                    m_fireParticles.push_back(particle);
+                }
+            }
+        }
+    }
 }
 void Renderer::RenderFireParticles()
 {
     if (m_fireParticles.empty()) return;
     
-    m_particleModels.clear();
-    m_particleColors.clear();
+    m_modelMatrices.clear();
+    m_colors.clear();
     
     for (const auto& particle : m_fireParticles) {
-        float lifeRatio = particle.lifetime / particle.maxLifetime;
+        float life_ratio = particle.lifetime / particle.max_lifetime;
         
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, particle.position);
-        model = glm::scale(model, glm::vec3(particle.size * lifeRatio));
-        m_particleModels.push_back(model);
+        model = glm::scale(model, glm::vec3(particle.size * life_ratio));
         
-        glm::vec3 color;
-        if (lifeRatio > 0.7f) {
-            color = glm::mix(glm::vec3(1.0f, 1.0f, 0.3f), glm::vec3(1.0f, 0.8f, 0.1f), (lifeRatio - 0.7f) / 0.3f);
-        } else if (lifeRatio > 0.3f) {
-            color = glm::mix(glm::vec3(1.0f, 0.8f, 0.1f), glm::vec3(1.0f, 0.4f, 0.1f), (lifeRatio - 0.3f) / 0.4f);
-        } else {
-            color = glm::mix(glm::vec3(1.0f, 0.4f, 0.1f), glm::vec3(0.8f, 0.2f, 0.1f), lifeRatio / 0.3f);
-        }
-        
-        m_particleColors.push_back(color);
+        m_modelMatrices.push_back(model);
+        m_colors.push_back(particle.color * life_ratio); // Блекнут со временем
     }
     
+    // Инстансинг частиц
     std::vector<float> instanceData;
     for (size_t i = 0; i < m_fireParticles.size(); i++) {
-        const glm::mat4& model = m_particleModels[i];
+        const glm::mat4& model = m_modelMatrices[i];
         for (int col = 0; col < 4; col++) {
             for (int row = 0; row < 4; row++) {
                 instanceData.push_back(model[col][row]);
             }
         }
-        instanceData.push_back(m_particleColors[i].x);
-        instanceData.push_back(m_particleColors[i].y);
-        instanceData.push_back(m_particleColors[i].z);
+        instanceData.push_back(m_colors[i].x);
+        instanceData.push_back(m_colors[i].y);
+        instanceData.push_back(m_colors[i].z);
     }
     
     m_instanceVBO->SetData(instanceData.data(), instanceData.size() * sizeof(float));
@@ -197,9 +263,15 @@ void Renderer::RenderFireParticles()
     m_shader->SetMat4("u_view", m_viewMat);
     m_shader->SetMat4("u_projection", m_projectionMat);
     
+    // Включить blending для прозрачности
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    
     m_vao->Bind();
     glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, m_fireParticles.size());
     m_vao->Unbind();
+    
+    glDisable(GL_BLEND);
     m_shader->Unbind();
 }
 void Renderer::RenderFire(const std::vector<Agent> &agents, float dt)
@@ -216,6 +288,37 @@ void Renderer::RenderFire(const std::vector<Agent> &agents, float dt)
 }
 void Renderer::EndScene()
 {
+}
+
+void Renderer::RenderWithGeometryShader()
+ {
+    // Настройка рендеринга
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Аддитивное смешение для огня
+    glDepthMask(GL_FALSE); // Огонь не пишет в глубину
+    
+    m_fireGeometryShader->Bind();
+    m_fireGeometryShader->SetMat4("u_view", m_viewMat);
+    m_fireGeometryShader->SetMat4("u_projection", m_projectionMat);
+    m_fireGeometryShader->SetFloat("u_time", glfwGetTime());
+    
+    // Передаем векторы камеры для billboard
+    glm::mat4 view = m_viewMat;
+    glm::vec3 camera_right = glm::vec3(view[0][0], view[1][0], view[2][0]);
+    glm::vec3 camera_up = glm::vec3(view[0][1], view[1][1], view[2][1]);
+    
+    m_fireGeometryShader->SetVec3("u_camera_right", camera_right);
+    m_fireGeometryShader->SetVec3("u_camera_up", camera_up);
+    
+    // Рендерим точки - геометрический шейдер сделает остальное
+    m_agentVAO->Bind();
+    glDrawArrays(GL_POINTS, 0, m_agentRenderData.size());
+    m_agentVAO->Unbind();
+    
+    m_fireGeometryShader->Unbind();
+    
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
 }
 
 void Renderer::DrawAgents(const std::vector<Agent> &agents)
