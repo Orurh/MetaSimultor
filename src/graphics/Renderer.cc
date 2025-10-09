@@ -112,31 +112,130 @@ void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
     m_viewMat = view;
     m_projectionMat = projection;
 }
+void Renderer::UpdateFireParticles(float dt, const std::vector<Agent> &burningAgents)
+{
+    for (auto it = m_fireParticles.begin(); it != m_fireParticles.end();) {
+        it->lifetime -= dt;
+        it->velocity.y += 3.0f * dt; 
+        it->position += it->velocity * dt;
+        it->size *= 0.95f;
+        
+        if (it->lifetime <= 0.0f) {
+            it = m_fireParticles.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    for (const auto& agent : burningAgents) {
+        int numParticles = 1 + static_cast<int>(agent.intensity * 5);
+        
+        for (int i = 0; i < numParticles && m_fireParticles.size() < 1; i++) {
+            FireParticle particle;
+            particle.position = glm::vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+            
+            float angle = static_cast<float>(rand()) / RAND_MAX * 6.2832f; 
+            float speed = 1.0f + static_cast<float>(rand()) / RAND_MAX * 2.0f;
+            
+            particle.velocity = glm::vec3(
+                cos(angle) * 0.5f,
+                speed * 2.0f, 
+                sin(angle) * 0.5f
+            );
+            
+            particle.lifetime = 0.8f + static_cast<float>(rand()) / RAND_MAX * 0.4f;
+            particle.maxLifetime = particle.lifetime;
+            particle.size = 0.1f + agent.intensity * 0.3f;
+            
+            m_fireParticles.push_back(particle);
+        }
+    }
+}
+void Renderer::RenderFireParticles()
+{
+    if (m_fireParticles.empty()) return;
+    
+    m_particleModels.clear();
+    m_particleColors.clear();
+    
+    for (const auto& particle : m_fireParticles) {
+        float lifeRatio = particle.lifetime / particle.maxLifetime;
+        
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, particle.position);
+        model = glm::scale(model, glm::vec3(particle.size * lifeRatio));
+        m_particleModels.push_back(model);
+        
+        glm::vec3 color;
+        if (lifeRatio > 0.7f) {
+            color = glm::mix(glm::vec3(1.0f, 1.0f, 0.3f), glm::vec3(1.0f, 0.8f, 0.1f), (lifeRatio - 0.7f) / 0.3f);
+        } else if (lifeRatio > 0.3f) {
+            color = glm::mix(glm::vec3(1.0f, 0.8f, 0.1f), glm::vec3(1.0f, 0.4f, 0.1f), (lifeRatio - 0.3f) / 0.4f);
+        } else {
+            color = glm::mix(glm::vec3(1.0f, 0.4f, 0.1f), glm::vec3(0.8f, 0.2f, 0.1f), lifeRatio / 0.3f);
+        }
+        
+        m_particleColors.push_back(color);
+    }
+    
+    std::vector<float> instanceData;
+    for (size_t i = 0; i < m_fireParticles.size(); i++) {
+        const glm::mat4& model = m_particleModels[i];
+        for (int col = 0; col < 4; col++) {
+            for (int row = 0; row < 4; row++) {
+                instanceData.push_back(model[col][row]);
+            }
+        }
+        instanceData.push_back(m_particleColors[i].x);
+        instanceData.push_back(m_particleColors[i].y);
+        instanceData.push_back(m_particleColors[i].z);
+    }
+    
+    m_instanceVBO->SetData(instanceData.data(), instanceData.size() * sizeof(float));
+    
+    m_shader->Bind();
+    m_shader->SetMat4("u_view", m_viewMat);
+    m_shader->SetMat4("u_projection", m_projectionMat);
+    
+    m_vao->Bind();
+    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, m_fireParticles.size());
+    m_vao->Unbind();
+    m_shader->Unbind();
+}
+void Renderer::RenderFire(const std::vector<Agent> &agents, float dt)
+{
+    std::vector<Agent> burningAgents;
+    for (const auto& agent : agents) {
+        if (agent.isBurning()) {
+            burningAgents.push_back(agent);
+        }
+    }
+    
+    UpdateFireParticles(dt, burningAgents);
+    RenderFireParticles();
+}
 void Renderer::EndScene()
 {
 }
+
 void Renderer::DrawAgents(const std::vector<Agent> &agents)
 {
    if (agents.empty()) return;
-
     m_modelMatrices.clear();
     m_colors.clear();
     for (const auto& agent : agents) {
-      // Матрица модели для каждого агента
       glm::mat4 model = glm::mat4(1.0f);
-      model = glm::translate(model, glm::vec3(agent.pos_x, 0.0f, agent.pos_y));
+      model = glm::translate(model, glm::vec3(agent.pos_x, agent.pos_y, agent.pos_z));
       
-      float scale = (agent.type == 0) ? 8.0f : (agent.type == 1) ? 4.0f : 6.0f;
-      model = glm::scale(model, glm::vec3(scale));
-      
-      m_modelMatrices.push_back(model);
-      
-      // Цвет для каждого агента
+      float scale;
       glm::vec3 color;
-      if (agent.type == 0) color = glm::vec3(0.0f, 1.0f, 0.0f);
-      else if (agent.type == 1) color = glm::vec3(1.0f, agent.intensity, 0.0f);
-      else color = glm::vec3(0.3f, 0.3f, 0.3f);
+      if (agent.type == 1) { 
+          scale = 0.5f; 
+          color = glm::vec3(1.0f, 0.3f + agent.intensity * 0.7f, 0.0f);
+      } 
       
+      model = glm::scale(model, glm::vec3(scale));
+      m_modelMatrices.push_back(model);
       m_colors.push_back(color);
     }
 

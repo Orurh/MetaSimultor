@@ -60,8 +60,21 @@ void Scene::Render() {
     m_renderer.BeginScene(view, projection);
     auto agents = LoadAgentsFromGPU();
     for(const auto& agent : agents) {
-        RenderAgent(agent);
+        if (agent.type != AgentType::TREE_BRANCH) {  
+            RenderAgent(agent);
+        }
     }
+   std::vector<Agent> burningBranches;
+    
+    for (const auto& agent : agents) {
+        if ((agent.type == AgentType::TREE_BRANCH || agent.type == AgentType::BURNED) ) {
+            burningBranches.push_back(agent);
+        }
+    }
+    
+    if (burningBranches.empty()) return;
+    m_renderer.DrawAgents(burningBranches);
+    m_renderer.RenderFire(agents, 0.016f); 
     m_renderer.EndScene();
 }
 
@@ -87,6 +100,7 @@ std::vector<Agent> Scene::LoadAgentsFromGPU()
                agents.size() * sizeof(Agent), cudaMemcpyDeviceToHost);
     return agents;
 }
+
 void Scene::RenderAgent(const Agent &agent)
 {
     glm::vec3 position(agent.pos_x, agent.pos_y, agent.pos_z);
@@ -95,15 +109,7 @@ void Scene::RenderAgent(const Agent &agent)
         case AgentType::TREE:
             m_renderer.DrawModel(*m_treeModel, position, m_camera.GetPosition());
             break;
-        case AgentType::FIRE:
-            m_renderer.DrawModel(*m_burningModel, position, m_camera.GetPosition());
-            break;
-        case AgentType::TREE_BRANCH:
-            m_renderer.DrawModel(*m_burningModel, position, m_camera.GetPosition());
-            break;
-        case AgentType::BURNED:
-            m_renderer.DrawModel(*m_burnedModel, position, m_camera.GetPosition());
-            break;
+       
     }
 }
 }
