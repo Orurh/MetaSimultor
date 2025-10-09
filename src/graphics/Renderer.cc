@@ -128,7 +128,7 @@ void Renderer::UpdateFireParticles(float dt, const std::vector<Agent> &burningAg
     }
     
     for (const auto& agent : burningAgents) {
-        int numParticles = 1 + static_cast<int>(agent.intensity * 5);
+        int numParticles = 1 + static_cast<int>(agent.intencity * 5);
         
         for (int i = 0; i < numParticles && m_fireParticles.size() < 1; i++) {
             FireParticle particle;
@@ -145,7 +145,7 @@ void Renderer::UpdateFireParticles(float dt, const std::vector<Agent> &burningAg
             
             particle.lifetime = 0.8f + static_cast<float>(rand()) / RAND_MAX * 0.4f;
             particle.maxLifetime = particle.lifetime;
-            particle.size = 0.1f + agent.intensity * 0.3f;
+            particle.size = 0.1f + agent.intencity * 0.3f;
             
             m_fireParticles.push_back(particle);
         }
@@ -231,7 +231,7 @@ void Renderer::DrawAgents(const std::vector<Agent> &agents)
       glm::vec3 color;
       if (agent.type == 1) { 
           scale = 0.5f; 
-          color = glm::vec3(1.0f, 0.3f + agent.intensity * 0.7f, 0.0f);
+          color = glm::vec3(1.0f, 0.3f + agent.intencity * 0.7f, 0.0f);
       } 
       
       model = glm::scale(model, glm::vec3(scale));
