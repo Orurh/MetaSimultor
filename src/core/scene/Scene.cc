@@ -67,7 +67,7 @@ void Scene::Render() {
     std::vector<Agent> burningBranches;
     
     for (const auto& agent : agents) {
-        if ((agent.type == AgentType::FIRE_SOURCE || agent.type == AgentType::BURNED) ) {
+        if ((agent.type == AgentType::TREE || agent.type == AgentType::BURNED) ) {
             burningBranches.push_back(agent);
         }
     }
@@ -82,6 +82,7 @@ void Scene::AddTree(float x, float y)
 {
   static int tree_counter = 0;
   m_agentManager.AddTree(tree_counter++, x, y);
+  m_agentManager.IgniteRandomPoint(0);
 }
 
 void Scene::Generate()

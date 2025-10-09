@@ -114,42 +114,42 @@ void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
 }
 void Renderer::UpdateFireParticles(float dt, const std::vector<Agent> &burningAgents)
 {
-    for (auto it = m_fireParticles.begin(); it != m_fireParticles.end();) {
-        it->lifetime -= dt;
-        it->velocity.y += 3.0f * dt; 
-        it->position += it->velocity * dt;
-        it->size *= 0.95f;
+    // for (auto it = m_fireParticles.begin(); it != m_fireParticles.end();) {
+    //     it->lifetime -= dt;
+    //     it->velocity.y += 3.0f * dt; 
+    //     it->position += it->velocity * dt;
+    //     it->size *= 0.95f;
         
-        if (it->lifetime <= 0.0f) {
-            it = m_fireParticles.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    //     if (it->lifetime <= 0.0f) {
+    //         it = m_fireParticles.erase(it);
+    //     } else {
+    //         ++it;
+    //     }
+    // }
     
-    for (const auto& agent : burningAgents) {
-        int numParticles = 1 + static_cast<int>(agent.intensity * 5);
+    // for (const auto& agent : burningAgents) {
+    //     int numParticles = 1 + static_cast<int>(agent.intensity * 5);
         
-        for (int i = 0; i < numParticles && m_fireParticles.size() < 1; i++) {
-            FireParticle particle;
-            particle.position = glm::vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+    //     for (int i = 0; i < numParticles && m_fireParticles.size() < 1; i++) {
+    //         FireParticle particle;
+    //         particle.position = glm::vec3(agent.pos_x, agent.pos_y, agent.pos_z);
             
-            float angle = static_cast<float>(rand()) / RAND_MAX * 6.2832f; 
-            float speed = 1.0f + static_cast<float>(rand()) / RAND_MAX * 2.0f;
+    //         float angle = static_cast<float>(rand()) / RAND_MAX * 6.2832f; 
+    //         float speed = 1.0f + static_cast<float>(rand()) / RAND_MAX * 2.0f;
             
-            particle.velocity = glm::vec3(
-                cos(angle) * 0.5f,
-                speed * 2.0f, 
-                sin(angle) * 0.5f
-            );
+    //         particle.velocity = glm::vec3(
+    //             cos(angle) * 0.5f,
+    //             speed * 2.0f, 
+    //             sin(angle) * 0.5f
+    //         );
             
-            particle.lifetime = 0.8f + static_cast<float>(rand()) / RAND_MAX * 0.4f;
-            particle.maxLifetime = particle.lifetime;
-            particle.size = 0.1f + agent.intensity * 0.3f;
+    //         particle.lifetime = 0.8f + static_cast<float>(rand()) / RAND_MAX * 0.4f;
+    //         particle.maxLifetime = particle.lifetime;
+    //         particle.size = 0.1f + agent.intensity * 0.3f;
             
-            m_fireParticles.push_back(particle);
-        }
-    }
+    //         m_fireParticles.push_back(particle);
+    //     }
+    // }
 }
 void Renderer::RenderFireParticles()
 {
@@ -220,27 +220,45 @@ void Renderer::EndScene()
 
 void Renderer::DrawAgents(const std::vector<Agent> &agents)
 {
-   if (agents.empty()) return;
+    if (agents.empty()) return;
     m_modelMatrices.clear();
     m_colors.clear();
+    
     for (const auto& agent : agents) {
-      glm::mat4 model = glm::mat4(1.0f);
-      model = glm::translate(model, glm::vec3(agent.pos_x, agent.pos_y, agent.pos_z));
-      
-      float scale;
-      glm::vec3 color;
-      if (agent.type == 1) { 
-          scale = 0.5f; 
-          color = glm::vec3(1.0f, 0.3f + agent.intensity * 0.7f, 0.0f);
-      } 
-      
-      model = glm::scale(model, glm::vec3(scale));
-      m_modelMatrices.push_back(model);
-      m_colors.push_back(color);
-    }
+
+        for (int i = 0; i < agent.fire_collider.point_count; i++) {
+
+             glm::vec3 world_pos = glm::vec3(
+                agent.fire_collider.heat_points[i][0],  
+                agent.fire_collider.heat_points[i][1],  
+                agent.fire_collider.heat_points[i][2]   
+            );
+         
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, world_pos);
+            
+            float intensity = agent.fire_collider.intensities[i];
+            if(intensity <= 0.1) {
+                continue;
+            }
+            float scale = 1 + intensity * 0.3f; 
+            model = glm::scale(model, glm::vec3(scale));
+            
+            m_modelMatrices.push_back(model);
+            
+            glm::vec3 color;
+            if (intensity > 0.1f) {
+                color = glm::vec3(1.0f, 1.0f - intensity * 0.7f, 0.0f);
+            } else {
+                color = glm::vec3(0.0f, 0.0f, 1.0f);
+            }
+            m_colors.push_back(color);
+        }
+
+    if (m_modelMatrices.empty()) return;
 
     std::vector<float> instanceData;
-    for (size_t i = 0; i < agents.size(); i++) {
+    for (size_t i = 0; i < m_modelMatrices.size(); i++) {
         const glm::mat4& model = m_modelMatrices[i];
         for (int col = 0; col < 4; col++) {
             for (int row = 0; row < 4; row++) {
@@ -259,9 +277,10 @@ void Renderer::DrawAgents(const std::vector<Agent> &agents)
     m_shader->SetMat4("u_projection", m_projectionMat);
     
     m_vao->Bind();
-    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, agents.size());
+    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, m_modelMatrices.size());
     m_vao->Unbind();
     m_shader->Unbind();
+}
 }
 
 } // namespace engine

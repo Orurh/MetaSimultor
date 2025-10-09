@@ -18,7 +18,7 @@ public:
     void AddAgent(const Agent& angent);
     Agent* getDeviceAgents() { return m_agents; }
     int getAgentCount() const { return m_count; }
-
+    void IgniteRandomPoint(int agent_index);
 private:
     void generateTreeHeatPoints(FireCollider& collider, float base_x, float base_z);
     void setupTreeFireCollider(Agent& tree, float base_x, float base_z);

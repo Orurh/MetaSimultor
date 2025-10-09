@@ -9,12 +9,11 @@ enum AgentType {
 };
 
 struct FireCollider {
-    float bounds_min[3];  // min x,y,z
-    float bounds_max[3];  // max x,y,z  
-    float heat_points[12][3]; // 12 точек горения (x,y,z для каждой)
-    float fuels[12];         // топливо для каждой точки
-    float intensities[12];   // интенсивность для каждой точки
-    int point_count;        // сколько точек реально используется
+    float bounds_min[3], bounds_max[3];
+    float heat_points[64][3];  // УВЕЛИЧИЛИ до 64 точек!
+    float fuels[64];
+    float intensities[64];
+    int point_count;
     
     __host__ __device__
     FireCollider() : point_count(0) {
@@ -44,8 +43,21 @@ struct Agent {
     __host__ __device__
     bool isBurning() const { 
         for (int i = 0; i < fire_collider.point_count; i++) {
-            if (fire_collider.intensities[i] > 0.1f) return true;
+            if (fire_collider.intensities[i] > 0.1f) {
+                return true;  
+            }
         }
         return false;
+    }
+    
+    __host__ __device__
+    float getOverallIntensity() const {
+        float max = 0.0f;
+        for (int i = 0; i < fire_collider.point_count; i++) {
+            if (fire_collider.intensities[i] > max) {
+                max = fire_collider.intensities[i];
+            }
+        }
+        return max;
     }
 };
