@@ -18,5 +18,8 @@ public:
   static std::unique_ptr<Shader> Create(const std::string &filename);
   static std::unique_ptr<Shader> Create(const std::string &vertexSrc,
                                         const std::string &fragmentSrc);
+  static std::unique_ptr<Shader> Create(const std::string &vertexSrc,
+                                        const std::string &fragmentSrc,
+                                        const std::string &geometrySrc);
 };
 } // namespace engine

@@ -13,9 +13,10 @@ public:
   void DrawCube(const glm::vec3& position, const glm::vec3& color, float scale);
   void DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& camPos);
   void BeginScene(const glm::mat4& view, const glm::mat4& projection);
-
+  void UploadAgentsData(const std::vector<Agent>& agents);
   void RenderFire(const std::vector<Agent>& agents, float dt);
   void EndScene();
+  void RenderWithGeometryShader();
 private:
   void UpdateFireParticles(float dt, const std::vector<Agent>& burningAgents);
   void RenderFireParticles();
@@ -25,6 +26,7 @@ private:
 
   std::unique_ptr<Shader> m_shader;
   std::shared_ptr<Shader> m_modelShader;
+  std::shared_ptr<Shader> m_fireGeometryShader;
   std::shared_ptr<VertexArrayObject> m_vao;
   std::shared_ptr<VertexBuffer> m_vbo;
   std::shared_ptr<IndexBuffer> m_ebo;
@@ -33,15 +35,27 @@ private:
   std::vector<glm::mat4> m_modelMatrices;
   std::vector<glm::vec3> m_colors;
 
-  struct FireParticle {
-      glm::vec3 position;
-      glm::vec3 velocity;
-      float lifetime;
-      float maxLifetime;
-      float size;
-  };
-  
+    struct FireParticle {
+        glm::vec3 position;
+        glm::vec3 velocity;
+        float lifetime;
+        float max_lifetime;
+        float size;
+        glm::vec3 color;
+    };
+
+    struct AgentRenderData {
+    glm::vec3 position;
+    float intensity;
+    glm::vec3 bounds_min;
+    glm::vec3 bounds_max;
+};  
+  std::vector<AgentRenderData> m_agentRenderData;
+  std::shared_ptr<VertexBuffer> m_agentVBO;
+  std::shared_ptr<VertexArrayObject> m_agentVAO;
+
   std::vector<FireParticle> m_fireParticles;
+  float m_particleSpawnTimer = 0.0f;
   std::vector<glm::mat4> m_particleModels;
   std::vector<glm::vec3> m_particleColors;
 };

@@ -5,6 +5,9 @@ class OpenGLShader final : public Shader {
 public:
   OpenGLShader(const std::string &filename);
   OpenGLShader(const std::string &vertexSrc, const std::string &fragmentSrc);
+  OpenGLShader(const std::string &vertexSrc,
+                           const std::string &geometrySrc,
+                           const std::string &fragmentSrc);
   virtual ~OpenGLShader();
 
   void Bind() const override;
