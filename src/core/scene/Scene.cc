@@ -77,20 +77,8 @@ void Scene::Render() {
             burningBranches.push_back(agent);
         }
     }
-    m_renderer.UploadAgentsData(agents); // Горящие агенты → GPU
+    m_renderer.UploadAgentsData(agents); 
     m_renderer.RenderWithGeometryShader();
-    // auto start_time = std::chrono::high_resolution_clock::now();
-    
-    // m_renderer.DrawAgents(burningBranches);
-    
-    // auto end_time = std::chrono::high_resolution_clock::now();
-    
-    // // Вывод времени выполнения
-    // auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    
-    // std::cout 
-    //           << "Total=" << total_duration.count() << "ms, "
-    //           << "Agents=" << agents.size() << std::endl;
     
     m_renderer.EndScene();
 }

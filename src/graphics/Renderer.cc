@@ -40,6 +40,8 @@ void Renderer::Init() {
     m_shader = Shader::Create("res/shaders/shader.sh");
     m_modelShader = Shader::Create("res/shaders/model_shader.sh");
     m_fireGeometryShader = Shader::Create("res/shaders/fire_geom.sh");
+    
+    m_fireTexture = Texture::Create("res/textures/fire_texture3.png");
     m_vao = VertexArrayObject::Create();
 
     m_vbo = VertexBuffer::Create(vertices, sizeof(vertices));
@@ -193,7 +195,7 @@ void Renderer::UpdateFireParticles(float dt, const std::vector<Agent> &burningAg
                 // Количество частиц зависит от интенсивности
                 int particles_to_spawn = 1 + static_cast<int>(intensity * 3);
                 
-                for (int p = 0; p < particles_to_spawn && m_fireParticles.size() < 1000; p++) {
+                for (int p = 0; p < particles_to_spawn && m_fireParticles.size() < 10000; p++) {
                     FireParticle particle;
                     particle.position = point_pos;
                     
@@ -240,7 +242,7 @@ void Renderer::RenderFireParticles()
         model = glm::scale(model, glm::vec3(particle.size * life_ratio));
         
         m_modelMatrices.push_back(model);
-        m_colors.push_back(particle.color * life_ratio); // Блекнут со временем
+        m_colors.push_back(particle.color * life_ratio);
     }
     
     // Инстансинг частиц
@@ -292,10 +294,9 @@ void Renderer::EndScene()
 
 void Renderer::RenderWithGeometryShader()
  {
-    // Настройка рендеринга
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Аддитивное смешение для огня
-    glDepthMask(GL_FALSE); // Огонь не пишет в глубину
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    glDepthMask(GL_FALSE);
     
     m_fireGeometryShader->Bind();
     m_fireGeometryShader->SetMat4("u_view", m_viewMat);
@@ -309,7 +310,8 @@ void Renderer::RenderWithGeometryShader()
     
     m_fireGeometryShader->SetVec3("u_camera_right", camera_right);
     m_fireGeometryShader->SetVec3("u_camera_up", camera_up);
-    
+    m_fireTexture->Bind(0);
+    m_fireGeometryShader->SetInt("u_fire_texture", 0);
     // Рендерим точки - геометрический шейдер сделает остальное
     m_agentVAO->Bind();
     glDrawArrays(GL_POINTS, 0, m_agentRenderData.size());

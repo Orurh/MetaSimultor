@@ -31,18 +31,13 @@ OpenGLTexture::OpenGLTexture(const std::string &path) {
       stbi_image_free(data);
       throw std::runtime_error("Unsupported image format: " + path);
     }
-
-    glCreateTextures(GL_TEXTURE_2D, 1, &m_rendererID);
-    glTextureStorage2D(m_rendererID, 1, internalFormat, m_width, m_height);
-
-    glTextureParameteri(m_rendererID, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-    glTextureParameteri(m_rendererID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-
-    glTextureParameteri(m_rendererID, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTextureParameteri(m_rendererID, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-    glTextureSubImage2D(m_rendererID, 0, 0, 0, m_width, m_height, dataFormat,
-                        GL_UNSIGNED_BYTE, data);
+    glGenTextures(1, &m_rendererID);
+    glBindTexture(GL_TEXTURE_2D, m_rendererID);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, m_width, m_height, 0, dataFormat, GL_UNSIGNED_BYTE, data);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
     stbi_image_free(data);
   } else {
@@ -52,7 +47,8 @@ OpenGLTexture::OpenGLTexture(const std::string &path) {
 OpenGLTexture::OpenGLTexture(const TextureSpecification &spec) {}
 OpenGLTexture::~OpenGLTexture() { glDeleteTextures(1, &m_rendererID); }
 void OpenGLTexture::Bind(uint32_t slot) const {
-  glBindTextureUnit(slot, m_rendererID);
+  glActiveTexture(GL_TEXTURE0 + slot);
+  glBindTexture(GL_TEXTURE_2D, m_rendererID);
 }
 void OpenGLTexture::Unbind() const {}
 } // namespace nova

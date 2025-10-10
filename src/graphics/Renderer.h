@@ -3,6 +3,7 @@
 #include <glm/vec3.hpp>
 #include <memory>
 #include <core/agent.h>
+#include "Texture.h"
 #include "Model.h"
 namespace engine {
 class Renderer {
@@ -27,6 +28,7 @@ private:
   std::unique_ptr<Shader> m_shader;
   std::shared_ptr<Shader> m_modelShader;
   std::shared_ptr<Shader> m_fireGeometryShader;
+  std::shared_ptr<Texture> m_fireTexture;
   std::shared_ptr<VertexArrayObject> m_vao;
   std::shared_ptr<VertexBuffer> m_vbo;
   std::shared_ptr<IndexBuffer> m_ebo;

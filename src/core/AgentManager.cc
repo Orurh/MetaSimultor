@@ -102,8 +102,6 @@ void AgentManager::generateTreeHeatPoints(FireCollider &collider, float base_x, 
         collider.intensities[collider.point_count] = 0.0f;
         collider.point_count++;
     }
-    
-    std::cout << "Generated " << collider.point_count << " points for tree" << std::endl;
 }
 
 void AgentManager::AddFire(float x, float y, float intensity) {
@@ -116,10 +114,8 @@ void AgentManager::AddFire(float x, float y, float intensity) {
     fire.pos_z = y;
     fire.pos_y = 0.0f;
     
-    // Простой FireCollider для источника огня
     setupFireSourceCollider(fire, x, y);
     
-    // Зажигаем точку
     fire.fire_collider.intensities[0] = intensity;
     
     AddAgent(fire);
