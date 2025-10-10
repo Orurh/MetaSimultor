@@ -14,6 +14,9 @@ public:
   void AddTree(float x, float y);
   void AddFire(float x, float y) { m_agentManager.AddFire(x, y, 1.0f); }
   void Generate();
+
+
+  void LoadPrimaryModel(const std::string& path);  
 private:
   std::vector<Agent> LoadAgentsFromGPU();
   void RenderAgent(const Agent& agent);

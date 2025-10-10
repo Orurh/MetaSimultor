@@ -21,7 +21,7 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
     
     // 1. Обновляем горение для каждого агента
     for (int i = 0; i < agent->fire_collider.point_count; i++) {
-        if (agent->fire_collider.intensities[i] > 0.1f) {
+        if (agent->fire_collider.intensities[i] > 0.1F) {
             // Точка горит - уменьшаем топливо
             agent->fire_collider.fuels[i] -= agent->fire_collider.intensities[i] * dt * 5.0f;
             

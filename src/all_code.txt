@@ -1,0 +1,2798 @@
+
+===== ./core/agent.h =====
+#pragma once
+#include <cstdint>
+#include "cuda_include.h"
+
+enum AgentType {
+    TREE = 0,
+    FIRE_SOURCE = 1,    // Точка горения (бывшая ветка)
+    BURNED = 2
+};
+
+struct FireCollider {
+    float bounds_min[3], bounds_max[3];
+    float heat_points[64][3];  // УВЕЛИЧИЛИ до 64 точек!
+    float fuels[64];
+    float intensities[64];
+    int point_count;
+    
+    __host__ __device__
+    FireCollider() : point_count(0) {
+        for (int i = 0; i < 3; i++) {
+            bounds_min[i] = 0.0f;
+            bounds_max[i] = 0.0f;
+        }
+    }
+};
+
+struct Agent {
+    float pos_x, pos_y, pos_z;  // Позиция объекта
+    AgentType type;
+    float intencity;
+    int object_id;              // ID объекта
+    
+    // Универсальный коллайдер для огня
+    FireCollider fire_collider;
+    
+    __host__ __device__
+    Agent() : pos_x(0), pos_y(0), pos_z(0), type(TREE), object_id(-1) {}
+    
+    __host__ __device__
+    Agent(float x, float y, float z, AgentType type, int id) 
+        : pos_x(x), pos_y(y), pos_z(z), type(type), object_id(id) {}
+    
+    __host__ __device__
+    bool isBurning() const { 
+        for (int i = 0; i < fire_collider.point_count; i++) {
+            if (fire_collider.intensities[i] > 0.1f) {
+                return true;  
+            }
+        }
+        return false;
+    }
+    
+    __host__ __device__
+    float getOverallIntensity() const {
+        float max = 0.0f;
+        for (int i = 0; i < fire_collider.point_count; i++) {
+            if (fire_collider.intensities[i] > max) {
+                max = fire_collider.intensities[i];
+            }
+        }
+        return max;
+    }
+};
+===== ./core/AgentManager.cc =====
+#include "AgentManager.h"
+#include <cuda_runtime.h>
+#include <vector>
+#include <random>
+#include <iostream>
+
+AgentManager::AgentManager(int max_agents) : m_capacity(max_agents), m_count(0) {
+    cudaMalloc(&m_agents, max_agents * sizeof(Agent));
+}
+
+AgentManager::~AgentManager() {
+    cudaFree(m_agents);
+}
+
+void AgentManager::AddTree(int tree_id, float base_x, float base_z) {
+    Agent tree;
+    tree.type = TREE;
+    tree.object_id = tree_id;
+    tree.pos_x = base_x;
+    tree.pos_z = base_z;
+    tree.pos_y = 0.0f;
+    
+    // Настраиваем FireCollider для дерева
+    setupTreeFireCollider(tree, base_x, base_z);
+    
+    AddAgent(tree);
+}
+
+void AgentManager::setupTreeFireCollider(Agent& tree, float base_x, float base_z) {
+    tree.fire_collider.bounds_min[0] = base_x - 2.0f;
+    tree.fire_collider.bounds_min[1] = 0.0f;         
+    tree.fire_collider.bounds_min[2] = base_z - 2.0f;
+    
+    tree.fire_collider.bounds_max[0] = base_x + 2.0f;
+    tree.fire_collider.bounds_max[1] = 8.0f;         
+    tree.fire_collider.bounds_max[2] = base_z + 2.0f;
+    
+    generateTreeHeatPoints(tree.fire_collider, base_x, base_z);
+}
+void AgentManager::IgniteRandomPoint(int agent_index)
+ {
+    if (agent_index < 0 || agent_index >= m_count) return;
+    
+    Agent agent;
+    cudaMemcpy(&agent, m_agents + agent_index, sizeof(Agent), cudaMemcpyDeviceToHost);
+    
+    if (agent.fire_collider.point_count > 0) {
+        int random_point = rand() % agent.fire_collider.point_count;
+        agent.fire_collider.intensities[random_point] = 0.5f;
+        cudaMemcpy(m_agents + agent_index, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
+    }
+}
+void AgentManager::generateTreeHeatPoints(FireCollider &collider, float base_x, float base_z)
+{
+    collider.point_count = 0;
+    
+    for (float height = 0.5f; height <= 8.0f; height += 0.8f) {
+        collider.heat_points[collider.point_count][0] = base_x;
+        collider.heat_points[collider.point_count][1] = height;
+        collider.heat_points[collider.point_count][2] = base_z;
+        collider.fuels[collider.point_count] = 30.0f;
+        collider.intensities[collider.point_count] = 0.0f;
+        collider.point_count++;
+    }
+    
+    float levels[] = {2.0f, 4.0f, 6.0f, 7.5f};
+    float level_radii[] = {1.0f, 1.8f, 2.2f, 1.5f};
+    int points_per_level[] = {8, 12, 16, 8};
+    
+    for (int level = 0; level < 4; level++) {
+        float height = levels[level];
+        float radius = level_radii[level];
+        int points = points_per_level[level];
+        
+        for (int i = 0; i < points; i++) {
+            float angle = (float)i / points * 360.0f;
+            float rad = glm::radians(angle);
+            
+            collider.heat_points[collider.point_count][0] = base_x + cos(rad) * radius;
+            collider.heat_points[collider.point_count][1] = height;
+            collider.heat_points[collider.point_count][2] = base_z + sin(rad) * radius;
+            collider.fuels[collider.point_count] = 20.0f;
+            collider.intensities[collider.point_count] = 0.0f;
+            collider.point_count++;
+            
+            if (collider.point_count >= 64) break;
+        }
+        if (collider.point_count >= 64) break;
+    }
+    
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dist_x(base_x - 2.0f, base_x + 2.0f);
+    std::uniform_real_distribution<float> dist_z(base_z - 2.0f, base_z + 2.0f);
+    std::uniform_real_distribution<float> dist_y(1.0f, 7.0f);
+    
+    while (collider.point_count < 50 && collider.point_count < 64) {
+        collider.heat_points[collider.point_count][0] = dist_x(gen);
+        collider.heat_points[collider.point_count][1] = dist_y(gen);
+        collider.heat_points[collider.point_count][2] = dist_z(gen);
+        collider.fuels[collider.point_count] = 15.0f;
+        collider.intensities[collider.point_count] = 0.0f;
+        collider.point_count++;
+    }
+    
+    std::cout << "Generated " << collider.point_count << " points for tree" << std::endl;
+}
+
+void AgentManager::AddFire(float x, float y, float intensity) {
+    if(m_count >= m_capacity) return;
+    
+    Agent fire;
+    fire.type = FIRE_SOURCE;
+    fire.object_id = -1;
+    fire.pos_x = x;
+    fire.pos_z = y;
+    fire.pos_y = 0.0f;
+    
+    // Простой FireCollider для источника огня
+    setupFireSourceCollider(fire, x, y);
+    
+    // Зажигаем точку
+    fire.fire_collider.intensities[0] = intensity;
+    
+    AddAgent(fire);
+}
+
+void AgentManager::setupFireSourceCollider(Agent& fire, float x, float y) {
+    fire.fire_collider.bounds_min[0] = x - 0.5f;
+    fire.fire_collider.bounds_min[1] = 0.0f;  
+    fire.fire_collider.bounds_min[2] = y - 0.5f;
+    
+    fire.fire_collider.bounds_max[0] = x + 0.5f;
+    fire.fire_collider.bounds_max[1] = 2.0f;
+    fire.fire_collider.bounds_max[2] = y + 0.5f;
+    
+    // Одна точка в центре
+    fire.fire_collider.point_count = 1;
+    fire.fire_collider.heat_points[0][0] = x;
+    fire.fire_collider.heat_points[0][1] = 1.0f;
+    fire.fire_collider.heat_points[0][2] = y;
+    fire.fire_collider.fuels[0] = 50.0f;
+    fire.fire_collider.intensities[0] = 0.0f;
+}
+
+void AgentManager::AddAgent(const Agent &agent) {
+    if (m_count >= m_capacity) {
+        std::cerr << "AgentManager: capacity exceeded!" << std::endl;
+        return;
+    }
+    
+    cudaMemcpy(m_agents + m_count, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
+    m_count++;
+}
+===== ./core/AgentManager.h =====
+#include "agent.h"
+#include <glm/glm.hpp>
+#include <vector>
+struct BranchConfig {
+    float length;
+    float angle;
+    int children_count;
+    float thickness_factor;
+};
+
+class AgentManager {
+public:
+    AgentManager(int max_agents);
+    ~AgentManager();
+
+    void AddTree(int tree_id, float base_x, float base_z);
+    void AddFire(float x, float y, float intensity);  
+    void AddAgent(const Agent& angent);
+    Agent* getDeviceAgents() { return m_agents; }
+    int getAgentCount() const { return m_count; }
+    void IgniteRandomPoint(int agent_index);
+private:
+    void generateTreeHeatPoints(FireCollider& collider, float base_x, float base_z);
+    void setupTreeFireCollider(Agent& tree, float base_x, float base_z);
+    void setupFireSourceCollider(Agent& fire, float x, float y);
+    
+    Agent* m_agents;
+    int m_capacity;
+    int m_count;
+};
+===== ./core/Application.cc =====
+// Application.cc
+#include "Application.h"
+
+#include <stdexcept>
+#include <thread>
+#include <iostream>
+
+// GLAD → GLFW
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+// ImGui core + backends
+#include <../../libs/imgui/imgui.h>
+#include <../../libs/imgui/backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_opengl3.h>
+
+namespace engine {
+Application::Application(int width, int height, const std::string &title)
+  : m_window(width, height, title)
+{
+    // GLAD после создания контекста
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        throw std::runtime_error("Failed to initialize GLAD");
+    }
+    glViewport(0, 0, width, height);
+
+    // --- ImGui init (минимум) ---
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    (void)io;
+    // опциональные флаги:
+    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    ImGui::StyleColorsDark();
+
+    // backends
+    GLFWwindow* win = m_window.GetWindow(); // или твой геттер
+    ImGui_ImplGlfw_InitForOpenGL(win, /*install_callbacks=*/true);
+    ImGui_ImplOpenGL3_Init("#version 330"); // при желании можно "#version 130"
+
+    m_scene.Init();
+}
+
+void Application::Run()
+{
+    const double TARGET_FPS  = 60.0;
+    const double FRAME_TIME  = 1.0 / TARGET_FPS;
+
+    while(!m_window.ShouldClose()) {
+        double frameStart = glfwGetTime();
+
+        float currentFrame = static_cast<float>(glfwGetTime());
+        float dt = currentFrame - m_last_frame_time;
+        m_last_frame_time = currentFrame;
+
+        m_window.PollEvents();
+
+        // --- логика/рендер твоей сцены (костры и т.д.) ---
+        m_scene.Update(dt);
+        m_scene.Render();
+
+        // --- ImGui frame begin ---
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+
+        // --- Мини-окно: загрузка модели (пока без деревьев) ---
+        ImGui::Begin("Model Loader");
+        static char path[512] = "res/models/LowPolytree/CartoonTree.obj";
+        ImGui::InputText("Path", path, IM_ARRAYSIZE(path));
+        ImGui::SameLine();
+        if (ImGui::Button("Load")) {
+            m_scene.LoadPrimaryModel(path); // добавь метод в Scene, см. ниже
+        }
+        ImGui::TextUnformatted("Formats: OBJ/FBX/DAE/etc. via Assimp");
+        ImGui::End();
+
+        // Можно быстро проверить, что ImGui рисуется:
+        // static bool show_demo = true; ImGui::ShowDemoWindow(&show_demo);
+
+        // --- ImGui render ---
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+
+        m_window.SwapBuffers();
+
+        // ограничение FPS (опционально)
+        // double frameEnd = glfwGetTime();
+        // double frameDuration = frameEnd - frameStart;
+        // if (frameDuration < FRAME_TIME) {
+        //     std::this_thread::sleep_for(std::chrono::duration<double>(FRAME_TIME - frameDuration));
+        // }
+    }
+
+    // --- Shutdown ImGui ---
+    ImGui_ImplOpenGL3_Shutdown();
+    ImGui_ImplGlfw_Shutdown();
+    ImGui::DestroyContext();
+}
+} // namespace engine
+===== ./core/Application.h =====
+#pragma once
+#include <string>
+#include "Window.h"
+#include "scene/Scene.h"
+namespace engine {
+    class Application {
+        public:
+            Application(int width, int height, const std::string& title);
+            void Run();
+        private:
+            Window m_window;
+            Scene m_scene;
+            float m_last_frame_time;
+    };
+}
+===== ./core/Input.cc =====
+#include "Input.h"
+#include <iostream>
+void engine::InputSystem::Update() {
+    // Сохраняем предыдущие состояния
+    m_previousKeyState = m_currentKeyState;
+    m_prevMouseButtonState = m_mouseButtonState;
+    
+    // Сбрасываем дельту мыши (она обновляется каждый кадр)
+}
+bool engine::InputSystem::GetKey(KeyCode key, InputState state) const {
+  auto currentIt = m_currentKeyState.find(key);
+  auto previousIt = m_previousKeyState.find(key);
+
+  bool current =
+      currentIt != m_currentKeyState.end() ? currentIt->second : false;
+  bool previous =
+      previousIt != m_previousKeyState.end() ? previousIt->second : false;
+
+  switch (state) {
+  case InputState::Held:
+    return current;
+  case InputState::Pressed:
+    return current && !previous;
+  case InputState::Released:
+    return !current && previous;
+  }
+  return false;
+}
+void engine::InputSystem::SetMousePosition(float x, float y) {
+    if (m_mousePosition != glm::vec2(0.0f)) {
+        m_mouseDelta = glm::vec2(x, y) - m_mousePosition;
+    }
+    m_mousePosition = glm::vec2(x, y);
+}
+
+void engine::InputSystem::SetMouseButtonState(int button, bool pressed) {
+    m_mouseButtonState[button] = pressed;
+}
+
+
+bool engine::InputSystem::GetMouseButton(int button, InputState state) const {
+    auto currentIt = m_mouseButtonState.find(button);
+    auto previousIt = m_prevMouseButtonState.find(button);
+
+    bool current = currentIt != m_mouseButtonState.end() ? currentIt->second : false;
+    bool previous = previousIt != m_prevMouseButtonState.end() ? previousIt->second : false;
+
+    switch (state) {
+    case InputState::Held:
+        return current;
+    case InputState::Pressed:
+        return current && !previous;
+    case InputState::Released:
+        return !current && previous;
+    }
+    return false;
+}
+void engine::InputSystem::SetKeyState(KeyCode key, bool pressed)
+{
+    m_currentKeyState[key] = pressed;
+}
+===== ./core/Input.h =====
+#pragma once
+#include <functional>
+#include <glm/glm.hpp>
+#include <unordered_map>
+namespace engine {
+
+enum class KeyCode {
+  W,
+  A,
+  S,
+  D,
+  Space,
+  Enter,
+  Escape,
+  Up,
+  Down,
+  Left,
+  Right,
+};
+
+enum class InputState { Pressed, Released, Held };
+
+class InputSystem {
+public:
+  static InputSystem &Instance() {
+    static InputSystem inputSystem;
+    return inputSystem;
+  }
+  void Update();
+
+  bool GetKey(KeyCode key, InputState state = InputState::Held) const;
+  bool GetKeyDown(KeyCode key) const {
+    return GetKey(key, InputState::Pressed);
+  }
+  bool GetKeyUp(KeyCode key) const { return GetKey(key, InputState::Released); }
+
+  void SetKeyState(KeyCode key, bool pressed);
+  glm::vec2 GetMousePosition() const { return m_mousePosition; }
+  glm::vec2 GetMouseDelta() const { return m_mouseDelta; }
+  bool GetMouseButton(int button, InputState state = InputState::Held) const;
+  void SetMousePosition(float x, float y);
+  void SetMouseButtonState(int button, bool pressed);
+  float GetMouseScrollY() const { return m_mouseScrollY; }
+  void SetMouseScrollY(float yoffset) { m_mouseScrollY = yoffset; }
+  void ResetMouseScroll() { m_mouseScrollY = 0.0f; }
+private:
+  std::unordered_map<KeyCode, bool> m_currentKeyState;
+  std::unordered_map<KeyCode, bool> m_previousKeyState;
+  glm::vec2 m_mousePosition;
+  glm::vec2 m_mouseDelta;
+  
+  std::unordered_map<int, bool> m_mouseButtonState;
+  std::unordered_map<int, bool> m_prevMouseButtonState;
+  float m_mouseScrollY;
+  friend class Window; 
+};
+
+} // namespace nova
+===== ./core/scene/Camera.h =====
+#pragma once
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#define YAW -90.0f
+#define PITCH -40.0f
+#define SPEED 50.0f
+#define SENSITIVITY 0.1f
+#define ZOOM 45.0f
+namespace engine {
+
+enum Camera_Movement { FORWARD, BACKWARD, LEFT, RIGHT };
+
+class Camera {
+   public:
+    Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f),
+           float yaw = YAW, float pitch = PITCH)
+        : m_front(glm::vec3(0.0f, 0.0f, 1.0f)),
+          m_movementSpeed(SPEED),
+          m_mouseSensitivity(SENSITIVITY),
+          m_zoom(ZOOM) {
+        m_position = position;
+        m_worldUp = up;
+        m_yaw = yaw;
+        m_pitch = pitch;
+        updateCameraVectors();
+    }
+
+    glm::mat4 GetViewMatrix() { return glm::lookAt(m_position, m_position + m_front, m_up); }
+
+    void ProcessKeyboard(Camera_Movement direction, float deltaTime) {
+        float velocity = m_movementSpeed * deltaTime;
+        if (direction == FORWARD) m_position += m_front * velocity;
+        if (direction == BACKWARD) m_position -= m_front * velocity;
+        if (direction == LEFT) m_position -= m_right * velocity;
+        if (direction == RIGHT) m_position += m_right * velocity;
+    }
+
+    void ProcessMouseMovement(float xoffset, float yoffset, bool constrainPitch = true) {
+        xoffset *= m_mouseSensitivity;
+        yoffset *= m_mouseSensitivity;
+
+        m_yaw += xoffset;
+        m_pitch -= yoffset;
+
+        if (constrainPitch) {
+            if (m_pitch > 89.0f) m_pitch = 89.0f;
+            if (m_pitch < -89.0f) m_pitch = -89.0f;
+        }
+
+        updateCameraVectors();
+    }
+
+    void updateCameraVectors() {
+        // calculate the new Front vector
+        glm::vec3 front;
+        front.x = cos(m_yaw * (M_PI / 180.0)) * cos(m_pitch * (M_PI / 180.0));
+        front.y = sin(m_pitch * (M_PI / 180.0));
+        front.z = sin(m_yaw * (M_PI / 180.0)) * cos(m_pitch * (M_PI / 180.0));
+           if (front.length() > 0) {
+        m_front = glm::normalize(front);
+    }
+
+    // also re-calculate the Right and Up vector
+    m_right = glm::normalize(glm::cross(m_front, m_worldUp));
+    m_up = glm::normalize(glm::cross(m_right, m_front));
+    }
+
+    void ProcessMouseScroll(float yoffset) {
+        m_zoom += (float)yoffset;
+        if (m_zoom < 1.0f) m_zoom = 1.0f;
+        if (m_zoom > 45.0f) m_zoom = 45.0f;
+    }
+
+    float GetZoom() const { return m_zoom; }
+    glm::vec3 GetPosition() const {return m_position;}
+   private:
+    glm::vec3 m_position;
+    glm::vec3 m_front;
+    glm::vec3 m_up;
+    glm::vec3 m_right;
+    glm::vec3 m_worldUp;
+    // euler Angles
+    float m_yaw;
+    float m_pitch;
+    // camera options
+    float m_movementSpeed;
+    float m_mouseSensitivity;
+    float m_zoom;
+};
+}
+
+===== ./core/scene/Components.h =====
+#pragma once
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/quaternion.hpp>
+namespace engine {
+
+struct TransformComponent {
+  glm::vec3 position;
+  glm::vec3 rotation = {0.0, 0.0, 0.0};
+  glm::vec3 scale = {1.0, 1.0, 1.0};
+
+  TransformComponent() = default;
+  TransformComponent(const glm::vec3 &pos) : position(pos) {}
+  TransformComponent(const TransformComponent &other) = default;
+
+  glm::mat4 GetTransform() const {
+    glm::vec3 rotationRad = glm::radians(rotation);
+    auto rot = glm::toMat4(glm::quat(rotationRad));
+    auto trans = glm::translate(glm::mat4(1.0f), position);
+    auto scl = glm::scale(glm::mat4(1.0f), scale);
+    return trans * rot * scl;
+  }
+};
+}
+
+struct Renderable {
+    glm::vec3 color{1.0f};
+};
+
+===== ./core/scene/Entity.cc =====
+
+===== ./core/scene/Entity.h =====
+
+===== ./core/scene/Scene.cc =====
+#include "Scene.h"
+#include "Entity.h"
+#include "core/simulation.cuh"
+#include <cuda_runtime.h>
+#include <iostream>
+#include <chrono>
+#include "core/Input.h"
+#include "core/Window.h"
+namespace engine {
+Scene::Scene() : m_agentManager(1000000), m_camera(glm::vec3(500.0f, 100.0f, 600.0f))
+{
+}
+
+void Scene::Init()
+{
+    m_treeModel = std::make_shared<Model>("res/models/LowPolytree/CartoonTree.obj");
+    m_burningModel = std::make_shared<Model>("res/models/CartoonTree/CartoonTree.obj");
+    m_burnedModel = std::make_shared<Model>("res/models/ChrTree/CartoonTree.obj");
+    m_renderer.Init();
+    Generate();
+
+    AddFire(510, 500);
+}
+
+void Scene::Update(float dt) {
+    SimulationStep(m_agentManager.getDeviceAgents(), m_agentManager.getAgentCount(), dt);
+    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::W)) {
+        m_camera.ProcessKeyboard(FORWARD, dt);
+    }
+    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::S)) {
+        m_camera.ProcessKeyboard(BACKWARD, dt);
+    }
+    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::D)) {
+        m_camera.ProcessKeyboard(RIGHT, dt);
+    }
+    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::A)) {
+        m_camera.ProcessKeyboard(LEFT, dt);
+    }
+    
+    static glm::vec2 lastMousePos = engine::InputSystem::Instance().GetMousePosition();
+    
+    auto currentMousePos = engine::InputSystem::Instance().GetMousePosition();
+    glm::vec2 mouseDelta = currentMousePos - lastMousePos;
+    lastMousePos = currentMousePos;
+    
+    if (engine::InputSystem::Instance().GetMouseButton(GLFW_MOUSE_BUTTON_LEFT, InputState::Held)) {
+        if (mouseDelta != glm::vec2(0.0f)) {
+            m_camera.ProcessMouseMovement(mouseDelta.x, mouseDelta.y);
+        }
+    }
+    float scrollY = engine::InputSystem::Instance().GetMouseScrollY();
+    if (scrollY != 0.0f) {
+        m_camera.ProcessMouseScroll(scrollY);
+        engine::InputSystem::Instance().ResetMouseScroll();
+    }
+}
+
+void Scene::Render() {
+    
+    auto projection = glm::perspective(m_camera.GetZoom(), (float)1920 / (float)1080, 0.1f, 2000.0f);
+    auto view = m_camera.GetViewMatrix();
+    m_renderer.BeginScene(view, projection);
+    
+    auto agents = LoadAgentsFromGPU(); 
+    
+    
+    for(const auto& agent : agents) {
+        if (agent.type != AgentType::FIRE_SOURCE) {  
+            RenderAgent(agent);
+        }
+    }
+    
+    
+    std::vector<Agent> burningBranches;
+    for (const auto& agent : agents) {
+        if ((agent.type == AgentType::TREE || agent.type == AgentType::BURNED)) {
+            burningBranches.push_back(agent);
+        }
+    }
+    m_renderer.UploadAgentsData(agents); // Горящие агенты → GPU
+    m_renderer.RenderWithGeometryShader();
+    // auto start_time = std::chrono::high_resolution_clock::now();
+    
+    // m_renderer.DrawAgents(burningBranches);
+    
+    // auto end_time = std::chrono::high_resolution_clock::now();
+    
+    // // Вывод времени выполнения
+    // auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    
+    // std::cout 
+    //           << "Total=" << total_duration.count() << "ms, "
+    //           << "Agents=" << agents.size() << std::endl;
+    
+    m_renderer.EndScene();
+}
+
+void Scene::AddTree(float x, float y)
+{
+  static int tree_counter = 0;
+  m_agentManager.AddTree(tree_counter++, x, y);
+  m_agentManager.IgniteRandomPoint(0);
+}
+
+void Scene::Generate()
+{
+    for(int i = 0; i < 50; i+=3){
+        for(int j = 0; j < 50; j+=3) {
+            AddTree(500 + i, 500 + j);
+        }
+    }
+}
+
+std::vector<Agent> Scene::LoadAgentsFromGPU()
+{
+    std::vector<Agent> agents(m_agentManager.getAgentCount());
+    cudaMemcpy(agents.data(), m_agentManager.getDeviceAgents(),
+               agents.size() * sizeof(Agent), cudaMemcpyDeviceToHost);
+    return agents;
+}
+
+void Scene::RenderAgent(const Agent &agent)
+{
+    glm::vec3 position(agent.pos_x, agent.pos_y, agent.pos_z);
+    
+    switch (agent.type) {
+        case AgentType::TREE:
+            m_renderer.DrawModel(*m_treeModel, position, m_camera.GetPosition());
+            break;
+       
+    }
+}
+
+void Scene::LoadPrimaryModel(const std::string& path) {
+    m_treeModel = std::make_shared<Model>(path);
+}
+
+} // namespace engine
+
+===== ./core/scene/Scene.h =====
+#pragma once
+#include "Components.h"
+#include "graphics/Renderer.h"
+#include "core/AgentManager.h"
+#include "Camera.h"
+namespace engine {
+class Entity;
+class Scene {
+public:
+  Scene();
+  void Init();
+  void Update(float dt);
+  void Render();
+  void AddTree(float x, float y);
+  void AddFire(float x, float y) { m_agentManager.AddFire(x, y, 1.0f); }
+  void Generate();
+
+
+  void LoadPrimaryModel(const std::string& path);  
+private:
+  std::vector<Agent> LoadAgentsFromGPU();
+  void RenderAgent(const Agent& agent);
+
+  AgentManager m_agentManager;
+  Renderer m_renderer;
+  std::shared_ptr<Model> m_treeModel;
+  std::shared_ptr<Model> m_burningModel;
+  std::shared_ptr<Model> m_burnedModel;
+  Camera m_camera;
+};
+} // namespace engine
+===== ./core/Window.cc =====
+#include "Window.h"
+#include "Input.h"
+
+#include <stdexcept>
+namespace engine {
+static std::unordered_map<int, engine::KeyCode> keyMap = {
+    {GLFW_KEY_W, engine::KeyCode::W},           {GLFW_KEY_A, engine::KeyCode::A},
+    {GLFW_KEY_S, engine::KeyCode::S},           {GLFW_KEY_D, engine::KeyCode::D},
+    {GLFW_KEY_SPACE, engine::KeyCode::Space},   {GLFW_KEY_ENTER, engine::KeyCode::Enter},
+    {GLFW_KEY_ESCAPE, engine::KeyCode::Escape}, {GLFW_KEY_UP, engine::KeyCode::Up},
+    {GLFW_KEY_DOWN, engine::KeyCode::Down},     {GLFW_KEY_LEFT, engine::KeyCode::Left},
+    {GLFW_KEY_RIGHT, engine::KeyCode::Right}};
+Window::Window(int width, int height, const std::string& title) {
+  if (!glfwInit()) {
+    throw std::runtime_error("Failed to start GLFW");
+  }
+
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+  glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+  glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+  m_window_ = glfwCreateWindow(width, height, title.c_str(), nullptr, nullptr);
+  if (!m_window_) {
+    glfwTerminate();
+    throw std::runtime_error("Failed to initialize window");
+  }
+  glfwMakeContextCurrent(m_window_);
+  glfwSetCursorPosCallback(m_window_, MousePositionCallback);
+  glfwSetMouseButtonCallback(m_window_, MouseButtonCallback);
+  glfwSetWindowUserPointer(m_window_, this);
+  glfwSetScrollCallback(m_window_, MouseScrollCallback);
+}
+Window::~Window() {
+  if (m_window_) {
+    glfwDestroyWindow(m_window_);
+  }
+  glfwTerminate();
+}
+void Window::PollEvents() {
+  glfwPollEvents();
+
+  for (const auto& [glfwKey, ourKey] : keyMap) {
+    bool pressed = glfwGetKey(m_window_, glfwKey) == GLFW_PRESS;
+
+    InputSystem::Instance().SetKeyState(ourKey, pressed);
+  }
+
+  InputSystem::Instance().Update();
+}
+bool Window::ShouldClose() const {
+  return glfwWindowShouldClose(m_window_) != 0;
+}
+void Window::SwapBuffers() {
+  glfwSwapBuffers(m_window_);
+}
+GLFWwindow* Window::GetWindow() const {
+  return m_window_;
+}
+}  // namespace engine
+
+===== ./core/Window.h =====
+// clang-format off
+// NOLINTBEGIN(llvm-include-order)
+#ifndef GLFW_INCLUDE_NONE
+#define GLFW_INCLUDE_NONE
+#endif
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+// NOLINTEND(llvm-include-order)
+// clang-format on
+
+#include "Input.h"
+#include <string>
+
+namespace engine {
+class Window {
+  static void MousePositionCallback(GLFWwindow* window, double xpos, double ypos) {
+    auto* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (win != nullptr) {
+      InputSystem::Instance().SetMousePosition(xpos, ypos);
+    }
+  }
+
+  static void MouseButtonCallback(GLFWwindow* window, int button, int action, int /*mods*/) {
+    auto* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (win != nullptr) {
+      InputSystem::Instance().SetMouseButtonState(button, action == GLFW_PRESS);
+    }
+  }
+  static void MouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
+    auto* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+    if (win != nullptr) {
+      InputSystem::Instance().SetMouseScrollY(yoffset);
+    }
+  }
+
+ public:
+  Window(int width, int height, const std::string& title);
+  ~Window();
+  void PollEvents();
+  [[nodiscard]] bool ShouldClose() const;
+  void SwapBuffers();
+  [[nodiscard]] GLFWwindow* GetWindow() const;
+
+ private:
+  GLFWwindow* m_window_;
+};
+}  // namespace engine
+===== ./data/ModelData.cc =====
+#include "ModelData.h"
+#include <iostream>
+
+namespace engine::data {
+    ModelData AssimpLoader::LoadModel(const std::string& path) {
+        Assimp::Importer importer;
+        const aiScene* scene = importer.ReadFile(path, ModelData::IMPORT_FLAGS);
+        
+        if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) {
+            throw std::runtime_error("Assimp error: " + std::string(importer.GetErrorString()));
+        }
+        
+        ModelData modelData;
+        modelData.directory = path.substr(0, path.find_last_of('/'));
+        
+        for (unsigned int i = 0; i < scene->mNumMaterials; i++) {
+            modelData.materials.push_back(
+                ProcessMaterial(scene->mMaterials[i], modelData.directory)
+            );
+        }
+        
+        ProcessNode(scene->mRootNode, scene, modelData);
+        
+        return modelData;
+    }
+
+    void AssimpLoader::ProcessNode(aiNode *node, const aiScene *scene, ModelData &modelData)
+    {
+        for(unsigned int i = 0; i < node->mNumMeshes; i++)
+        {
+            aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+            modelData.meshes.push_back(ProcessMesh(mesh, scene));
+        }
+        for(unsigned int i = 0; i < node->mNumChildren; i++)
+        {
+            ProcessNode(node->mChildren[i], scene, modelData);
+        }
+    }
+
+    MeshData AssimpLoader::ProcessMesh(aiMesh *mesh, const aiScene *scene)
+    {
+        MeshData meshData;
+        meshData.materialIndex = mesh->mMaterialIndex;
+        
+        for(unsigned int i = 0; i < mesh->mNumVertices; i++) {
+            Vertex vertex;
+
+            // Позиции
+            vertex.position = glm::vec3(
+                mesh->mVertices[i].x,
+                mesh->mVertices[i].y, 
+                mesh->mVertices[i].z
+            );
+
+            // Нормали
+            if(mesh->HasNormals()) {
+                vertex.normal = glm::vec3(
+                    mesh->mNormals[i].x,
+                    mesh->mNormals[i].y,
+                    mesh->mNormals[i].z
+                );
+            }
+
+            // Текстурные координаты (берем первый набор)
+            if(mesh->mTextureCoords[0]) {
+                vertex.texCoords = glm::vec2(
+                    mesh->mTextureCoords[0][i].x,
+                    mesh->mTextureCoords[0][i].y
+                );
+            } else {
+                vertex.texCoords = glm::vec2(0.0f);
+            }
+
+            // Тангенты и битангенты (если есть)
+            if(mesh->HasTangentsAndBitangents()) {
+                vertex.tangent = glm::vec3(
+                    mesh->mTangents[i].x,
+                    mesh->mTangents[i].y,
+                    mesh->mTangents[i].z
+                );
+                vertex.bitangent = glm::vec3(
+                    mesh->mBitangents[i].x,
+                    mesh->mBitangents[i].y, 
+                    mesh->mBitangents[i].z
+                );
+            }
+
+            meshData.vertices.push_back(vertex);
+        }
+
+        // Обрабатываем индексы
+        for(unsigned int i = 0; i < mesh->mNumFaces; i++) {
+            aiFace face = mesh->mFaces[i];
+            for(unsigned int j = 0; j < face.mNumIndices; j++) {
+                meshData.indices.push_back(face.mIndices[j]);
+            }
+        }
+
+        return meshData;
+    }
+    MaterialData AssimpLoader::ProcessMaterial(aiMaterial* material, const std::string& directory) {
+        MaterialData materialData;
+
+        aiString name;
+        if (material->Get(AI_MATKEY_NAME, name) == AI_SUCCESS) {
+            materialData.name = name.C_Str();
+        }
+
+        // Диффузный цвет
+        aiColor3D diffuse(0.f, 0.f, 0.f);
+        if (material->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse) == AI_SUCCESS) {
+            materialData.diffuseColor = glm::vec3(diffuse.r, diffuse.g, diffuse.b);
+        }
+
+        // Спекулярный цвет
+        aiColor3D specular(0.f, 0.f, 0.f);
+        if (material->Get(AI_MATKEY_COLOR_SPECULAR, specular) == AI_SUCCESS) {
+            materialData.specularColor = glm::vec3(specular.r, specular.g, specular.b);
+        }
+
+        // Блеск
+        float shininess = 32.0f;
+        if (material->Get(AI_MATKEY_SHININESS, shininess) == AI_SUCCESS) {
+            materialData.shininess = shininess;
+        }
+
+        auto diffuseMaps = LoadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse", directory);
+        materialData.textures.insert(materialData.textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+
+        auto specularMaps = LoadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular", directory);
+        materialData.textures.insert(materialData.textures.end(), specularMaps.begin(), specularMaps.end());
+
+        auto normalMaps = LoadMaterialTextures(material, aiTextureType_NORMALS, "texture_normal", directory);
+        materialData.textures.insert(materialData.textures.end(), normalMaps.begin(), normalMaps.end());
+        std::cout << "Material: " << materialData.name 
+              << " textures: "
+              << materialData.textures.size()
+              << " diffuse: (" << materialData.diffuseColor.r 
+              << ", "
+              << materialData.diffuseColor.g
+              << ", " 
+              << materialData.diffuseColor.b << ")"
+              << std::endl;
+        return materialData;
+    }
+
+    std::vector<TextureData> AssimpLoader::LoadMaterialTextures(
+        aiMaterial* mat, aiTextureType type, const std::string& typeName, const std::string& directory) {
+        
+        std::vector<TextureData> textures;
+        
+        for (unsigned int i = 0; i < mat->GetTextureCount(type); i++) {
+            aiString str;
+            mat->GetTexture(type, i, &str);
+
+            TextureData textureData;
+            textureData.type = typeName;
+            textureData.path = directory + "/" + str.C_Str();
+
+            textures.push_back(textureData);
+        }
+
+        return textures;
+    }
+}
+===== ./data/ModelData.h =====
+#pragma once
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+#include <assimp/postprocess.h>
+#include <vector>
+#include <glm/glm.hpp>
+#include "graphics/Texture.h"
+namespace engine::data {
+    struct Vertex {
+        glm::vec3 position;
+        glm::vec3 normal;
+        glm::vec2 texCoords;
+        glm::vec3 tangent;
+        glm::vec3 bitangent;
+    };
+
+    struct MeshData {
+        std::vector<Vertex> vertices;
+        std::vector<uint32_t> indices;
+        std::string materialName;
+        uint32_t materialIndex;
+    };
+
+    struct TextureData {
+        std::shared_ptr<engine::Texture> texture;  
+        std::string type;                          
+        std::string path;                          
+        
+        bool operator==(const TextureData& other) const {
+            return path == other.path;
+        }
+    };
+
+    struct MaterialData {
+        std::string name;
+        glm::vec3 diffuseColor;
+        glm::vec3 specularColor;
+        float shininess;
+        std::vector<TextureData> textures;
+    };
+
+    struct ModelData {
+        std::vector<MeshData> meshes;
+        std::vector<MaterialData> materials;
+        std::string directory;
+        
+        // Assimp processing flags
+        static const unsigned int IMPORT_FLAGS = 
+            aiProcess_Triangulate | 
+            aiProcess_GenNormals |
+            aiProcess_CalcTangentSpace |
+            aiProcess_FlipUVs |
+            aiProcess_JoinIdenticalVertices;
+    };
+
+    class AssimpLoader {
+    public:
+        static ModelData LoadModel(const std::string& path);
+        
+    private:
+        static void ProcessNode(aiNode* node, const aiScene* scene, ModelData& modelData);
+        static MeshData ProcessMesh(aiMesh* mesh, const aiScene* scene);
+        static MaterialData ProcessMaterial(aiMaterial* material, const std::string& directory);
+        static std::vector<TextureData> LoadMaterialTextures(
+            aiMaterial* mat, aiTextureType type, const std::string& typeName, const std::string& directory);
+    };
+}
+===== ./graphics/IndexBuffer.cc =====
+#include "IndexBuffer.h"
+
+namespace engine {
+std::unique_ptr<IndexBuffer> CreateOpenGLIndexBuffer(uint32_t *indices,
+                                                     uint32_t count);
+}
+
+namespace engine {
+std::shared_ptr<IndexBuffer> IndexBuffer::Create(uint32_t *indices,
+                                                 uint32_t count) {
+  return CreateOpenGLIndexBuffer(indices, count);
+}
+
+} // namespace engine
+
+===== ./graphics/IndexBuffer.h =====
+#include <memory>
+namespace engine {
+class IndexBuffer {
+public:
+  virtual ~IndexBuffer() = default;
+  virtual void Bind() const = 0;
+  virtual void Unbind() const = 0;
+  virtual uint32_t GetCount() const = 0;
+  static std::shared_ptr<IndexBuffer> Create(uint32_t *indices, uint32_t count);
+};
+} // namespace engine
+===== ./graphics/Model.cc =====
+#include "Model.h"
+namespace engine {
+    Mesh::Mesh(const data::MeshData& meshData, const data::MaterialData& material)
+        : m_material(material) {
+        SetupMesh(meshData);
+    }
+    
+    void Mesh::Draw(Shader& shader) {
+        // Биндим текстуры
+        unsigned int diffuseNr = 1;
+        unsigned int specularNr = 1;
+        unsigned int normalNr = 1;
+        
+        for (unsigned int i = 0; i < m_material.textures.size(); i++) {
+            const auto& texInfo = m_material.textures[i];
+            texInfo.texture->Bind(i);
+            
+            std::string number;
+            std::string name = "texture_";
+            
+            if (texInfo.type == "diffuse")
+                number = std::to_string(diffuseNr++);
+            else if (texInfo.type == "specular")
+                number = std::to_string(specularNr++);
+            else if (texInfo.type == "normal")
+                number = std::to_string(normalNr++);
+                
+            shader.SetInt(("material." + name + number).c_str(), i);
+        }
+        
+        glActiveTexture(GL_TEXTURE0);
+        
+        SetupMaterial(shader, m_material);
+        m_vao->Bind();
+        glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+    }
+    
+    void Mesh::SetupMaterial(Shader& shader, const data::MaterialData& material) {
+          glm::vec3 diffuse = (material.diffuseColor == glm::vec3(0.0f)) 
+        ? glm::vec3(0.8f) : material.diffuseColor;
+        shader.SetVec3("material.diffuse", material.diffuseColor);
+        shader.SetVec3("material.specular", material.specularColor);
+        shader.SetFloat("material.shininess", material.shininess);
+    }
+    
+    void Mesh::SetupMesh(const data::MeshData& meshData) {
+        m_vao = VertexArrayObject::Create();
+        
+        m_vbo = VertexBuffer::Create(
+            meshData.vertices.size() * sizeof(data::Vertex)
+        );
+        m_vbo->SetData(meshData.vertices.data(), meshData.vertices.size() * sizeof(data::Vertex));
+
+        m_vbo->SetLayout({
+            {ShaderDataType::Float3, "a_position"},
+            {ShaderDataType::Float3, "a_normal"}, 
+            {ShaderDataType::Float2, "a_texCoords"},
+            {ShaderDataType::Float3, "a_tangent"},
+            {ShaderDataType::Float3, "a_bitangent"}
+        });
+
+        m_vao->AddVertexBuffer(m_vbo);
+
+        m_ebo = IndexBuffer::Create(
+            const_cast<uint32_t*>(meshData.indices.data()),
+            meshData.indices.size()
+        );
+
+        m_vao->SetIndexBuffer(m_ebo);
+        m_indexCount = meshData.indices.size();
+    }
+    void Model::Draw(Shader& shader)
+    {
+        for (auto& mesh : m_meshes) {
+            mesh.Draw(shader);
+        }
+    }
+    void Model::SetupModel()
+    {
+        for (size_t i = 0; i < m_modelData.meshes.size(); i++) {
+            const auto& meshData = m_modelData.meshes[i];
+            
+            const data::MaterialData* material = nullptr;
+            if (meshData.materialIndex < m_modelData.materials.size()) {
+                material = &m_modelData.materials[meshData.materialIndex];
+            } else {
+                static data::MaterialData defaultMaterial;
+                material = &defaultMaterial;
+            }
+            
+            data::MaterialData materialWithTextures = *material;
+            for (auto& texInfo : materialWithTextures.textures) {
+                bool found = false;
+                for (const auto& cachedTex : m_texturesLoaded) {
+                    if (cachedTex.path == texInfo.path) {
+                        texInfo.texture = cachedTex.texture;
+                        found = true;
+                        break;
+                    }
+                }
+                
+                if (!found) {
+                    texInfo.texture = Texture::Create(texInfo.path);
+                    m_texturesLoaded.push_back(texInfo);
+                }
+            }
+            
+            m_meshes.emplace_back(meshData, materialWithTextures);
+        }
+    }
+}
+===== ./graphics/Model.h =====
+#pragma once
+#include "data/ModelData.h"
+#include "graphics/Shader.h"
+#include "graphics/Texture.h"
+#include "VertexArrayObject.h"
+#include <GLFW/glfw3.h>
+namespace engine {
+    class Mesh {
+    public:
+        Mesh(const data::MeshData& meshData, const data::MaterialData& material);
+        
+        void Draw(Shader& shader);
+        
+    private:
+        void SetupMesh(const data::MeshData& meshData);
+        void SetupMaterial(Shader& shader, const data::MaterialData& material);
+        std::shared_ptr<VertexArrayObject> m_vao;
+        std::shared_ptr<VertexBuffer> m_vbo;
+        std::shared_ptr<IndexBuffer> m_ebo;
+        size_t m_indexCount;
+        data::MaterialData m_material;
+    };
+
+    class Model {
+    public:
+        Model(const std::string& path) {
+            m_modelData = data::AssimpLoader::LoadModel(path);
+            SetupModel();
+        }
+        
+        void Draw(Shader& shader);
+        
+    private:
+        void SetupModel();
+        
+        data::ModelData m_modelData;
+        std::vector<Mesh> m_meshes;
+        std::vector<data::TextureData> m_texturesLoaded; // texture cache
+    };
+}
+===== ./graphics/OpenGL/OpenGLIndexBuffer.cc =====
+#include "OpenGLIndexBuffer.h"
+
+namespace engine {
+std::unique_ptr<IndexBuffer> CreateOpenGLIndexBuffer(uint32_t *indices,
+                                                     uint32_t count) {
+  return std::make_unique<OpenGLIndexBuffer>(indices, count);
+}
+
+OpenGLIndexBuffer::OpenGLIndexBuffer(uint32_t *indices, uint32_t count) {
+  m_count = count;
+  glGenBuffers(1, &m_id);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_id);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER, count * sizeof(uint32_t), indices,
+               GL_STATIC_DRAW);
+}
+
+OpenGLIndexBuffer::~OpenGLIndexBuffer() { glDeleteBuffers(1, &m_id); }
+
+void OpenGLIndexBuffer::Bind() const {
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_id);
+}
+
+void OpenGLIndexBuffer::Unbind() const {
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+}
+
+} // namespace engine
+
+===== ./graphics/OpenGL/OpenGLIndexBuffer.h =====
+#pragma once
+#include "graphics/IndexBuffer.h"
+#include <glad/glad.h>
+
+namespace engine {
+class OpenGLIndexBuffer final : public IndexBuffer {
+public:
+  OpenGLIndexBuffer(uint32_t *indices, uint32_t count);
+  virtual ~OpenGLIndexBuffer();
+  virtual void Bind() const override;
+  virtual void Unbind() const override;
+  virtual uint32_t GetCount() const override { return m_count; }
+
+private:
+  GLuint m_id;
+  uint32_t m_count;
+};
+} // namespace engine
+===== ./graphics/OpenGL/OpenGLShader.cc =====
+#include "OpenGLShader.h"
+#include <fstream>
+#include <iostream>
+#include <memory>
+#include <sstream>
+namespace engine {
+std::unique_ptr<Shader> CreateOpenGLShader(const std::string &filename) {
+  return std::make_unique<OpenGLShader>(filename);
+}
+std::unique_ptr<Shader> CreateOpenGLShader(const std::string &vertexSrc,
+                                           const std::string &fragmentSrc) {
+  return std::make_unique<OpenGLShader>(vertexSrc, fragmentSrc);
+}
+
+std::unique_ptr<Shader> CreateOpenGLShader(const std::string &vertexSrc,
+                                           const std::string &fragmentSrc, const std::string &geometrySrc) {
+  return std::make_unique<OpenGLShader>(vertexSrc, fragmentSrc, geometrySrc);
+}
+OpenGLShader::OpenGLShader(const std::string &filename) {
+  std::ifstream stream(filename);
+  std::string line;
+  enum ShaderType { NONE = -1, VERTEX = 0, GEOMETRY = 1, FRAGMENT = 2 }; 
+  std::stringstream ss[3];
+  ShaderType type = ShaderType::NONE;
+  
+  while (getline(stream, line)) {
+    if (line.find("#shader") != std::string::npos) {
+      if (line.find("vertex") != std::string::npos) {
+        type = ShaderType::VERTEX;
+      } else if (line.find("geometry") != std::string::npos) { // ДОБАВИЛ
+        type = ShaderType::GEOMETRY;
+      } else if (line.find("fragment") != std::string::npos) {
+        type = ShaderType::FRAGMENT;
+      }
+    } else {
+      if (type != ShaderType::NONE) {
+        ss[(int)type] << line << '\n';
+      }
+    }
+  }
+
+  m_rendererID = glCreateProgram();
+  
+  GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, ss[0].str());
+  glAttachShader(m_rendererID, vertexShader);
+  
+  if (!ss[1].str().empty()) {
+    GLuint geometryShader = CompileShader(GL_GEOMETRY_SHADER, ss[1].str());
+    glAttachShader(m_rendererID, geometryShader);
+  }
+  
+  GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, ss[2].str());
+  glAttachShader(m_rendererID, fragmentShader);
+  
+  glLinkProgram(m_rendererID);
+  
+  GLint isLinked;
+  glGetProgramiv(m_rendererID, GL_LINK_STATUS, &isLinked);
+  if (!isLinked) {
+    GLint maxLength;
+    glGetProgramiv(m_rendererID, GL_INFO_LOG_LENGTH, &maxLength);
+    std::string infoLog(maxLength, ' ');
+    glGetProgramInfoLog(m_rendererID, maxLength, &maxLength, &infoLog[0]);
+    std::cout << "Shader linking failed: " + infoLog << '\n';
+  }
+}
+
+OpenGLShader::OpenGLShader(const std::string &vertexSrc,
+                           const std::string &fragmentSrc) {
+  m_rendererID = glCreateProgram();
+  GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, vertexSrc);
+  GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentSrc);
+  glAttachShader(m_rendererID, vertexShader);
+  glAttachShader(m_rendererID, fragmentShader);
+  glLinkProgram(m_rendererID);
+}
+OpenGLShader::OpenGLShader(const std::string &vertexSrc,
+                           const std::string &geometrySrc,
+                           const std::string &fragmentSrc) {
+  m_rendererID = glCreateProgram();
+  
+  GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, vertexSrc);
+  GLuint geometryShader = CompileShader(GL_GEOMETRY_SHADER, geometrySrc);
+  GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentSrc);
+  
+  glAttachShader(m_rendererID, vertexShader);
+  glAttachShader(m_rendererID, geometryShader);
+  glAttachShader(m_rendererID, fragmentShader);
+  
+  glLinkProgram(m_rendererID);
+  
+  // ПРОВЕРКА ОШИБОК
+  GLint isLinked;
+  glGetProgramiv(m_rendererID, GL_LINK_STATUS, &isLinked);
+  if (!isLinked) {
+    GLint maxLength;
+    glGetProgramiv(m_rendererID, GL_INFO_LOG_LENGTH, &maxLength);
+    std::string infoLog(maxLength, ' ');
+    glGetProgramInfoLog(m_rendererID, maxLength, &maxLength, &infoLog[0]);
+    std::cout << "Shader linking failed: " + infoLog << '\n';
+  }
+}
+
+OpenGLShader::~OpenGLShader() { glDeleteProgram(m_rendererID); }
+
+void OpenGLShader::Bind() const { glUseProgram(m_rendererID); }
+
+void OpenGLShader::Unbind() const { glUseProgram(0); }
+
+void OpenGLShader::SetMat4(const std::string &name, const glm::mat4 &matrix) {
+  auto loc = glGetUniformLocation(m_rendererID, name.c_str());
+  if (loc != -1) {
+    glUniformMatrix4fv(loc, 1, GL_FALSE, &matrix[0][0]);
+  } else {
+    std::cout << "Warning: uniform '" + name + "' doesn't exist!\n";
+  }
+}
+
+void OpenGLShader::SetVec3(const std::string &name, const glm::vec3 &vector) {
+  auto loc = glGetUniformLocation(m_rendererID, name.c_str());
+  if (loc != -1) {
+    glUniform3fv(loc, 1, &vector[0]);
+  } else {
+    std::cout << "Warning: uniform '" + name + "' doesn't exist!\n";
+  }
+}
+
+void OpenGLShader::SetVec4(const std::string &name, const glm::vec4 &vector) {
+  auto loc = glGetUniformLocation(m_rendererID, name.c_str());
+  if (loc != -1) {
+    glUniform4fv(loc, 1, &vector[0]);
+  } else {
+    std::cout << "Warning: uniform '" + name + "' doesn't exist!\n";
+  }
+}
+void OpenGLShader::SetInt(const std::string &name, int value) {
+  auto loc = glGetUniformLocation(m_rendererID, name.c_str());
+  if (loc != -1) {
+    glUniform1i(loc, value);
+  } else {
+    std::cout << "Warning: uniform '" + name + "' doesn't exist!\n";
+  }
+}
+
+void OpenGLShader::SetFloat(const std::string &name, float value) {
+  auto loc = glGetUniformLocation(m_rendererID, name.c_str());
+  if (loc != -1) {
+    glUniform1f(loc, value);
+  } else {
+    std::cout << "Warning: uniform '" + name + "' doesn't exist!\n";
+  }
+}
+
+GLuint OpenGLShader::CompileShader(GLenum type, const std::string &source) {
+  GLuint shader = glCreateShader(type);
+  const char *src = source.c_str();
+  glShaderSource(shader, 1, &src, nullptr);
+  glCompileShader(shader);
+  GLint isCompiled;
+  glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
+  if (!isCompiled) {
+    GLint maxLength;
+    glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
+    std::string infoLog(maxLength, ' ');
+    glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
+    glDeleteShader(shader);
+    std::cout << "Shader compilation failed: " + infoLog << '\n';
+  }
+  return shader;
+}
+} // namespace engine
+===== ./graphics/OpenGL/OpenGLShader.h =====
+#include "graphics/Shader.h"
+#include <glad/glad.h>
+namespace engine {
+class OpenGLShader final : public Shader {
+public:
+  OpenGLShader(const std::string &filename);
+  OpenGLShader(const std::string &vertexSrc, const std::string &fragmentSrc);
+  OpenGLShader(const std::string &vertexSrc,
+                           const std::string &geometrySrc,
+                           const std::string &fragmentSrc);
+  virtual ~OpenGLShader();
+
+  void Bind() const override;
+  void Unbind() const override;
+
+  void SetMat4(const std::string &name, const glm::mat4 &matrix) override;
+  void SetVec3(const std::string &name, const glm::vec3 &vector) override;
+  void SetVec4(const std::string &name, const glm::vec4 &vector) override;
+  void SetInt(const std::string &name, int value) override;
+  void SetFloat(const std::string &name, float value) override;
+
+private:
+  GLuint CompileShader(GLenum type, const std::string &source);
+  uint32_t m_rendererID;
+};
+} // namespace engine
+===== ./graphics/OpenGL/OpenGLTexture.cc =====
+#include "OpenGLTexture.h"
+#include <stb_image.h>
+#include <stdexcept>
+namespace engine {
+std::shared_ptr<Texture> CreateOpenGLTexture(const std::string &path) {
+  return std::make_shared<OpenGLTexture>(path);
+}
+
+std::shared_ptr<Texture> CreateOpenGLTexture(const TextureSpecification &spec) {
+  return std::make_shared<OpenGLTexture>(spec);
+}
+
+OpenGLTexture::OpenGLTexture(const std::string &path) {
+  int height, width, channels;
+  stbi_set_flip_vertically_on_load(1);
+  stbi_uc *data = stbi_load(path.c_str(), &width, &height, &channels, 0);
+  if (data) {
+
+    m_width = width;
+    m_height = height;
+
+    GLenum internalFormat = 0, dataFormat = 0;
+
+    if (channels == 4) {
+      internalFormat = GL_RGBA8;
+      dataFormat = GL_RGBA;
+    } else if (channels == 3) {
+      internalFormat = GL_RGB8;
+      dataFormat = GL_RGB;
+    } else {
+      stbi_image_free(data);
+      throw std::runtime_error("Unsupported image format: " + path);
+    }
+
+    glCreateTextures(GL_TEXTURE_2D, 1, &m_rendererID);
+    glTextureStorage2D(m_rendererID, 1, internalFormat, m_width, m_height);
+
+    glTextureParameteri(m_rendererID, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTextureParameteri(m_rendererID, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glTextureParameteri(m_rendererID, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(m_rendererID, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTextureSubImage2D(m_rendererID, 0, 0, 0, m_width, m_height, dataFormat,
+                        GL_UNSIGNED_BYTE, data);
+
+    stbi_image_free(data);
+  } else {
+    throw std::runtime_error("Failed to load texture: " + path);
+  }
+}
+OpenGLTexture::OpenGLTexture(const TextureSpecification &spec) {}
+OpenGLTexture::~OpenGLTexture() { glDeleteTextures(1, &m_rendererID); }
+void OpenGLTexture::Bind(uint32_t slot) const {
+  glBindTextureUnit(slot, m_rendererID);
+}
+void OpenGLTexture::Unbind() const {}
+} // namespace nova
+===== ./graphics/OpenGL/OpenGLTexture.h =====
+#include "graphics/Texture.h"
+#include <glad/glad.h>
+namespace engine  {
+class OpenGLTexture final : public Texture {
+public:
+  OpenGLTexture(const std::string &path);
+  OpenGLTexture(const TextureSpecification &spec);
+  virtual ~OpenGLTexture();
+
+  virtual void Bind(uint32_t slot = 0) const override;
+  virtual void Unbind() const override;
+
+  virtual uint32_t GetWidth() const override { return m_width; }
+  virtual uint32_t GetHeight() const override { return m_height; }
+  virtual uint32_t GetRendererID() const override { return m_rendererID; }
+
+  virtual const TextureSpecification &GetSpecification() const override {
+    return m_specification;
+  }
+
+private:
+  uint32_t m_width, m_height;
+  uint32_t m_rendererID;
+  TextureSpecification m_specification;
+};
+} // namespace nova
+===== ./graphics/OpenGL/OpenGLVertexArrayObject.cc =====
+#include "OpenGLVertexArrayObject.h"
+#include <iostream>
+namespace engine {
+
+std::shared_ptr<VertexArrayObject> CreateOpenGLVertexArrayObject() {
+  return std::make_shared<OpenGLVertexArrayObject>();
+}
+static GLenum ShaderDataTypeToOpenGLBaseType(ShaderDataType type) {
+  switch (type) {
+  case ShaderDataType::Float:
+    return GL_FLOAT;
+  case ShaderDataType::Float2:
+    return GL_FLOAT;
+  case ShaderDataType::Float3:
+    return GL_FLOAT;
+  case ShaderDataType::Float4:
+    return GL_FLOAT;
+  case ShaderDataType::Mat3:
+    return GL_FLOAT;
+  case ShaderDataType::Mat4:
+    return GL_FLOAT;
+  case ShaderDataType::Int:
+    return GL_INT;
+  case ShaderDataType::Int2:
+    return GL_INT;
+  case ShaderDataType::Int3:
+    return GL_INT;
+  case ShaderDataType::Int4:
+    return GL_INT;
+  case ShaderDataType::Bool:
+    return GL_BOOL;
+  }
+  return 0;
+}
+OpenGLVertexArrayObject::OpenGLVertexArrayObject() {
+  glGenVertexArrays(1, &m_id);
+  glBindVertexArray(m_id);
+}
+
+OpenGLVertexArrayObject::~OpenGLVertexArrayObject() {
+  glDeleteVertexArrays(1, &m_id);
+}
+
+void OpenGLVertexArrayObject::Bind() const { glBindVertexArray(m_id); }
+
+void OpenGLVertexArrayObject::Unbind() const { glBindVertexArray(0); }
+
+void OpenGLVertexArrayObject::AddVertexBuffer(
+    const std::shared_ptr<VertexBuffer> &vertexBuffer) {
+  glBindVertexArray(m_id);
+  vertexBuffer->Bind();
+  const auto &layout = vertexBuffer->GetLayout();
+
+  for (const auto &elem : layout) {
+    switch (elem.type) {
+    case ShaderDataType::Float:
+    case ShaderDataType::Float2:
+    case ShaderDataType::Float3:
+    case ShaderDataType::Float4: {
+      glEnableVertexAttribArray(m_VertexBufferIndex);
+      glVertexAttribPointer(m_VertexBufferIndex, elem.GetComponentCount(),
+                            ShaderDataTypeToOpenGLBaseType(elem.type),
+                            elem.normalized ? GL_TRUE : GL_FALSE,
+                            layout.GetStride(),
+                            reinterpret_cast<void *>(elem.offset));
+      m_VertexBufferIndex++;
+      break;
+    }
+
+    case ShaderDataType::Int:
+    case ShaderDataType::Int2:
+    case ShaderDataType::Int3:
+    case ShaderDataType::Int4:
+    case ShaderDataType::Bool: {
+      glEnableVertexAttribArray(m_VertexBufferIndex);
+
+      glVertexAttribIPointer(m_VertexBufferIndex, elem.GetComponentCount(),
+                             ShaderDataTypeToOpenGLBaseType(elem.type),
+                             layout.GetStride(),
+                             reinterpret_cast<void *>(elem.offset));
+      m_VertexBufferIndex++;
+      break;
+    }
+
+    case ShaderDataType::Mat3:
+    case ShaderDataType::Mat4: {
+      uint8_t count = elem.GetComponentCount();
+      for (uint8_t i = 0; i < count; ++i) {
+        glEnableVertexAttribArray(m_VertexBufferIndex);
+        glVertexAttribPointer(
+            m_VertexBufferIndex, count,
+            ShaderDataTypeToOpenGLBaseType(elem.type),
+            elem.normalized ? GL_TRUE : GL_FALSE, layout.GetStride(),
+            reinterpret_cast<void *>(elem.offset + sizeof(float) * count * i));
+        glVertexAttribDivisor(m_VertexBufferIndex, 1);
+        m_VertexBufferIndex++;
+      }
+    }
+    default:
+      std::cout << "Unknown ShaderDataType!" << std::endl;
+    }
+  }
+  m_vertexBuffers.push_back(vertexBuffer);
+}
+
+void OpenGLVertexArrayObject::SetIndexBuffer(
+    const std::shared_ptr<IndexBuffer> &indexBuffer) {
+  glBindVertexArray(m_id);
+  indexBuffer->Bind();
+  m_indexBuffer = indexBuffer;
+}
+} // namespace engine
+===== ./graphics/OpenGL/OpenGLVertexArrayObject.h =====
+#pragma once
+#include "graphics/VertexArrayObject.h"
+
+namespace engine {
+class OpenGLVertexArrayObject final : public VertexArrayObject {
+public:
+  OpenGLVertexArrayObject();
+  virtual ~OpenGLVertexArrayObject();
+
+  virtual void Bind() const override;
+  virtual void Unbind() const override;
+
+  virtual void
+  AddVertexBuffer(const std::shared_ptr<VertexBuffer> &vertexBuffer) override;
+  virtual void
+  SetIndexBuffer(const std::shared_ptr<IndexBuffer> &indexBuffer) override;
+
+  virtual const std::vector<std::shared_ptr<VertexBuffer>> &
+  GetVertexBuffers() const override {
+    return m_vertexBuffers;
+  }
+  virtual const std::shared_ptr<IndexBuffer> &GetIndexBuffer() const override {
+    return m_indexBuffer;
+  }
+
+private:
+  GLuint m_id;
+  std::vector<std::shared_ptr<VertexBuffer>> m_vertexBuffers;
+  std::shared_ptr<IndexBuffer> m_indexBuffer;
+  uint32_t m_VertexBufferIndex = 0;
+};
+} // namespace engine
+===== ./graphics/OpenGL/OpenGLVertexBuffer.cc =====
+#include "OpenGLVertexBuffer.h"
+
+namespace engine {
+std::unique_ptr<VertexBuffer> CreateOpenGLVertexBuffer(int32_t size) {
+  return std::make_unique<OpenGLVertexBuffer>(size);
+}
+std::unique_ptr<VertexBuffer> CreateOpenGLVertexBuffer(float *vertices,
+                                                       int32_t size) {
+  return std::make_unique<OpenGLVertexBuffer>(vertices, size);
+}
+
+OpenGLVertexBuffer::OpenGLVertexBuffer(int32_t size) {
+  glGenBuffers(1, &m_id);
+  glBindBuffer(GL_ARRAY_BUFFER, m_id);
+  glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
+}
+OpenGLVertexBuffer::OpenGLVertexBuffer(float *vertices, int32_t size) {
+  glGenBuffers(1, &m_id);
+  glBindBuffer(GL_ARRAY_BUFFER, m_id);
+  glBufferData(GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW);
+}
+OpenGLVertexBuffer::~OpenGLVertexBuffer() { glDeleteBuffers(1, &m_id); }
+
+void OpenGLVertexBuffer::Bind() const { glBindBuffer(GL_ARRAY_BUFFER, m_id); }
+
+void OpenGLVertexBuffer::Unbind() const { glBindBuffer(GL_ARRAY_BUFFER, 0); }
+
+void OpenGLVertexBuffer::SetData(const void *data, uint32_t size) {
+  glBindBuffer(GL_ARRAY_BUFFER, m_id);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
+}
+
+void OpenGLVertexBuffer::SetLayout(const BufferLayout &layout) {
+  m_layout = layout;
+}
+
+const BufferLayout &OpenGLVertexBuffer::GetLayout() const { return m_layout; }
+} // namespace engine
+===== ./graphics/OpenGL/OpenGLVertexBuffer.h =====
+#include "graphics/VertexBuffer.h"
+#include <glad/glad.h>
+
+namespace engine {
+class OpenGLVertexBuffer final : public VertexBuffer {
+public:
+  OpenGLVertexBuffer(int32_t size);
+  OpenGLVertexBuffer(float *vertices, int32_t size);
+  virtual ~OpenGLVertexBuffer();
+  virtual void SetData(const void *data, uint32_t size) override;
+  virtual void SetLayout(const BufferLayout &layout) override;
+  virtual const BufferLayout &GetLayout() const override;
+  void Bind() const override;
+  void Unbind() const override;
+
+private:
+  BufferLayout m_layout;
+  GLuint m_id;
+};
+} // namespace engine
+
+===== ./graphics/Renderer.cc =====
+#include "Renderer.h"
+#include <glad/glad.h>
+#include <iostream>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+static float vertices[] = {
+      // front face
+        -0.5f, -0.5f,  0.5f,
+         0.5f, -0.5f,  0.5f,
+         0.5f,  0.5f,  0.5f,
+        -0.5f,  0.5f,  0.5f,
+        
+        // back face
+        -0.5f, -0.5f, -0.5f,
+         0.5f, -0.5f, -0.5f,
+         0.5f,  0.5f, -0.5f,
+        -0.5f,  0.5f, -0.5f
+};
+static unsigned int indices[] = {
+    // Front face
+    0, 1, 2, 2, 3, 0,
+    
+    // Back face  
+    4, 5, 6, 6, 7, 4,
+    
+    // Left face
+    0, 3, 7, 7, 4, 0,
+    
+    // Right face
+    1, 5, 6, 6, 2, 1,
+    
+    // Top face
+    3, 2, 6, 6, 7, 3,
+    
+    // Bottom face
+    0, 1, 5, 5, 4, 0
+};
+namespace engine {
+void Renderer::Init() {
+    m_shader = Shader::Create("res/shaders/shader.sh");
+    m_modelShader = Shader::Create("res/shaders/model_shader.sh");
+    m_fireGeometryShader = Shader::Create("res/shaders/fire_geom.sh");
+    m_vao = VertexArrayObject::Create();
+
+    m_vbo = VertexBuffer::Create(vertices, sizeof(vertices));
+    m_vbo->SetLayout({{ShaderDataType::Float3, "a_position"}});
+    m_vao->AddVertexBuffer(m_vbo);
+
+    m_instanceVBO = VertexBuffer::Create(100000 * (sizeof(glm::mat4) + sizeof(glm::vec3)));
+    m_instanceVBO->SetLayout({
+        {ShaderDataType::Float4, "a_instance_model_0", 1},
+        {ShaderDataType::Float4, "a_instance_model_1", 1},
+        {ShaderDataType::Float4, "a_instance_model_2", 1},
+        {ShaderDataType::Float4, "a_instance_model_3", 1},
+        {ShaderDataType::Float3, "a_instance_color", 1}
+    });
+    m_vao->AddVertexBuffer(m_instanceVBO);
+
+    m_ebo = IndexBuffer::Create(indices, sizeof(indices) / sizeof(unsigned int));
+    m_vao->SetIndexBuffer(m_ebo);
+
+    glVertexAttribDivisor(1, 1);
+    glVertexAttribDivisor(2, 1);
+    glVertexAttribDivisor(3, 1);
+    glVertexAttribDivisor(4, 1);
+    glVertexAttribDivisor(5, 1);
+
+    m_agentVAO = VertexArrayObject::Create();
+    m_agentVBO = VertexBuffer::Create(1000 * sizeof(AgentRenderData));
+    m_agentVBO->SetLayout({
+        {ShaderDataType::Float3, "a_position"},
+        {ShaderDataType::Float, "a_intensity"},
+        {ShaderDataType::Float3, "a_bounds_min"},
+        {ShaderDataType::Float3, "a_bounds_max"}
+    });
+    m_agentVAO->AddVertexBuffer(m_agentVBO);
+}
+
+void Renderer::Shutdown()
+{
+}
+
+void Renderer::DrawCube(const glm::vec3& position, const glm::vec3& color, float scale) {
+    glm::mat4 model = glm::mat4(1.0f);
+    model = glm::translate(model, position);
+    model = glm::scale(model, glm::vec3(scale));
+    m_shader->Bind();
+
+    m_shader->SetMat4("u_model", model);
+    m_shader->SetVec3("u_color", color);
+    m_shader->SetMat4("u_view", m_viewMat);
+    m_shader->SetMat4("u_projection", m_projectionMat);
+    m_vao->Bind();
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+    m_vao->Unbind();
+    m_shader->Unbind();
+}
+
+void Renderer::DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& camPos)
+{
+    glm::mat4 modelmat = glm::mat4(1.0f);
+    modelmat = glm::translate(modelmat, position);
+    m_modelShader->Bind();
+    m_modelShader->SetMat4("u_model", modelmat);
+    m_modelShader->SetMat4("u_view", m_viewMat);
+    m_modelShader->SetMat4("u_projection", m_projectionMat);
+    m_modelShader->SetVec3("viewPos", camPos);
+    m_modelShader->SetVec3("light.position", glm::vec3(500.0f, 200.0f, 100.0f));
+    m_modelShader->SetVec3("light.ambient", glm::vec3(0.2f));
+    m_modelShader->SetVec3("light.diffuse", glm::vec3(0.8f));
+    m_modelShader->SetVec3("light.specular", glm::vec3(1.0f));
+    model.Draw(*m_modelShader);
+}
+
+void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
+    glClearColor(0.1, 0.1, 0.1, 1.0f);
+    
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glCullFace(GL_BACK);
+    glFrontFace(GL_CCW); 
+    m_viewMat = view;
+    m_projectionMat = projection;
+}
+void Renderer::UploadAgentsData(const std::vector<Agent> &agents)
+{
+     m_agentRenderData.clear();
+    
+    for (const auto& agent : agents) {
+        if (!agent.isBurning()) continue; // Только горящие!
+        
+        AgentRenderData data;
+        data.position = glm::vec3(agent.pos_x, agent.pos_y, agent.pos_z);
+        data.intensity = agent.getOverallIntensity(); // Самый горящий
+        
+        // Bounds из fire_collider
+        data.bounds_min = glm::vec3(
+            agent.fire_collider.bounds_min[0],
+            agent.fire_collider.bounds_min[1],
+            agent.fire_collider.bounds_min[2]
+        );
+        data.bounds_max = glm::vec3(
+            agent.fire_collider.bounds_max[0], 
+            agent.fire_collider.bounds_max[1],
+            agent.fire_collider.bounds_max[2]
+        );
+        
+        m_agentRenderData.push_back(data);
+    }
+    if(!m_agentRenderData.empty()) {
+        m_agentVBO->Bind();
+        m_agentVBO->SetData(m_agentRenderData.data(), m_agentRenderData.size() * sizeof(AgentRenderData));
+    }
+}
+void Renderer::UpdateFireParticles(float dt, const std::vector<Agent> &burningAgents)
+{
+     std::cout << "UpdateFireParticles: " << burningAgents.size() << " burning agents, " 
+              << m_fireParticles.size() << " existing particles" << std::endl;
+    
+    for (auto it = m_fireParticles.begin(); it != m_fireParticles.end();) {
+        it->lifetime -= dt;
+        it->velocity.y += 2.0f * dt; // Гравитация
+        it->position += it->velocity * dt;
+        it->size *= 0.98f; // Постепенно уменьшаем
+        
+        if (it->lifetime <= 0.0f) {
+            it = m_fireParticles.erase(it);
+        } else {
+            ++it;
+        }
+    }
+    
+    // Спауним новые частицы для горящих агентов
+    m_particleSpawnTimer += dt;
+    if (m_particleSpawnTimer >= 0.016f) { // ~60 FPS
+        m_particleSpawnTimer = 0.0f;
+        
+        for (const auto& agent : burningAgents) {
+            if (!agent.isBurning()) continue;
+            
+            // Находим горящие точки для этого агента
+            for (int i = 0; i < agent.fire_collider.point_count; i++) {
+                float intensity = agent.fire_collider.intensities[i];
+                if (intensity <= 0.1f) continue;
+                
+                glm::vec3 point_pos = glm::vec3(
+                    agent.fire_collider.heat_points[i][0],  
+                    agent.fire_collider.heat_points[i][1],  
+                    agent.fire_collider.heat_points[i][2]   
+                );
+                
+                // Количество частиц зависит от интенсивности
+                int particles_to_spawn = 1 + static_cast<int>(intensity * 3);
+                
+                for (int p = 0; p < particles_to_spawn && m_fireParticles.size() < 1000; p++) {
+                    FireParticle particle;
+                    particle.position = point_pos;
+                    
+                    // Случайное направление
+                    float angle = static_cast<float>(rand()) / RAND_MAX * 6.2832f;
+                    float speed = 1.0f + static_cast<float>(rand()) / RAND_MAX * 2.0f;
+                    
+                    particle.velocity = glm::vec3(
+                        cos(angle) * 0.3f,
+                        speed * 1.5f, 
+                        sin(angle) * 0.3f
+                    );
+                    
+                    particle.lifetime = 0.5f + static_cast<float>(rand()) / RAND_MAX * 0.3f;
+                    particle.max_lifetime = particle.lifetime;
+                    particle.size = 0.2f + intensity * 0.4f;
+                    
+                    // Цвет от желтого к красному
+                    float color_mix = static_cast<float>(rand()) / RAND_MAX;
+                    particle.color = glm::mix(
+                        glm::vec3(1.0f, 0.8f, 0.1f), // Желтый
+                        glm::vec3(1.0f, 0.3f, 0.0f), // Красный
+                        color_mix
+                    );
+                    
+                    m_fireParticles.push_back(particle);
+                }
+            }
+        }
+    }
+}
+void Renderer::RenderFireParticles()
+{
+    if (m_fireParticles.empty()) return;
+    
+    m_modelMatrices.clear();
+    m_colors.clear();
+    
+    for (const auto& particle : m_fireParticles) {
+        float life_ratio = particle.lifetime / particle.max_lifetime;
+        
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, particle.position);
+        model = glm::scale(model, glm::vec3(particle.size * life_ratio));
+        
+        m_modelMatrices.push_back(model);
+        m_colors.push_back(particle.color * life_ratio); // Блекнут со временем
+    }
+    
+    // Инстансинг частиц
+    std::vector<float> instanceData;
+    for (size_t i = 0; i < m_fireParticles.size(); i++) {
+        const glm::mat4& model = m_modelMatrices[i];
+        for (int col = 0; col < 4; col++) {
+            for (int row = 0; row < 4; row++) {
+                instanceData.push_back(model[col][row]);
+            }
+        }
+        instanceData.push_back(m_colors[i].x);
+        instanceData.push_back(m_colors[i].y);
+        instanceData.push_back(m_colors[i].z);
+    }
+    
+    m_instanceVBO->SetData(instanceData.data(), instanceData.size() * sizeof(float));
+    
+    m_shader->Bind();
+    m_shader->SetMat4("u_view", m_viewMat);
+    m_shader->SetMat4("u_projection", m_projectionMat);
+    
+    // Включить blending для прозрачности
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+    
+    m_vao->Bind();
+    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, m_fireParticles.size());
+    m_vao->Unbind();
+    
+    glDisable(GL_BLEND);
+    m_shader->Unbind();
+}
+void Renderer::RenderFire(const std::vector<Agent> &agents, float dt)
+{
+    std::vector<Agent> burningAgents;
+    for (const auto& agent : agents) {
+        if (agent.isBurning()) {
+            burningAgents.push_back(agent);
+        }
+    }
+    
+    UpdateFireParticles(dt, burningAgents);
+    RenderFireParticles();
+}
+void Renderer::EndScene()
+{
+}
+
+void Renderer::RenderWithGeometryShader()
+ {
+    // Настройка рендеринга
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // Аддитивное смешение для огня
+    glDepthMask(GL_FALSE); // Огонь не пишет в глубину
+    
+    m_fireGeometryShader->Bind();
+    m_fireGeometryShader->SetMat4("u_view", m_viewMat);
+    m_fireGeometryShader->SetMat4("u_projection", m_projectionMat);
+    m_fireGeometryShader->SetFloat("u_time", glfwGetTime());
+    
+    // Передаем векторы камеры для billboard
+    glm::mat4 view = m_viewMat;
+    glm::vec3 camera_right = glm::vec3(view[0][0], view[1][0], view[2][0]);
+    glm::vec3 camera_up = glm::vec3(view[0][1], view[1][1], view[2][1]);
+    
+    m_fireGeometryShader->SetVec3("u_camera_right", camera_right);
+    m_fireGeometryShader->SetVec3("u_camera_up", camera_up);
+    
+    // Рендерим точки - геометрический шейдер сделает остальное
+    m_agentVAO->Bind();
+    glDrawArrays(GL_POINTS, 0, m_agentRenderData.size());
+    m_agentVAO->Unbind();
+    
+    m_fireGeometryShader->Unbind();
+    
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+}
+
+void Renderer::DrawAgents(const std::vector<Agent> &agents)
+{
+    if (agents.empty()) return;
+    m_modelMatrices.clear();
+    m_colors.clear();
+    
+    for (const auto& agent : agents) {
+
+        for (int i = 0; i < agent.fire_collider.point_count; i++) {
+
+             glm::vec3 world_pos = glm::vec3(
+                agent.fire_collider.heat_points[i][0],  
+                agent.fire_collider.heat_points[i][1],  
+                agent.fire_collider.heat_points[i][2]   
+            );
+         
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, world_pos);
+            
+            float intensity = agent.fire_collider.intensities[i];
+            if(intensity <= 0.1) {
+                continue;
+            }
+            float scale = 1 + intensity * 0.3f; 
+            model = glm::scale(model, glm::vec3(scale));
+            
+            m_modelMatrices.push_back(model);
+            
+            glm::vec3 color;
+            if (intensity > 0.1f) {
+                color = glm::vec3(1.0f, 1.0f - intensity * 0.7f, 0.0f);
+            } else {
+                color = glm::vec3(0.0f, 0.0f, 1.0f);
+            }
+            m_colors.push_back(color);
+        }
+
+    if (m_modelMatrices.empty()) return;
+
+    std::vector<float> instanceData;
+    for (size_t i = 0; i < m_modelMatrices.size(); i++) {
+        const glm::mat4& model = m_modelMatrices[i];
+        for (int col = 0; col < 4; col++) {
+            for (int row = 0; row < 4; row++) {
+                instanceData.push_back(model[col][row]);
+            }
+        }
+        instanceData.push_back(m_colors[i].x);
+        instanceData.push_back(m_colors[i].y);
+        instanceData.push_back(m_colors[i].z);
+    }
+
+    m_instanceVBO->SetData(instanceData.data(), instanceData.size() * sizeof(float));
+
+    m_shader->Bind();
+    m_shader->SetMat4("u_view", m_viewMat);
+    m_shader->SetMat4("u_projection", m_projectionMat);
+    
+    m_vao->Bind();
+    glDrawElementsInstanced(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0, m_modelMatrices.size());
+    m_vao->Unbind();
+    m_shader->Unbind();
+}
+}
+
+} // namespace engine
+===== ./graphics/Renderer.h =====
+#pragma once
+#include "Shader.h"
+#include <glm/vec3.hpp>
+#include <memory>
+#include <core/agent.h>
+#include "Model.h"
+namespace engine {
+class Renderer {
+public:
+  void Init();
+  void Shutdown();
+  void DrawAgents(const std::vector<Agent>& agents);
+  void DrawCube(const glm::vec3& position, const glm::vec3& color, float scale);
+  void DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& camPos);
+  void BeginScene(const glm::mat4& view, const glm::mat4& projection);
+  void UploadAgentsData(const std::vector<Agent>& agents);
+  void RenderFire(const std::vector<Agent>& agents, float dt);
+  void EndScene();
+  void RenderWithGeometryShader();
+private:
+  void UpdateFireParticles(float dt, const std::vector<Agent>& burningAgents);
+  void RenderFireParticles();
+  glm::vec4 m_clearColor;
+  glm::mat4 m_projectionMat;
+  glm::mat4 m_viewMat;
+
+  std::unique_ptr<Shader> m_shader;
+  std::shared_ptr<Shader> m_modelShader;
+  std::shared_ptr<Shader> m_fireGeometryShader;
+  std::shared_ptr<VertexArrayObject> m_vao;
+  std::shared_ptr<VertexBuffer> m_vbo;
+  std::shared_ptr<IndexBuffer> m_ebo;
+
+  std::shared_ptr<VertexBuffer> m_instanceVBO;
+  std::vector<glm::mat4> m_modelMatrices;
+  std::vector<glm::vec3> m_colors;
+
+    struct FireParticle {
+        glm::vec3 position;
+        glm::vec3 velocity;
+        float lifetime;
+        float max_lifetime;
+        float size;
+        glm::vec3 color;
+    };
+
+    struct AgentRenderData {
+    glm::vec3 position;
+    float intensity;
+    glm::vec3 bounds_min;
+    glm::vec3 bounds_max;
+};  
+  std::vector<AgentRenderData> m_agentRenderData;
+  std::shared_ptr<VertexBuffer> m_agentVBO;
+  std::shared_ptr<VertexArrayObject> m_agentVAO;
+
+  std::vector<FireParticle> m_fireParticles;
+  float m_particleSpawnTimer = 0.0f;
+  std::vector<glm::mat4> m_particleModels;
+  std::vector<glm::vec3> m_particleColors;
+};
+} // namespace engine
+===== ./graphics/Shader.cc =====
+#include "Shader.h"
+#include <memory>
+namespace engine {
+std::unique_ptr<Shader> CreateOpenGLShader(const std::string &vertexSrc,
+                                           const std::string &fragmentSrc);
+std::unique_ptr<Shader> CreateOpenGLShader(const std::string &vertexSrc,
+                                           const std::string &fragmentSrc,
+                                           const std::string &geometrySrc);
+std::unique_ptr<Shader> CreateOpenGLShader(const std::string &filename);
+} // namespace engine
+
+namespace engine {
+
+std::unique_ptr<Shader> Shader::Create(const std::string &vertexSrc,
+                                       const std::string &fragmentSrc) {
+  return CreateOpenGLShader(vertexSrc, fragmentSrc);
+}
+
+std::unique_ptr<Shader> Shader::Create(const std::string &vertexSrc, const std::string &fragmentSrc, const std::string &geometrySrc)
+{
+    return CreateOpenGLShader(vertexSrc, fragmentSrc, geometrySrc);
+}
+
+std::unique_ptr<Shader> Shader::Create(const std::string &filename) {
+  // Здесь может быть проверка на тип рендерера (OpenGL, Vulkan, etc.)
+  // Пока всегда создаем OpenGL шейдер
+  return CreateOpenGLShader(filename);
+}
+
+} // namespace engine
+===== ./graphics/Shader.h =====
+#pragma once
+
+#include <glm/glm.hpp>
+#include <memory>
+#include <string>
+
+namespace engine {
+class Shader {
+public:
+  virtual ~Shader() = default;
+  virtual void Bind() const = 0;
+  virtual void Unbind() const = 0;
+  virtual void SetMat4(const std::string &name, const glm::mat4 &matrix) = 0;
+  virtual void SetVec3(const std::string &name, const glm::vec3 &vector) = 0;
+  virtual void SetVec4(const std::string &name, const glm::vec4 &vector) = 0;
+  virtual void SetInt(const std::string &name, int value) = 0;
+  virtual void SetFloat(const std::string &name, float value) = 0;
+  static std::unique_ptr<Shader> Create(const std::string &filename);
+  static std::unique_ptr<Shader> Create(const std::string &vertexSrc,
+                                        const std::string &fragmentSrc);
+  static std::unique_ptr<Shader> Create(const std::string &vertexSrc,
+                                        const std::string &fragmentSrc,
+                                        const std::string &geometrySrc);
+};
+} // namespace engine
+===== ./graphics/Texture.cc =====
+#include "Texture.h"
+
+namespace engine {
+std::shared_ptr<Texture> CreateOpenGLTexture(const std::string &path);
+std::shared_ptr<Texture> CreateOpenGLTexture(const TextureSpecification &spec);
+} // namespace engine
+
+namespace engine {
+std::shared_ptr<Texture> Texture::Create(const std::string &path) {
+  return CreateOpenGLTexture(path);
+}
+
+std::shared_ptr<Texture> Texture::Create(const TextureSpecification &spec) {
+  return CreateOpenGLTexture(spec);
+}
+} // namespace engine
+===== ./graphics/Texture.h =====
+#pragma once
+#include <cstdint>
+#include <memory>
+#include <string>
+namespace engine {
+enum class ImageFormat { None = 0, R8, RGB8, RGBA8, RGBA32F };
+
+struct TextureSpecification {
+  uint32_t Width = 1;
+  uint32_t Height = 1;
+  ImageFormat Format = ImageFormat::RGBA8;
+  bool GenerateMips = true;
+};
+
+class Texture {
+public:
+  virtual ~Texture() = default;
+  virtual void Bind(uint32_t slot = 0) const = 0;
+  virtual void Unbind() const = 0;
+
+  virtual uint32_t GetWidth() const = 0;
+  virtual uint32_t GetHeight() const = 0;
+  virtual uint32_t GetRendererID() const = 0;
+
+  virtual const TextureSpecification &GetSpecification() const = 0;
+
+  static std::shared_ptr<Texture> Create(const std::string &path);
+  static std::shared_ptr<Texture> Create(const TextureSpecification &spec);
+};
+
+} // namespace engine
+===== ./graphics/VertexArrayObject.cc =====
+#include "VertexArrayObject.h"
+
+namespace engine {
+std::shared_ptr<VertexArrayObject> CreateOpenGLVertexArrayObject();
+}
+
+namespace engine {
+std::shared_ptr<VertexArrayObject> VertexArrayObject::Create() {
+  return CreateOpenGLVertexArrayObject();
+}
+} // namespace engine
+
+===== ./graphics/VertexArrayObject.h =====
+#pragma once
+#include "IndexBuffer.h"
+#include "VertexBuffer.h"
+#include <memory>
+namespace engine {
+class VertexArrayObject {
+public:
+  virtual ~VertexArrayObject() = default;
+  virtual void Bind() const = 0;
+  virtual void Unbind() const = 0;
+  virtual void
+  AddVertexBuffer(const std::shared_ptr<VertexBuffer> &vertexBuffer) = 0;
+  virtual void
+  SetIndexBuffer(const std::shared_ptr<IndexBuffer> &indexBuffer) = 0;
+  virtual const std::vector<std::shared_ptr<VertexBuffer>> &
+  GetVertexBuffers() const = 0;
+  virtual const std::shared_ptr<IndexBuffer> &GetIndexBuffer() const = 0;
+  static std::shared_ptr<VertexArrayObject> Create();
+};
+} // namespace engine
+===== ./graphics/VertexBuffer.cc =====
+#include "VertexBuffer.h"
+
+namespace engine {
+std::unique_ptr<VertexBuffer> CreateOpenGLVertexBuffer(int32_t size);
+std::unique_ptr<VertexBuffer> CreateOpenGLVertexBuffer(float *vertices,
+                                                       int32_t size);
+} // namespace engine
+
+namespace engine {
+std::shared_ptr<VertexBuffer> VertexBuffer::Create(int32_t size) {
+  return CreateOpenGLVertexBuffer(size);
+}
+std::shared_ptr<VertexBuffer> VertexBuffer::Create(float *vertices,
+                                                   int32_t size) {
+  return CreateOpenGLVertexBuffer(vertices, size);
+}
+} // namespace engine
+===== ./graphics/VertexBuffer.h =====
+#pragma once
+#include <cstdint>
+#include <glad/glad.h>
+#include <memory>
+#include <string>
+#include <vector>
+namespace engine {
+enum class ShaderDataType {
+  Float,
+  Float2,
+  Float3,
+  Float4,
+  Int,
+  Int2,
+  Int3,
+  Int4,
+  Mat3,
+  Mat4,
+  Bool
+};
+static uint32_t ShaderDataTypeSize(ShaderDataType type) {
+  switch (type) {
+  case ShaderDataType::Float:
+    return 4;
+  case ShaderDataType::Float2:
+    return 4 * 2;
+  case ShaderDataType::Float3:
+    return 4 * 3;
+  case ShaderDataType::Float4:
+    return 4 * 4;
+  case ShaderDataType::Mat3:
+    return 4 * 3 * 3;
+  case ShaderDataType::Mat4:
+    return 4 * 4 * 4;
+  case ShaderDataType::Int:
+    return 4;
+  case ShaderDataType::Int2:
+    return 4 * 2;
+  case ShaderDataType::Int3:
+    return 4 * 3;
+  case ShaderDataType::Int4:
+    return 4 * 4;
+  case ShaderDataType::Bool:
+    return 1;
+  }
+  return 0;
+}
+struct BufferElement {
+  ShaderDataType type;
+  std::string name;
+  uint32_t size;
+  uint32_t offset;
+  bool normalized;
+  BufferElement(ShaderDataType type, const std::string &name,
+                bool normalized = false)
+      : name(name), type(type), size(ShaderDataTypeSize(type)), offset(0),
+        normalized(normalized) {}
+  uint32_t GetComponentCount() const {
+    switch (type) {
+    case ShaderDataType::Float:
+      return 1;
+    case ShaderDataType::Float2:
+      return 2;
+    case ShaderDataType::Float3:
+      return 3;
+    case ShaderDataType::Float4:
+      return 4;
+    case ShaderDataType::Int:
+      return 1;
+    case ShaderDataType::Int2:
+      return 2;
+    case ShaderDataType::Int3:
+      return 3;
+    case ShaderDataType::Int4:
+      return 4;
+    case ShaderDataType::Mat3:
+      return 3;
+    case ShaderDataType::Mat4:
+      return 4;
+    case ShaderDataType::Bool:
+      return 1;
+    }
+    return 0;
+  }
+};
+
+class BufferLayout {
+private:
+  std::vector<BufferElement> m_elements;
+  uint32_t m_Stride = 0;
+
+public:
+  BufferLayout() = default;
+  BufferLayout(const std::initializer_list<BufferElement> &elements)
+      : m_elements(elements) {
+    CalculateOffsetsAndStride();
+  }
+  const std::vector<BufferElement> &GetElements() const { return m_elements; }
+  uint32_t GetStride() const { return m_Stride; }
+  // Итераторы для for-each
+  std::vector<BufferElement>::iterator begin() { return m_elements.begin(); }
+  std::vector<BufferElement>::iterator end() { return m_elements.end(); }
+  std::vector<BufferElement>::const_iterator begin() const {
+    return m_elements.begin();
+  }
+  std::vector<BufferElement>::const_iterator end() const {
+    return m_elements.end();
+  }
+
+private:
+  void CalculateOffsetsAndStride() {
+    size_t offset = 0;
+    m_Stride = 0;
+    for (auto &element : m_elements) {
+      element.offset = offset;
+      offset += element.size;
+      m_Stride += element.size;
+    }
+  }
+};
+
+class VertexBuffer {
+private:
+  GLuint m_id;
+
+public:
+  virtual ~VertexBuffer() = default;
+
+  virtual void Bind() const = 0;
+  virtual void Unbind() const = 0;
+  virtual void SetData(const void *data, uint32_t size) = 0;
+  virtual void SetLayout(const BufferLayout &layout) = 0;
+  virtual const BufferLayout &GetLayout() const = 0;
+  static std::shared_ptr<VertexBuffer> Create(int32_t size);
+  static std::shared_ptr<VertexBuffer> Create(float *vertices, int32_t size);
+};
+
+} // namespace engine
+===== ./main.cc =====
+// src/main/main.cpp
+#include <iostream>
+#include "core/Application.h"
+
+int main() {
+    engine::Application app(1920, 1080, "Sim");
+    app.Run();
+    
+    return 0;
+}
+===== ./ui/Editor.cc =====
+// src/ui/Editor.cc
+#include "Editor.h"
+#include <GLFW/glfw3.h>
+#include <imgui.h>
+#include "core/scene/Camera.h"
+#include "core/scene/Scene.h"
+
+using namespace editor;
+
+void Editor::DrawUI(GLFWwindow* /*window*/, const engine::Camera& cam, const glm::mat4& view,
+                    const glm::mat4& proj) {
+  // --- минимальная панель загрузки модели ---
+  ImGui::Begin("Model Loader");
+  ImGui::InputText("Path", m_ModelPath, IM_ARRAYSIZE(m_ModelPath));
+  ImGui::SameLine();
+  if (ImGui::Button("Load")) {
+    if (m_Scene)
+      m_Scene->LoadPrimaryModel(m_ModelPath);
+  }
+  ImGui::TextUnformatted("Поддержка: любые форматы Assimp (.obj, .fbx, .dae, ...)");
+  ImGui::End();
+
+  // --- очень простой viewport без контекст-меню/дерева ---
+  ImGui::Begin("Viewport");
+  ImVec2 vpSize = ImGui::GetContentRegionAvail();
+  SetViewportSize((int)vpSize.x, (int)vpSize.y);
+  ImGui::Text("Размер вьюпорта: %dx%d", (int)vpSize.x, (int)vpSize.y);
+  ImGui::End();
+}
+
+===== ./ui/Editor.h =====
+// src/ui/Editor.h
+#pragma once
+#include <glm/glm.hpp>
+#include <string>          // NEW
+struct GLFWwindow;
+namespace engine { class Scene; class Camera; }
+
+namespace editor {
+class Editor {
+ public:
+  explicit Editor(engine::Scene* scene) : m_Scene(scene) {}
+  void SetViewportSize(int w, int h) { m_ViewportW = w; m_ViewportH = h; }
+  void DrawUI(GLFWwindow* window, const engine::Camera& cam,
+              const glm::mat4& view, const glm::mat4& proj);
+
+ private:
+  void DrawToolbar();
+  void DrawHierarchy();
+  void DrawInspector();
+  void SceneContextMenu(const engine::Camera& cam, const glm::mat4& view, const glm::mat4& proj);
+
+ private:
+  engine::Scene* m_Scene = nullptr;
+  int  m_ViewportW = 1920, m_ViewportH = 1080;
+  bool m_AddTreeMode = false;                // по умолчанию выкл в минимальном режиме
+  char m_ModelPath[512] = "res/models/LowPolytree/CartoonTree.obj"; // NEW
+};
+}
+
+===== ./ui/ImGuiLayer.cc =====
+#include "ImGuiLayer.h"
+
+#include <imgui.h>
+
+// сначала GL loader, затем GLFW, затем backends
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+
+
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_opengl3.h>
+
+using namespace ui;
+
+void ImGuiLayer::Init(GLFWwindow* window, const char* glsl) {
+  IMGUI_CHECKVERSION();
+  ImGui::CreateContext();
+  ImGuiIO& io = ImGui::GetIO();
+  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+  ImGui::StyleColorsDark();
+  ImGui_ImplGlfw_InitForOpenGL(window, false);
+  ImGui_ImplOpenGL3_Init(glsl);
+}
+
+void ImGuiLayer::Shutdown() {
+  ImGui_ImplOpenGL3_Shutdown();
+  ImGui_ImplGlfw_Shutdown();
+  ImGui::DestroyContext();
+}
+
+void ImGuiLayer::BeginFrame() {
+  ImGui_ImplOpenGL3_NewFrame();
+  ImGui_ImplGlfw_NewFrame();
+  ImGui::NewFrame();
+}
+
+void ImGuiLayer::EndFrame() {
+  ImGui::Render();
+  ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
+void ImGuiLayer::DrawDockspace() {
+  ImGuiWindowFlags window_flags = ImGuiWindowFlags_MenuBar | ImGuiWindowFlags_NoDocking;
+  const ImGuiViewport* vp = ImGui::GetMainViewport();
+  ImGui::SetNextWindowPos(vp->Pos);
+  ImGui::SetNextWindowSize(vp->Size);
+  ImGui::SetNextWindowViewport(vp->ID);
+  window_flags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse |
+                  ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
+                  ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus;
+
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+  ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+  ImGui::Begin("DockSpace", nullptr, window_flags);
+  ImGui::PopStyleVar(2);
+
+  ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+  ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), ImGuiDockNodeFlags_PassthruCentralNode);
+
+  if (ImGui::BeginMenuBar()) {
+    if (ImGui::BeginMenu("File")) {
+      ImGui::MenuItem("Quit", nullptr, false, false);
+      ImGui::EndMenu();
+    }
+    ImGui::EndMenuBar();
+  }
+  ImGui::End();
+}
+
+===== ./ui/ImGuiLayer.h =====
+#pragma once
+struct GLFWwindow;
+
+namespace ui {
+class ImGuiLayer {
+ public:
+  void Init(GLFWwindow* window, const char* glsl = "#version 330");
+  void Shutdown();
+  void BeginFrame();
+  void EndFrame();
+  void DrawDockspace();
+};
+}  // namespace ui
+===== ./ui/Raycast.h =====
+#pragma once
+#include <cmath>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
+
+namespace math {
+inline void ScreenPointToRay(float px, float py, float viewportW, float viewportH,
+                             const glm::mat4& proj, const glm::mat4& view,
+                             glm::vec3& outOrigin, glm::vec3& outDir) {
+    float x = (2.0F * px / viewportW) - 1.0F;
+    float y = 1.0F - (2.0F * py / viewportH); // flip Y
+    glm::vec4 ray_clip(x, y, -1.0F, 1.0F);
+
+    glm::mat4 inv_proj = glm::inverse(proj);
+    glm::vec4 ray_eye = inv_proj * ray_clip; // camera space
+    ray_eye = glm::vec4(ray_eye.x, ray_eye.y, -1.0f, 0.0f);
+
+    glm::mat4 inv_view = glm::inverse(view);
+    glm::vec4 ray_world4 = inv_view * ray_eye;
+    glm::vec3 ray_world = glm::normalize(glm::vec3(ray_world4));
+
+    auto cam_pos = glm::vec3(inv_view[3]);
+    outOrigin = cam_pos;
+    outDir = ray_world;
+}
+
+
+inline bool IntersectRayPlaneY0(const glm::vec3& ro, const glm::vec3& rd, glm::vec3& hit) {
+    if (std::fabs(rd.y) < 1e-6f) return false;
+    float t = -ro.y / rd.y;
+    if (t < 0.0f) return false;
+    hit = ro + rd * t;
+    return true;
+}
+
+}  // namespace math

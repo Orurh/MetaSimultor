@@ -1,25 +1,39 @@
 CompileFlags:
+  # если у тебя есть build/compile_commands.json — укажи его:
+  CompilationDatabase: build
+
   Add: [
+    # --- локальные third_party ---
+    "-Ilibs/glad/include",
+    "-Ilibs/imgui",
+    "-Ilibs/imgui/backends",
+
+    # --- твои инклюды проекта ---
+    "-Iinclude",
+    "-Isrc",
+
+    # --- системные, как у тебя ---
     "-I/usr/include/x86_64-linux-gnu/qt6",
     "-I/usr/include/x86_64-linux-gnu/qt6/QtCore",
     "-I/usr/include/x86_64-linux-gnu/qt6/QtWidgets",
     "-I/usr/include/x86_64-linux-gnu/qt6/QtGui",
     "-I/usr/include/x86_64-linux-gnu/qt6/QtNetwork",
     "-I/usr/include/x86_64-linux-gnu/qt6/QtOpenGLWidgets",
-    "-I/usr/include/x86_64-linux-gnu/qt6/QtConcurrent",         # ← добавлен QtConcurrent
+    "-I/usr/include/x86_64-linux-gnu/qt6/QtConcurrent",
     "-I/usr/include/opencv4",
     "-I/usr/include/gdal",
     "-I/usr/include/glm",
     "-I/usr/include/asio",
-    "-I/include/asio",
-    # "-I/usr/include/boost",
-    # "-I/include/boost",
-    "-Iinclude",
+    # !!! вот это лишнее/ошибочное: "-I/include/asio" (ведёт в /include)
+    # "-I/include/asio",
+
+    # --- дефайны ---
+    "-DGLFW_INCLUDE_NONE",
     "-DQT_CORE_LIB",
     "-DQT_WIDGETS_LIB",
     "-DQT_GUI_LIB",
     "-DQT_NETWORK_LIB",
     "-DQT_OPENGLWIDGETS_LIB",
-    "-DQT_CONCURRENT_LIB",                        # QtConcurrent — define
+    "-DQT_CONCURRENT_LIB",
     "-DBOOST_ALL_NO_LIB"
   ]

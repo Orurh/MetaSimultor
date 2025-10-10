@@ -130,4 +130,9 @@ void Scene::RenderAgent(const Agent &agent)
        
     }
 }
+
+void Scene::LoadPrimaryModel(const std::string& path) {
+    m_treeModel = std::make_shared<Model>(path);
 }
+
+} // namespace engine
