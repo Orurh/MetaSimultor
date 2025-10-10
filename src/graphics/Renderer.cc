@@ -112,7 +112,7 @@ void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
 }
 void Renderer::UploadAgentsData(const std::vector<Agent> &agents)
 {
-     m_agentRenderData.clear();
+    m_agentRenderData.clear();
     
     for (const auto& agent : agents) {
         if (!agent.isBurning()) continue; 

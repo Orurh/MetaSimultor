@@ -17,9 +17,10 @@ void Scene::Init()
     m_burningModel = std::make_shared<Model>("res/models/CartoonTree/CartoonTree.obj");
     m_burnedModel = std::make_shared<Model>("res/models/ChrTree/CartoonTree.obj");
     m_renderer.Init();
+    m_prefabSystem.LoadPrefabFromFile("prefabs/default_tree.yaml");
     Generate();
 
-    AddFire(510, 500);
+    AddFire(510, 550);
 }
 
 void Scene::Update(float dt) {
@@ -62,8 +63,11 @@ void Scene::Render() {
     
     auto agents = LoadAgentsFromGPU(); 
     
-    for(const auto& agent : agents) {
-        if (agent.type != AgentType::FIRE_SOURCE) {  
+     for (const auto& obj : m_sceneObjects) {
+        if (!obj.is_visible) continue;
+        
+        if (obj.agent_id < agents.size()) {
+            const Agent& agent = agents[obj.agent_id];
             RenderAgent(agent);
         }
     }
@@ -82,9 +86,19 @@ void Scene::Render() {
 
 void Scene::AddTree(float x, float y)
 {
-  static int tree_counter = 0;
-  m_agentManager.AddTree(tree_counter++, x, y);
-  m_agentManager.IgniteRandomPoint(0);
+    static int tree_counter = 0;
+    
+    const auto& prefab = m_prefabSystem.GetPrefab("default_tree");
+    Agent agent = m_prefabSystem.CreateAgentFromPrefab(prefab, {x, 0, y});
+    m_agentManager.AddAgent(agent);
+    int agent_index = m_agentManager.getAgentCount() - 1;
+    SceneObject obj;
+    obj.agent_id = agent_index;
+    obj.model_path = prefab.model_path; 
+    obj.position = glm::vec3(x, 0, y);
+    obj.is_visible = true;
+    m_sceneObjects.push_back(obj);
+    tree_counter++;
 }
 
 void Scene::Generate()

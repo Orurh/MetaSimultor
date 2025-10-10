@@ -12,7 +12,7 @@ AgentManager::~AgentManager() {
     cudaFree(m_agents);
 }
 
-void AgentManager::AddTree(int tree_id, float base_x, float base_z) {
+Agent AgentManager::AddTree(int tree_id, float base_x, float base_z) {
     Agent tree;
     tree.type = TREE;
     tree.object_id = tree_id;
@@ -21,6 +21,7 @@ void AgentManager::AddTree(int tree_id, float base_x, float base_z) {
     setupTreeFireCollider(tree, base_x, base_z);
     
     AddAgent(tree);
+    return tree;
 }
 
 void AgentManager::setupTreeFireCollider(Agent& tree, float base_x, float base_z) {
@@ -43,7 +44,7 @@ void AgentManager::IgniteRandomPoint(int agent_index)
     
     if (agent.fire_collider.point_count > 0) {
         int random_point = rand() % agent.fire_collider.point_count;
-        agent.fire_collider.intensities[random_point] = 0.5f;
+        agent.fire_collider.intensities[random_point] = 1.0f;
         cudaMemcpy(m_agents + agent_index, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
     }
 }

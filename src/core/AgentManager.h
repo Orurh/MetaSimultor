@@ -13,7 +13,7 @@ public:
     AgentManager(int max_agents);
     ~AgentManager();
 
-    void AddTree(int tree_id, float base_x, float base_z);
+    Agent AddTree(int tree_id, float base_x, float base_z);
     void AddFire(float x, float y, float intensity);  
     void AddAgent(const Agent& angent);
     Agent* getDeviceAgents() { return m_agents; }

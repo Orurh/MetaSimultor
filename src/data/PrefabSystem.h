@@ -3,7 +3,9 @@
 #include <vector>
 #include <glm/glm.hpp>
 #include <unordered_map>
-#include "agent.h"
+#include "core/agent.h"
+#include <yaml-cpp/yaml.h>
+
 namespace engine::data {
 
     struct AgentPrefab {
@@ -23,6 +25,7 @@ namespace engine::data {
         struct Phisics {
             float intencity;
         } physics;
+
         struct Visuals {
             std::string normal_material;
             std::string burning_material; 
@@ -32,18 +35,23 @@ namespace engine::data {
 
     class PrefabSystem {
         public: 
-            void LoadPrefabs(const std::string& config_path);
             void SavePrefab(const std::string& name, const AgentPrefab& prefab);
-
+            void SavePrefabToFile(const std::string& prefab_name, const std::string& file_path);
+            void LoadPrefabFromFile(const std::string& file_path);
             const AgentPrefab& GetPrefab(const std::string& name) const;
             bool PrefabExists(const std::string& name) const;
 
             Agent CreateAgentFromPrefab(const std::string& prefab_name, const glm::vec3& position);
             Agent CreateAgentFromPrefab(const AgentPrefab& prefab, const glm::vec3& position);
-
+            void CreatePrefabFromAgent(const std::string& name, const Agent& agent, 
+                              const std::string& model_path);
+    
             std::vector<std::string> GetPrefabNames() const;
             std::vector<std::string> GetPrefabsByType(AgentType type) const;
         private:
+            void SerializePrefab(const AgentPrefab& prefab, YAML::Node& node) const;
+
+            AgentPrefab DeserializePrefab(const YAML::Node& node) const;
             std::unordered_map<std::string, AgentPrefab> m_prefabs;
     };
 }
