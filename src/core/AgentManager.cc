@@ -16,31 +16,27 @@ void AgentManager::AddTree(int tree_id, float base_x, float base_z) {
     Agent tree;
     tree.type = TREE;
     tree.object_id = tree_id;
-    tree.pos_x = base_x;
-    tree.pos_z = base_z;
-    tree.pos_y = 0.0f;
+    tree.position = {base_x, 0.0f, base_z};
     
-    // Настраиваем FireCollider для дерева
     setupTreeFireCollider(tree, base_x, base_z);
     
     AddAgent(tree);
 }
 
 void AgentManager::setupTreeFireCollider(Agent& tree, float base_x, float base_z) {
-    tree.fire_collider.bounds_min[0] = base_x - 2.0f;
-    tree.fire_collider.bounds_min[1] = 0.0f;         
-    tree.fire_collider.bounds_min[2] = base_z - 2.0f;
+    tree.fire_collider.bounds_min.x = base_x - 2.0f;
+    tree.fire_collider.bounds_min.y = 0.0f;         
+    tree.fire_collider.bounds_min.z = base_z - 2.0f;
     
-    tree.fire_collider.bounds_max[0] = base_x + 2.0f;
-    tree.fire_collider.bounds_max[1] = 8.0f;         
-    tree.fire_collider.bounds_max[2] = base_z + 2.0f;
+    tree.fire_collider.bounds_max.x = base_x + 2.0f;
+    tree.fire_collider.bounds_max.y = 8.0f;         
+    tree.fire_collider.bounds_max.z = base_z + 2.0f;
     
     generateTreeHeatPoints(tree.fire_collider, base_x, base_z);
 }
 void AgentManager::IgniteRandomPoint(int agent_index)
  {
     if (agent_index < 0 || agent_index >= m_count) return;
-    
     Agent agent;
     cudaMemcpy(&agent, m_agents + agent_index, sizeof(Agent), cudaMemcpyDeviceToHost);
     
@@ -55,9 +51,9 @@ void AgentManager::generateTreeHeatPoints(FireCollider &collider, float base_x, 
     collider.point_count = 0;
     
     for (float height = 0.5f; height <= 8.0f; height += 0.8f) {
-        collider.heat_points[collider.point_count][0] = base_x;
-        collider.heat_points[collider.point_count][1] = height;
-        collider.heat_points[collider.point_count][2] = base_z;
+        collider.heat_points[collider.point_count].x = base_x;
+        collider.heat_points[collider.point_count].y = height;
+        collider.heat_points[collider.point_count].z = base_z;
         collider.fuels[collider.point_count] = 30.0f;
         collider.intensities[collider.point_count] = 0.0f;
         collider.point_count++;
@@ -76,9 +72,9 @@ void AgentManager::generateTreeHeatPoints(FireCollider &collider, float base_x, 
             float angle = (float)i / points * 360.0f;
             float rad = glm::radians(angle);
             
-            collider.heat_points[collider.point_count][0] = base_x + cos(rad) * radius;
-            collider.heat_points[collider.point_count][1] = height;
-            collider.heat_points[collider.point_count][2] = base_z + sin(rad) * radius;
+            collider.heat_points[collider.point_count].x = base_x + cos(rad) * radius;
+            collider.heat_points[collider.point_count].y = height;
+            collider.heat_points[collider.point_count].z = base_z + sin(rad) * radius;
             collider.fuels[collider.point_count] = 20.0f;
             collider.intensities[collider.point_count] = 0.0f;
             collider.point_count++;
@@ -95,15 +91,13 @@ void AgentManager::generateTreeHeatPoints(FireCollider &collider, float base_x, 
     std::uniform_real_distribution<float> dist_y(1.0f, 7.0f);
     
     while (collider.point_count < 50 && collider.point_count < 64) {
-        collider.heat_points[collider.point_count][0] = dist_x(gen);
-        collider.heat_points[collider.point_count][1] = dist_y(gen);
-        collider.heat_points[collider.point_count][2] = dist_z(gen);
+        collider.heat_points[collider.point_count].x = dist_x(gen);
+        collider.heat_points[collider.point_count].y = dist_y(gen);
+        collider.heat_points[collider.point_count].z = dist_z(gen);
         collider.fuels[collider.point_count] = 15.0f;
         collider.intensities[collider.point_count] = 0.0f;
         collider.point_count++;
     }
-    
-    std::cout << "Generated " << collider.point_count << " points for tree" << std::endl;
 }
 
 void AgentManager::AddFire(float x, float y, float intensity) {
@@ -112,33 +106,28 @@ void AgentManager::AddFire(float x, float y, float intensity) {
     Agent fire;
     fire.type = FIRE_SOURCE;
     fire.object_id = -1;
-    fire.pos_x = x;
-    fire.pos_z = y;
-    fire.pos_y = 0.0f;
+    fire.position = {x, y, 0.0f};
     
-    // Простой FireCollider для источника огня
     setupFireSourceCollider(fire, x, y);
     
-    // Зажигаем точку
     fire.fire_collider.intensities[0] = intensity;
     
     AddAgent(fire);
 }
 
 void AgentManager::setupFireSourceCollider(Agent& fire, float x, float y) {
-    fire.fire_collider.bounds_min[0] = x - 0.5f;
-    fire.fire_collider.bounds_min[1] = 0.0f;  
-    fire.fire_collider.bounds_min[2] = y - 0.5f;
+    fire.fire_collider.bounds_min.x = x - 0.5f;
+    fire.fire_collider.bounds_min.y = 0.0f;  
+    fire.fire_collider.bounds_min.z = y - 0.5f;
     
-    fire.fire_collider.bounds_max[0] = x + 0.5f;
-    fire.fire_collider.bounds_max[1] = 2.0f;
-    fire.fire_collider.bounds_max[2] = y + 0.5f;
+    fire.fire_collider.bounds_max.x = x + 0.5f;
+    fire.fire_collider.bounds_max.y = 2.0f;
+    fire.fire_collider.bounds_max.z = y + 0.5f;
     
-    // Одна точка в центре
     fire.fire_collider.point_count = 1;
-    fire.fire_collider.heat_points[0][0] = x;
-    fire.fire_collider.heat_points[0][1] = 1.0f;
-    fire.fire_collider.heat_points[0][2] = y;
+    fire.fire_collider.heat_points[0].x = x;
+    fire.fire_collider.heat_points[0].y = 1.0f;
+    fire.fire_collider.heat_points[0].z = y;
     fire.fire_collider.fuels[0] = 50.0f;
     fire.fire_collider.intensities[0] = 0.0f;
 }

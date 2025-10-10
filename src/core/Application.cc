@@ -29,26 +29,6 @@ void Application::Run()
         m_scene.Update(dt);
         m_scene.Render();
         m_window.SwapBuffers();
-        
-        // double frameEnd = glfwGetTime();
-        // double frameDuration = frameEnd - frameStart;
-        
-        // if (frameDuration < FRAME_TIME) {
-        //     double sleepTime = FRAME_TIME - frameDuration;
-        //     std::this_thread::sleep_for(
-        //         std::chrono::duration<double>(sleepTime)
-        //     );
-        // }
-        // static int frameCount = 0;
-        // static double lastFpsTime = glfwGetTime();
-        // frameCount++;
-        
-        // if (frameEnd - lastFpsTime >= 1.0) {
-        //     std::cout << "FPS: " << frameCount << std::endl;
-        //     frameCount = 0;
-        //     lastFpsTime = frameEnd;
-        // }
-       
     }
 }
 }

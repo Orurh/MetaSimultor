@@ -4,8 +4,8 @@
 struct BranchConfig {
     float length;
     float angle;
-    int children_count;
     float thickness_factor;
+    int children_count;
 };
 
 class AgentManager {

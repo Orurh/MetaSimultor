@@ -56,13 +56,11 @@ void Scene::Update(float dt) {
 }
 
 void Scene::Render() {
-    
     auto projection = glm::perspective(m_camera.GetZoom(), (float)1920 / (float)1080, 0.1f, 2000.0f);
     auto view = m_camera.GetViewMatrix();
     m_renderer.BeginScene(view, projection);
     
     auto agents = LoadAgentsFromGPU(); 
-    
     
     for(const auto& agent : agents) {
         if (agent.type != AgentType::FIRE_SOURCE) {  
@@ -70,27 +68,14 @@ void Scene::Render() {
         }
     }
     
-    
     std::vector<Agent> burningBranches;
     for (const auto& agent : agents) {
         if ((agent.type == AgentType::TREE || agent.type == AgentType::BURNED)) {
             burningBranches.push_back(agent);
         }
     }
-    m_renderer.UploadAgentsData(agents); // Горящие агенты → GPU
+    m_renderer.UploadAgentsData(agents); 
     m_renderer.RenderWithGeometryShader();
-    // auto start_time = std::chrono::high_resolution_clock::now();
-    
-    // m_renderer.DrawAgents(burningBranches);
-    
-    // auto end_time = std::chrono::high_resolution_clock::now();
-    
-    // // Вывод времени выполнения
-    // auto total_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
-    
-    // std::cout 
-    //           << "Total=" << total_duration.count() << "ms, "
-    //           << "Agents=" << agents.size() << std::endl;
     
     m_renderer.EndScene();
 }
@@ -104,8 +89,8 @@ void Scene::AddTree(float x, float y)
 
 void Scene::Generate()
 {
-    for(int i = 0; i < 50; i+=3){
-        for(int j = 0; j < 50; j+=3) {
+    for(int i = 0; i < 100; i+=3){
+        for(int j = 0; j < 100; j+=3) {
             AddTree(500 + i, 500 + j);
         }
     }
@@ -121,13 +106,15 @@ std::vector<Agent> Scene::LoadAgentsFromGPU()
 
 void Scene::RenderAgent(const Agent &agent)
 {
-    glm::vec3 position(agent.pos_x, agent.pos_y, agent.pos_z);
+    glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
     
     switch (agent.type) {
         case AgentType::TREE:
             m_renderer.DrawModel(*m_treeModel, position, m_camera.GetPosition());
             break;
-       
-    }
+        case AgentType::BURNED:
+            m_renderer.DrawModel(*m_burnedModel, position, m_camera.GetPosition());
+            break;
+    }   
 }
 }
