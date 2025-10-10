@@ -34,6 +34,7 @@ void AgentManager::setupTreeFireCollider(Agent& tree, float base_x, float base_z
     
     generateTreeHeatPoints(tree.fire_collider, base_x, base_z);
 }
+
 void AgentManager::IgniteRandomPoint(int agent_index)
  {
     if (agent_index < 0 || agent_index >= m_count) return;
@@ -46,6 +47,7 @@ void AgentManager::IgniteRandomPoint(int agent_index)
         cudaMemcpy(m_agents + agent_index, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
     }
 }
+
 void AgentManager::generateTreeHeatPoints(FireCollider &collider, float base_x, float base_z)
 {
     collider.point_count = 0;
