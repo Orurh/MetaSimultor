@@ -42,6 +42,6 @@ class Window {
   [[nodiscard]] GLFWwindow* GetWindow() const;
 
  private:
-  GLFWwindow* m_window_;
+  GLFWwindow* m_window;
 };
 }  // namespace engine

@@ -65,7 +65,7 @@ void Application::Run()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
-        // --- Мини-окно: загрузка модели (пока без деревьев) ---
+        // --- Мини-окно: загрузка модели ---
         ImGui::Begin("Model Loader");
         static char path[512] = "res/models/LowPolytree/CartoonTree.obj";
         ImGui::InputText("Path", path, IM_ARRAYSIZE(path));
@@ -76,8 +76,36 @@ void Application::Run()
         ImGui::TextUnformatted("Formats: OBJ/FBX/DAE/etc. via Assimp");
         ImGui::End();
 
-        // Можно быстро проверить, что ImGui рисуется:
-        // static bool show_demo = true; ImGui::ShowDemoWindow(&show_demo);
+       // --- Режим редактирования кликом ---
+        ImGui::Begin("Edit Mode");
+        static int mode = 0; // 0=Tree, 1=Fire
+        ImGui::RadioButton("Add Tree (LMB)", &mode, 0); ImGui::SameLine();
+        ImGui::RadioButton("Add Fire (LMB)", &mode, 1);
+        if (mode == 0) {
+            m_scene.SetPlaceMode(engine::Scene::PlaceMode::Tree);
+        } else {
+            m_scene.SetPlaceMode(engine::Scene::PlaceMode::Fire);
+            static float fireIntensity = 1.0f;
+            ImGui::SliderFloat("Fire intensity", &fireIntensity, 0.0f, 5.0f, "%.2f");
+            m_scene.SetFireIntensity(fireIntensity);
+        }
+        ImGui::TextUnformatted("ЛКМ по земле: добавить выбранное");
+        ImGui::End();
+
+
+        // --- Панель управления огнем ---
+        ImGui::Begin("Fire Control");
+        static float fx = 510.0f;
+        static float fy = 501.0f;
+        static float fint = 1.0f;
+        ImGui::InputFloat("X", &fx);
+        ImGui::InputFloat("Y", &fy);
+        ImGui::SliderFloat("Intensity", &fint, 0.0f, 5.0f, "%.2f");
+        if (ImGui::Button("Ignite")) {
+            m_scene.AddFire(fx, fy, fint);
+        }
+        ImGui::End();
+
 
         // --- ImGui render ---
         ImGui::Render();

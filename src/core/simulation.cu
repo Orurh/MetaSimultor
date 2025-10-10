@@ -45,9 +45,9 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
             // Эта точка достаточно сильно горит для распространения
             
             glm::vec3 point_pos = glm::vec3(
-                agent->fire_collider.heat_points[i][0],
-                agent->fire_collider.heat_points[i][1],
-                agent->fire_collider.heat_points[i][2]
+                agent->fire_collider.heat_points[i].x,
+                agent->fire_collider.heat_points[i].y,
+                agent->fire_collider.heat_points[i].z
             );
             
             // Ищем другие агенты для распространения огня
@@ -58,12 +58,12 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
                 
                 // Проверяем расстояние между bounding box'ами
                 float box_dist = distance3d(
-                    (agent->fire_collider.bounds_min[0] + agent->fire_collider.bounds_max[0]) * 0.5f,
-                    (agent->fire_collider.bounds_min[1] + agent->fire_collider.bounds_max[1]) * 0.5f,
-                    (agent->fire_collider.bounds_min[2] + agent->fire_collider.bounds_max[2]) * 0.5f,
-                    (other_agent->fire_collider.bounds_min[0] + other_agent->fire_collider.bounds_max[0]) * 0.5f,
-                    (other_agent->fire_collider.bounds_min[1] + other_agent->fire_collider.bounds_max[1]) * 0.5f,
-                    (other_agent->fire_collider.bounds_min[2] + other_agent->fire_collider.bounds_max[2]) * 0.5f
+                    (agent->fire_collider.bounds_min.x + agent->fire_collider.bounds_max.x) * 0.5f,
+                    (agent->fire_collider.bounds_min.y + agent->fire_collider.bounds_max.y) * 0.5f,
+                    (agent->fire_collider.bounds_min.z + agent->fire_collider.bounds_max.z) * 0.5f,
+                    (other_agent->fire_collider.bounds_min.x + other_agent->fire_collider.bounds_max.x) * 0.5f,
+                    (other_agent->fire_collider.bounds_min.y + other_agent->fire_collider.bounds_max.y) * 0.5f,
+                    (other_agent->fire_collider.bounds_min.z + other_agent->fire_collider.bounds_max.z) * 0.5f
                 );
                 
                 if (box_dist < 15.0f) { 
@@ -72,9 +72,9 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
                         if (other_agent->fire_collider.intensities[j] > 0.1f) continue; 
                         
                         glm::vec3 other_point_pos = glm::vec3(
-                            other_agent->fire_collider.heat_points[j][0],
-                            other_agent->fire_collider.heat_points[j][1],
-                            other_agent->fire_collider.heat_points[j][2]
+                            other_agent->fire_collider.heat_points[j].x,
+                            other_agent->fire_collider.heat_points[j].y,
+                            other_agent->fire_collider.heat_points[j].z
                         );
                         
                         float point_dist = distance3d(
@@ -101,18 +101,16 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
     for (int i = 0; i < agent->fire_collider.point_count; i++) {
         if (agent->fire_collider.intensities[i] > 0.1f) {
             glm::vec3 point_pos = glm::vec3(
-                agent->fire_collider.heat_points[i][0],
-                agent->fire_collider.heat_points[i][1],
-                agent->fire_collider.heat_points[i][2]
+                agent->fire_collider.heat_points[i].x,
+                agent->fire_collider.heat_points[i].y,
+                agent->fire_collider.heat_points[i].z
             );
             
             for (int j = 0; j < agent->fire_collider.point_count; j++) {
-                if (i == j || agent->fire_collider.intensities[j] > 0.1f) continue;
-                
                 glm::vec3 other_point_pos = glm::vec3(
-                    agent->fire_collider.heat_points[j][0],
-                    agent->fire_collider.heat_points[j][1],
-                    agent->fire_collider.heat_points[j][2]
+                    agent->fire_collider.heat_points[j].x,
+                    agent->fire_collider.heat_points[j].y,
+                    agent->fire_collider.heat_points[j].z
                 );
                 
                 float point_dist = distance3d(
