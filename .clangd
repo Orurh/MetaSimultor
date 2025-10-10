@@ -1,0 +1,25 @@
+CompileFlags:
+  Add: [
+    "-I/usr/include/x86_64-linux-gnu/qt6",
+    "-I/usr/include/x86_64-linux-gnu/qt6/QtCore",
+    "-I/usr/include/x86_64-linux-gnu/qt6/QtWidgets",
+    "-I/usr/include/x86_64-linux-gnu/qt6/QtGui",
+    "-I/usr/include/x86_64-linux-gnu/qt6/QtNetwork",
+    "-I/usr/include/x86_64-linux-gnu/qt6/QtOpenGLWidgets",
+    "-I/usr/include/x86_64-linux-gnu/qt6/QtConcurrent",         # ← добавлен QtConcurrent
+    "-I/usr/include/opencv4",
+    "-I/usr/include/gdal",
+    "-I/usr/include/glm",
+    "-I/usr/include/asio",
+    "-I/include/asio",
+    # "-I/usr/include/boost",
+    # "-I/include/boost",
+    "-Iinclude",
+    "-DQT_CORE_LIB",
+    "-DQT_WIDGETS_LIB",
+    "-DQT_GUI_LIB",
+    "-DQT_NETWORK_LIB",
+    "-DQT_OPENGLWIDGETS_LIB",
+    "-DQT_CONCURRENT_LIB",                        # QtConcurrent — define
+    "-DBOOST_ALL_NO_LIB"
+  ]

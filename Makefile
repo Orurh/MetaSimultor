@@ -1,6 +1,6 @@
 # ====== ultra-minimal wrapper ======
 BUILD  ?= build
-CONFIG ?= Release
+CONFIG ?= Debug
 ARCH   ?=                # можно оставить пустым; или, например: ARCH=native
 
 # Формируем общий список аргументов к cmake (без навязывания компиляторов)
