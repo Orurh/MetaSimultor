@@ -71,6 +71,7 @@
         "locale": "cpp",
         "stream_ref": "cpp",
         "unordered_set": "cpp",
-        "__bit_reference": "cpp"
+        "__bit_reference": "cpp",
+        "set": "cpp"
     }
 }
