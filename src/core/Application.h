@@ -10,6 +10,6 @@ namespace engine {
         private:
             Window m_window;
             Scene m_scene;
-            float m_lastFrameTime;
+            float m_last_frame_time;
     };
 }

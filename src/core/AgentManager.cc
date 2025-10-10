@@ -109,7 +109,8 @@ void AgentManager::AddFire(float x, float y, float intensity) {
     Agent fire;
     fire.type = FIRE_SOURCE;
     fire.object_id = -1;
-    fire.position = {x, y, 0.0f};
+    // fire.position = {x, y, 0.0f};
+    fire.position = {x, 0.0f, y};  
     
     setupFireSourceCollider(fire, x, y);
     
