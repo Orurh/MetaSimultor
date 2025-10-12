@@ -64,6 +64,7 @@ file(GLOB_RECURSE SOURCE_FILES
     src/graphics/OpenGL/*.cc
     src/scene/*.cc
     src/ui/*.cc
+    src/app/*.cc
 )
 
 # 4) Исполняемый файл

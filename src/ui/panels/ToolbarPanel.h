@@ -1,0 +1,19 @@
+// ui/panels/ToolbarPanel.h
+#pragma once
+#include "ui/IPanel.h"
+#include <imgui.h>
+
+namespace ui {
+class ToolbarPanel final : public IPanel {
+public:
+  [[nodiscard]] const char* Id() const override { return "Toolbar"; }
+
+  void Draw(EditorContext& ctx) override;
+  void OnShow(EditorContext& /*ctx*/) override { m_wasVisible = true; }
+  void OnHide(EditorContext& /*ctx*/) override { m_wasVisible = false; }
+
+private:
+  bool  m_wasVisible = false;
+  float m_fireIntensity = 1.0F;
+};
+} // namespace ui

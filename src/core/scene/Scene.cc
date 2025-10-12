@@ -26,57 +26,61 @@ void Scene::Init()
 }
 
 void Scene::Update(float dt) {
-    SimulationStep(m_agentManager.getDeviceAgents(), m_agentManager.getAgentCount(), dt);
-    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::W)) {
-        m_camera.ProcessKeyboard(FORWARD, dt);
+  // 0) Симуляция — всегда идёт
+  SimulationStep(m_agentManager.getDeviceAgents(),
+                 m_agentManager.getAgentCount(), dt);
+
+  // 1) Флаги захвата UI
+  const ImGuiIO& io = ImGui::GetIO();
+  const bool ui_mouse = io.WantCaptureMouse;
+  const bool ui_kbd   = io.WantCaptureKeyboard;
+
+  // 2) WASD — только если UI не держит клавиатуру
+  if (!ui_kbd) {
+    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::W)) m_camera.ProcessKeyboard(FORWARD,  dt);
+    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::S)) m_camera.ProcessKeyboard(BACKWARD, dt);
+    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::D)) m_camera.ProcessKeyboard(RIGHT,    dt);
+    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::A)) m_camera.ProcessKeyboard(LEFT,     dt);
+  }
+
+  // 3) Поворот камеры — только если UI не держит мышь И зажат RMB
+  static glm::vec2 lastMousePos = engine::InputSystem::Instance().GetMousePosition();
+  const auto curMousePos = engine::InputSystem::Instance().GetMousePosition();
+
+  if (!ui_mouse && engine::InputSystem::Instance()
+                       .GetMouseButton(GLFW_MOUSE_BUTTON_RIGHT, InputState::Held)) {
+    const glm::vec2 delta = curMousePos - lastMousePos;
+    if (delta != glm::vec2(0.0f)) {
+      m_camera.ProcessMouseMovement(delta.x, delta.y);
     }
-    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::S)) {
-        m_camera.ProcessKeyboard(BACKWARD, dt);
+  }
+  // обновляем last всегда в конце кадра, чтобы дельта считалась корректно
+  lastMousePos = curMousePos;
+
+  // 4) Постановка объекта — ОДНОРАЗОВО на клик ЛКМ и только если UI не держит мышь
+  if (!ui_mouse && engine::InputSystem::Instance()
+                      .GetMouseButton(GLFW_MOUSE_BUTTON_LEFT, InputState::Pressed)) {
+    const glm::vec2 mp = curMousePos;
+    const glm::vec3 hit = ScreenToGround(mp, m_vpW, m_vpH);
+    if (std::isfinite(hit.x) && std::isfinite(hit.z)) {
+      if (m_placeMode == PlaceMode::Tree) {
+        AddTree(hit.x, hit.z);
+      } else {
+        m_agentManager.AddFire(hit.x, hit.z, m_fireIntensity);
+      }
     }
-    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::D)) {
-        m_camera.ProcessKeyboard(RIGHT, dt);
-    }
-    if (engine::InputSystem::Instance().GetKey(engine::KeyCode::A)) {
-        m_camera.ProcessKeyboard(LEFT, dt);
-    }
-    
-    static glm::vec2 lastMousePos = engine::InputSystem::Instance().GetMousePosition();
-    
-    auto currentMousePos = engine::InputSystem::Instance().GetMousePosition();
-    glm::vec2 mouseDelta = currentMousePos - lastMousePos;
-    lastMousePos = currentMousePos;
-    
-    if (engine::InputSystem::Instance().GetMouseButton(GLFW_MOUSE_BUTTON_RIGHT, InputState::Held)) {
-        std::cout << "Held" << std::endl;
-        if (mouseDelta != glm::vec2(0.0f)) {
-            m_camera.ProcessMouseMovement(mouseDelta.x, mouseDelta.y);
-        }
-    }
-    // Одноразовый клик для постановки объекта
-    if (engine::InputSystem::Instance().GetMouseButton(GLFW_MOUSE_BUTTON_LEFT, InputState::Held)) {
-        std::cout << "Pressed" << std::endl;
-        bool ui_capture = false;
-#ifdef USE_IMGUI
-        ui_capture = ImGui::GetIO().WantCaptureMouse;
-#endif
-        if (!ui_capture) {
-           glm::vec2 mp = engine::InputSystem::Instance().GetMousePosition();
-            glm::vec3 p = ScreenToGround(mp, 1920, 1080);
-            if (std::isfinite(p.x) && std::isfinite(p.z)) {
-                if (m_placeMode == PlaceMode::Tree) {
-                    AddTree(p.x, p.z);
-                } else {
-                    m_agentManager.AddFire(p.x, p.z, m_fireIntensity);
-                }
-            }
-        }
-    }
-    float scrollY = engine::InputSystem::Instance().GetMouseScrollY();
+  }
+
+  // 5) Зум — только если UI не держит мышь/скролл
+  if (!ui_mouse) {
+    const float scrollY = engine::InputSystem::Instance().GetMouseScrollY();
     if (scrollY != 0.0f) {
-        m_camera.ProcessMouseScroll(scrollY);
-        engine::InputSystem::Instance().ResetMouseScroll();
+      m_camera.ProcessMouseScroll(scrollY);
+      engine::InputSystem::Instance().ResetMouseScroll();
     }
+  }
 }
+
 
 glm::vec3 Scene::ScreenToGround(const glm::vec2& mousePx, int w, int h) {
     float x =  2.0f * mousePx.x / float(w) - 1.0f;
