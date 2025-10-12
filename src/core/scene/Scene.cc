@@ -1,6 +1,7 @@
 #include "Scene.h"
 #include "Entity.h"
 #include "core/simulation.cuh"
+#include <GLFW/glfw3.h>
 #include <cuda_runtime.h>
 #include <iostream>
 #include <chrono>
@@ -45,12 +46,12 @@ void Scene::Update(float dt) {
     glm::vec2 mouseDelta = currentMousePos - lastMousePos;
     lastMousePos = currentMousePos;
     
-    // if (engine::InputSystem::Instance().GetMouseButton(GLFW_MOUSE_BUTTON_LEFT, InputState::Held)) {
-    //     std::cout << "Held" << std::endl;
-    //     if (mouseDelta != glm::vec2(0.0f)) {
-    //         m_camera.ProcessMouseMovement(mouseDelta.x, mouseDelta.y);
-    //     }
-    // }
+    if (engine::InputSystem::Instance().GetMouseButton(GLFW_MOUSE_BUTTON_RIGHT, InputState::Held)) {
+        std::cout << "Held" << std::endl;
+        if (mouseDelta != glm::vec2(0.0f)) {
+            m_camera.ProcessMouseMovement(mouseDelta.x, mouseDelta.y);
+        }
+    }
     // Одноразовый клик для постановки объекта
     if (engine::InputSystem::Instance().GetMouseButton(GLFW_MOUSE_BUTTON_LEFT, InputState::Held)) {
         std::cout << "Pressed" << std::endl;

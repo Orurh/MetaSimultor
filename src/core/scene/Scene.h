@@ -12,6 +12,7 @@ public:
   Scene();
   void Init();
   void Update(float dt);
+   
   void Render();
   void AddTree(float x, float y);
   // void AddFire(float x, float y) { m_agentManager.AddFire(x, y, 1.0f); }

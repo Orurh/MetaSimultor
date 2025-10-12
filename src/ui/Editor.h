@@ -6,6 +6,7 @@ struct GLFWwindow;
 namespace engine { class Scene; class Camera; }
 
 namespace editor {
+  
 class Editor {
  public:
   explicit Editor(engine::Scene* scene) : m_Scene(scene) {}

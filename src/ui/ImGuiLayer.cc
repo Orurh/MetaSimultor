@@ -2,9 +2,15 @@
 
 #include <imgui.h>
 
-// сначала GL loader, затем GLFW, затем backends
+// clang-format off
+// NOLINTBEGIN(llvm-include-order)
+#ifndef GLFW_INCLUDE_NONE
+#define GLFW_INCLUDE_NONE
+#endif
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+// NOLINTEND(llvm-include-order)
+// clang-format on
 
 
 #include <backends/imgui_impl_glfw.h>
@@ -12,17 +18,29 @@
 
 using namespace ui;
 
-void ImGuiLayer::Init(GLFWwindow* window, const char* glsl) {
-  IMGUI_CHECKVERSION();
-  ImGui::CreateContext();
-  ImGuiIO& io = ImGui::GetIO();
-  io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
-  io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+namespace {
+// Безопасная побитовая «или» для ImGuiConfigFlags (устраняет hicpp-signed-bitwise)
+constexpr ImGuiConfigFlags Or(ImGuiConfigFlags a, ImGuiConfigFlags b) {
+  return static_cast<ImGuiConfigFlags>(
+      static_cast<unsigned int>(a) | static_cast<unsigned int>(b));
+}
+}  // namespace
+
+void ui::ImGuiLayer::Init(GLFWwindow* window, const char* glsl) {
+  IMGUI_CHECKVERSION();  // проверка на версию 
+  ImGui::CreateContext(); // создание контекста
+
+  ImGuiIO& io = ImGui::GetIO(); // получение ввода/вывода
+  io.ConfigFlags = Or(io.ConfigFlags, ImGuiConfigFlags_DockingEnable); // разрешение докеринга 
+  io.ConfigFlags = Or(io.ConfigFlags, ImGuiConfigFlags_NavEnableKeyboard); // разрешение клавиатуры
 
   ImGui::StyleColorsDark();
-  ImGui_ImplGlfw_InitForOpenGL(window, false);
-  ImGui_ImplOpenGL3_Init(glsl);
+
+  // false — не устанавливать GLFW callbacks автоматически
+  ImGui_ImplGlfw_InitForOpenGL(window, /*install_callbacks=*/false); // или твой геттер
+  ImGui_ImplOpenGL3_Init(glsl); // при желании можно "#version 130"
 }
+
 
 void ImGuiLayer::Shutdown() {
   ImGui_ImplOpenGL3_Shutdown();
