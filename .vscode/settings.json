@@ -73,5 +73,18 @@
         "unordered_set": "cpp",
         "__bit_reference": "cpp",
         "set": "cpp"
+       {
+    "clangd.path": "/usr/bin/clangd",
+    "clangd.arguments": [
+        "--background-index",
+        "--compile-commands-dir=${workspaceFolder}",
+        "--log=verbose"
+    ],
+    
+    // Полностью отключаем C/C++ расширение
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "C_Cpp.autocomplete": "disabled", 
+    "C_Cpp.errorSquiggles": "disabled"
+}
     }
 }

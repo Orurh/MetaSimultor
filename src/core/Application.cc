@@ -2,8 +2,6 @@
 #include "Application.h"
 
 #include <stdexcept>
-#include <thread>
-#include <iostream>
 
 // GLAD → GLFW
 #include <glad/glad.h>
@@ -29,13 +27,11 @@ Application::Application(int width, int height, const std::string &title)
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     (void)io;
-    // опциональные флаги:
-    // io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
     ImGui::StyleColorsDark();
 
     // backends
-    GLFWwindow* win = m_window.GetWindow(); // или твой геттер
+    GLFWwindow* win = m_window.GetWindow(); 
     ImGui_ImplGlfw_InitForOpenGL(win, /*install_callbacks=*/true);
     ImGui_ImplOpenGL3_Init("#version 330"); // при желании можно "#version 130"
 
@@ -125,5 +121,20 @@ void Application::Run()
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
+}
+
+void Application::SaveScene(const std::string& path) {
+    if (!m_serializer) {
+        m_serializer = std::make_unique<data::SceneSerializer>(
+            std::make_shared<Scene>(m_scene));
+    }
+    m_serializer->Serialize(path);
+} 
+void Application::LoadScene(const std::string& path) {
+    if (!m_serializer) {
+        m_serializer = std::make_unique<data::SceneSerializer>(
+           std::make_shared<Scene>(m_scene));
+    }
+    m_serializer->Deserialize(path);
 }
 } // namespace engine

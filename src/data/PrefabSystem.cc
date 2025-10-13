@@ -1,5 +1,4 @@
 #include "PrefabSystem.h"
-#include <set>
 #include <algorithm>
 #include <stdexcept>
 #include <filesystem>
@@ -68,8 +67,8 @@ namespace engine::data {
     {
         Agent agent;
         agent.position = Float3::fromGlm(position);
-            agent.fire_collider.bounds_min = Float3::fromGlm(prefab.bounds_min + position); 
-    agent.fire_collider.bounds_max = Float3::fromGlm(prefab.bounds_max + position);
+        agent.fire_collider.bounds_min = Float3::fromGlm(prefab.bounds_min + position); 
+        agent.fire_collider.bounds_max = Float3::fromGlm(prefab.bounds_max + position);
         
         agent.fire_collider.point_count = std::min(static_cast<int>(prefab.fire_points.size()), 64);
 

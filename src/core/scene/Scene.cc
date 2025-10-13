@@ -3,7 +3,6 @@
 #include "core/simulation.cuh"
 #include <cuda_runtime.h>
 #include <iostream>
-#include <chrono>
 #include "core/Input.h"
 #include "core/Window.h"
 #include <imgui.h>

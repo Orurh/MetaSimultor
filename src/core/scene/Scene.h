@@ -1,5 +1,4 @@
 #pragma once
-#include "Components.h"
 #include "graphics/Renderer.h"
 #include "core/AgentManager.h"
 #include "Camera.h"
@@ -25,6 +24,7 @@ public:
   enum class PlaceMode { Tree, Fire };
   void SetPlaceMode(PlaceMode m) { m_placeMode = m; }
   void SetFireIntensity(float v) { m_fireIntensity = v; }
+  std::vector<Agent> LoadAgentsFromGPU();
 
   void LoadPrimaryModel(const std::string& path);  
 private:
@@ -36,7 +36,6 @@ struct SceneObject {
     bool is_visible = true;
 };
 
-  std::vector<Agent> LoadAgentsFromGPU();
   void RenderAgent(const Agent& agent);
 
   glm::vec3 ScreenToGround(const glm::vec2& mousePx, int w, int h);
