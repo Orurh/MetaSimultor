@@ -35,7 +35,7 @@ public:
   [[nodiscard]] float GetDeltaTime() const;
   Scene &GetScene();
 
-  void SaveScene(const std::string& path);
+  bool SaveScene(const std::string& path);
   void LoadScene(const std::string& path);
 private:
   void InitGL();      // создать окно, контекст, glad, viewport и т.п.

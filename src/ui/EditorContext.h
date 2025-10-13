@@ -5,11 +5,13 @@
 struct GLFWwindow;
 namespace engine { class Scene; class Camera; }
 namespace ui { class Editor; }
-
+namespace engine { class Application; }
 namespace ui {
 
 struct EditorContext {
+  
   // NOLINTBEGIN(misc-non-private-member-variables-in-classes)
+  engine::Application* m_app = nullptr; 
   GLFWwindow*           m_window    = nullptr;   // не владеем
   engine::Scene*        m_scene     = nullptr;   // не владеем
   const engine::Camera* m_camera    = nullptr;   // не владеем

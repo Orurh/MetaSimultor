@@ -1,5 +1,6 @@
 #include "SceneSerializer.h"
 #include "core/scene/Scene.h"
+#include <filesystem>
 #include <fstream>
 
 #include <iostream>
@@ -9,34 +10,100 @@ namespace engine::data{
 
     }
 
-    void SceneSerializer::Serialize(const std::string& filepath) {
-        try {
-            YAML::Emitter out;
-            out << YAML::BeginMap;
+    // void SceneSerializer::Serialize(const std::string& filepath) {
+    //     try {
+    //         YAML::Emitter out;
+    //         out << YAML::BeginMap;
 
-            out << YAML::Key << "metadata" << YAML::Value;
-            out << YAML::BeginMap;
-            out << YAML::Key << "version" << YAML::Value << "1.0";
-            out << YAML::Key << "date" << YAML::Value << getCurrentDateTime();
-            out << YAML::EndMap;
+    //         out << YAML::Key << "metadata" << YAML::Value;
+    //         out << YAML::BeginMap;
+    //         out << YAML::Key << "version" << YAML::Value << "1.0";
+    //         out << YAML::Key << "date" << YAML::Value << getCurrentDateTime();
+    //         out << YAML::EndMap;
 
-            out << YAML::Key << "agents" << YAML::Value;
-            out << YAML::BeginSeq;
-            auto agents = m_scene->LoadAgentsFromGPU();
-            for (int i = 0; i < agents.size(); i++) {
-                SerializeAgent(out, agents[i], i);
-            }
-            out << YAML::EndSeq;
+    //         out << YAML::Key << "agents" << YAML::Value;
+    //         out << YAML::BeginSeq;
+    //         auto agents = m_scene->LoadAgentsFromGPU();
+    //         for (int i = 0; i < agents.size(); i++) {
+    //             SerializeAgent(out, agents[i], i);
+    //         }
+    //         out << YAML::EndSeq;
         
-            out << YAML::EndMap;
+    //         out << YAML::EndMap;
             
-            std::ofstream file(filepath);
-            file << out.c_str();
-            std::cout << "Scene saved to: " << filepath << std::endl;
-        }   catch (const std::exception& e) {
-            std::cerr << "Failed to serialize scene: " << e.what() << std::endl;
+    //         std::ofstream file(filepath);
+    //         file << out.c_str();
+    //         std::cout << "Scene saved to: " << filepath << std::endl;
+    //     }   catch (const std::exception& e) {
+    //         std::cerr << "Failed to serialize scene: " << e.what() << std::endl;
+    //     }
+    // }
+
+    bool SceneSerializer::Serialize(const std::string& filepath) {
+    try {
+        // 0) Диагностика рабочей директории
+        std::cout << "[Serialize] CWD: " << std::filesystem::current_path() << "\n";
+
+        // 1) Собираем YAML
+        YAML::Emitter out;
+        out << YAML::BeginMap;
+
+        out << YAML::Key << "metadata" << YAML::Value;
+        out << YAML::BeginMap;
+        out << YAML::Key << "version" << YAML::Value << "1.0";
+        out << YAML::Key << "date"    << YAML::Value << getCurrentDateTime();
+        out << YAML::EndMap;
+
+        out << YAML::Key << "agents" << YAML::Value;
+        out << YAML::BeginSeq;
+        auto agents = m_scene->LoadAgentsFromGPU();
+        for (int i = 0; i < static_cast<int>(agents.size()); ++i) {
+            SerializeAgent(out, agents[i], i);
         }
+        out << YAML::EndSeq;
+
+        out << YAML::EndMap;
+
+        // 2) Гарантируем, что директория есть
+        std::filesystem::path p(filepath);
+        if (p.has_parent_path() && !p.parent_path().empty()) {
+            std::error_code ec;
+            std::filesystem::create_directories(p.parent_path(), ec);
+            if (ec) {
+                std::cerr << "[Serialize] create_directories failed for '"
+                          << p.parent_path() << "': " << ec.message() << "\n";
+                // продолжаем — возможно папка всё же есть
+            }
+        }
+
+        // 3) Открываем файл с проверкой + исключения
+        std::ofstream file;
+        file.exceptions(std::ios::badbit); // badbit -> исключение, failbit проверим сами
+        file.open(filepath, std::ios::binary | std::ios::trunc);
+        if (!file.is_open()) {
+            std::cerr << "[Serialize] cannot open for write: " << filepath << "\n";
+            return false;
+        }
+
+        // 4) Пишем буфер и проверяем статус
+        const char* data = out.c_str();
+        const std::size_t n = out.size();
+        file.write(data, static_cast<std::streamsize>(n));
+        file.flush();
+        if (!file.good()) {
+            std::cerr << "[Serialize] write failed: " << filepath << "\n";
+            return false;
+        }
+
+        std::cout << "[Serialize] Scene saved to: "
+                  << std::filesystem::absolute(p) << " (" << n << " bytes)\n";
+        return true;
+    } catch (const std::exception& e) {
+        std::cerr << "[Serialize] exception: " << e.what() << "\n";
+        return false;
     }
+}
+
 
     YAML::Emitter& SceneSerializer::SerializeFireCollider(YAML::Emitter& out, const FireCollider& collider) {
          {

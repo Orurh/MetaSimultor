@@ -51,6 +51,7 @@ void Application::Run() {
 
     // Собираем контекст на кадр (размеры, матрицы и т.п.)
     ui::EditorContext ctx{};
+    ctx.m_app      = this;  
     ctx.m_window    = GetNativeWindow();
     ctx.m_scene     = m_scene.get();
     ctx.m_viewportW = GetViewportWidth();
@@ -113,13 +114,13 @@ int Application::GetViewportHeight() const { return m_height; }
 float Application::GetDeltaTime() const { return m_dt; }
 Scene &Application::GetScene() { return *m_scene; }
 
-void Application::SaveScene(const std::string& path) {
+bool Application::SaveScene(const std::string& path) {
     if (!m_serializer) {
-        m_serializer = std::make_unique<data::SceneSerializer>(
-            m_scene);
+        m_serializer = std::make_unique<data::SceneSerializer>(m_scene);
     }
-    m_serializer->Serialize(path);
-} 
+    return m_serializer->Serialize(path);
+}
+
 void Application::LoadScene(const std::string& path) {
     if (!m_serializer) {
         m_serializer = std::make_unique<data::SceneSerializer>(

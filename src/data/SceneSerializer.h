@@ -9,7 +9,7 @@ namespace engine::data {
         public:
           SceneSerializer(std::shared_ptr<Scene> scene);
 
-          void Serialize(const std::string& path);
+          bool Serialize(const std::string& path);
           
           void Deserialize(const std::string& path);
         private:    
