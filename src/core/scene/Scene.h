@@ -11,6 +11,7 @@ public:
   Scene();
   void Init();
   void Update(float dt);
+   
   void Render();
   void AddTree(float x, float y);
   // void AddFire(float x, float y) { m_agentManager.AddFire(x, y, 1.0f); }
@@ -27,6 +28,22 @@ public:
   std::vector<Agent> LoadAgentsFromGPU();
 
   void LoadPrimaryModel(const std::string& path);  
+
+
+
+    Camera&       GetCamera()       { return m_camera; }
+  const Camera& GetCamera() const { return m_camera; }
+
+  glm::mat4 GetViewMatrix()   { return m_camera.GetViewMatrix(); }
+  glm::mat4 GetProjMatrix(int w, int h)  {
+    // если у тебя уже есть fov/zoom в камере — используй
+    return glm::perspective(m_camera.GetZoom(),
+                            static_cast<float>(w) / static_cast<float>(h),
+                            0.1f, 2000.0f);
+  }
+
+  void SetViewport(int w, int h) { m_vpW = w; m_vpH = h; }
+
 private:
 struct SceneObject {
     int agent_id;           // ID агента в симуляции
@@ -53,5 +70,8 @@ struct SceneObject {
   // --- интерактив ---
   PlaceMode m_placeMode{PlaceMode::Tree};
   float     m_fireIntensity{1.0f};
+
+
+  int m_vpW{1920}, m_vpH{1080};
 };
 } // namespace engine

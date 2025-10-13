@@ -1,0 +1,20 @@
+// modules/BasicToolsModule.cc
+#include "ui/modules/BasicToolsModule.h"
+#include "ui/Editor.h"
+#include "ui/panels/ToolbarPanel.h"
+#include "ui/tools/PlaceOnGroundTool.h"
+
+namespace ui {
+
+void BasicToolsModule::Startup(Editor& editor) {
+  editor.RegisterPanel(std::make_unique<ToolbarPanel>());
+  editor.RegisterTool(std::make_unique<PlaceOnGroundTool>("res/models/LowPolytree/CartoonTree.obj"));
+}
+
+void BasicToolsModule::Shutdown() {
+  // Если у модуля есть внешние ресурсы — освободить здесь.
+  // Удалять панели/инструменты из Editor не обязательно:
+  // они принадлежат Editor и разрушатся вместе с ним.
+}
+
+} // namespace ui

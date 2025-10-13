@@ -1,7 +1,9 @@
 #include "SceneSerializer.h"
+#include "core/scene/Scene.h"
 #include <fstream>
 
 #include <iostream>
+#include <string>
 namespace engine::data{
     SceneSerializer::SceneSerializer(std::shared_ptr<Scene> scene) : m_scene(scene) {
 
@@ -94,5 +96,9 @@ namespace engine::data{
 
         out << YAML::EndMap;
         return out;
+    }
+
+    void SceneSerializer::Deserialize(const std::string& filename) {
+        
     }
 }

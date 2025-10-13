@@ -28,6 +28,8 @@ public:
   }
   void Update();
 
+  
+
   bool GetKey(KeyCode key, InputState state = InputState::Held) const;
   bool GetKeyDown(KeyCode key) const {
     return GetKey(key, InputState::Pressed);

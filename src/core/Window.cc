@@ -36,6 +36,7 @@ Window::~Window() {
   glfwTerminate();
 }
 void Window::PollEvents() {
+    InputSystem::Instance().Update();
   glfwPollEvents();
 
   for (const auto& [glfwKey, ourKey] : keyMap) {
@@ -44,7 +45,7 @@ void Window::PollEvents() {
     InputSystem::Instance().SetKeyState(ourKey, pressed);
   }
 
-  InputSystem::Instance().Update();
+
 }
 bool Window::ShouldClose() const {
   return glfwWindowShouldClose(m_window) != 0;
