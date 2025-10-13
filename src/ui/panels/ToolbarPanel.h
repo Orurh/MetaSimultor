@@ -15,5 +15,7 @@ public:
 private:
   bool  m_wasVisible = false;
   float m_fireIntensity = 1.0F;
+  float m_fireX = 510.0f;   // мировая X
+  float m_fireY = 501.0f;   // мировая Z (у тебя второй параметр — это Z)
 };
 } // namespace ui
