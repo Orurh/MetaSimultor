@@ -1,139 +1,129 @@
 // Application.cc
 #include "Application.h"
+#include "app/IAppExtension.h"
+#include "ui/EditorContext.h"
 
-#include <stdexcept>
-
-// GLAD → GLFW
+// clang-format off
+// NOLINTBEGIN(llvm-include-order)
+#ifndef GLFW_INCLUDE_NONE
+#define GLFW_INCLUDE_NONE
+#endif
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+// NOLINTEND(llvm-include-order)
+// clang-format on
 
 // ImGui core + backends
-#include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
+#include <core/Window.h>
+#include <core/scene/Scene.h>
+#include "data/SceneSerializer.h"
+#include <imgui.h>
+#include <iostream>
+#include <stdexcept>
+#include <thread>
 
 namespace engine {
-Application::Application(int width, int height, const std::string &title)
-  : m_window(width, height, title)
-{
-    // GLAD после создания контекста
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        throw std::runtime_error("Failed to initialize GLAD");
-    }
-    glViewport(0, 0, width, height);
+Application::Application(int width, int height, const char *title)
+    : m_last_frame_time(static_cast<float>(glfwGetTime())), m_width(width),
+      m_height(height) {
+  // Создание окна/GL
+  m_window = std::make_unique<Window>(width, height, std::string(title));
+  InitGL();
 
-    // --- ImGui init (минимум) ---
-    IMGUI_CHECKVERSION();
-    ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    (void)io;
-
-    ImGui::StyleColorsDark();
-
-    // backends
-    GLFWwindow* win = m_window.GetWindow(); 
-    ImGui_ImplGlfw_InitForOpenGL(win, /*install_callbacks=*/true);
-    ImGui_ImplOpenGL3_Init("#version 330"); // при желании можно "#version 130"
-
-    m_scene.Init();
+  // Сцена
+  m_scene = std::make_unique<Scene>();
+  m_scene->Init();
 }
 
-void Application::Run()
-{
-    const double TARGET_FPS  = 60.0;
-    const double FRAME_TIME  = 1.0 / TARGET_FPS;
+engine::Application::~Application() = default; 
 
-    while(!m_window.ShouldClose()) {
-        double frameStart = glfwGetTime();
-
-        float currentFrame = static_cast<float>(glfwGetTime());
-        float dt = currentFrame - m_last_frame_time;
-        m_last_frame_time = currentFrame;
-
-        m_window.PollEvents();
-
-        // --- логика/рендер твоей сцены (костры и т.д.) ---
-        m_scene.Update(dt);
-        m_scene.Render();
-
-        // --- ImGui frame begin ---
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
-        ImGui::NewFrame();
-
-        // --- Мини-окно: загрузка модели ---
-        ImGui::Begin("Model Loader");
-        static char path[512] = "res/models/LowPolytree/CartoonTree.obj";
-        ImGui::InputText("Path", path, IM_ARRAYSIZE(path));
-        ImGui::SameLine();
-        if (ImGui::Button("Load")) {
-            m_scene.LoadPrimaryModel(path); // добавь метод в Scene, см. ниже
-        }
-        ImGui::TextUnformatted("Formats: OBJ/FBX/DAE/etc. via Assimp");
-        ImGui::End();
-
-       // --- Режим редактирования кликом ---
-        ImGui::Begin("Edit Mode");
-        static int mode = 0; // 0=Tree, 1=Fire
-        ImGui::RadioButton("Add Tree (LMB)", &mode, 0); ImGui::SameLine();
-        ImGui::RadioButton("Add Fire (LMB)", &mode, 1);
-        if (mode == 0) {
-            m_scene.SetPlaceMode(engine::Scene::PlaceMode::Tree);
-        } else {
-            m_scene.SetPlaceMode(engine::Scene::PlaceMode::Fire);
-            static float fireIntensity = 1.0f;
-            ImGui::SliderFloat("Fire intensity", &fireIntensity, 0.0f, 5.0f, "%.2f");
-            m_scene.SetFireIntensity(fireIntensity);
-        }
-        ImGui::TextUnformatted("ЛКМ по земле: добавить выбранное");
-        ImGui::End();
-
-
-        // --- Панель управления огнем ---
-        ImGui::Begin("Fire Control");
-        static float fx = 510.0f;
-        static float fy = 501.0f;
-        static float fint = 1.0f;
-        ImGui::InputFloat("X", &fx);
-        ImGui::InputFloat("Y", &fy);
-        ImGui::SliderFloat("Intensity", &fint, 0.0f, 5.0f, "%.2f");
-        if (ImGui::Button("Ignite")) {
-            m_scene.AddFire(fx, fy, fint);
-        }
-        ImGui::End();
-
-
-        // --- ImGui render ---
-        ImGui::Render();
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        m_window.SwapBuffers();
-
-        // ограничение FPS (опционально)
-        // double frameEnd = glfwGetTime();
-        // double frameDuration = frameEnd - frameStart;
-        // if (frameDuration < FRAME_TIME) {
-        //     std::this_thread::sleep_for(std::chrono::duration<double>(FRAME_TIME - frameDuration));
-        // }
-    }
-
-    // --- Shutdown ImGui ---
-    ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
-    ImGui::DestroyContext();
+void Application::AddExtension(std::unique_ptr<IAppExtension> ext) {
+  m_extensions.push_back(std::move(ext));
 }
+
+void Application::Run() {
+  for (auto& e : m_extensions) e->OnInit(*this);
+
+  while (!ShouldClose()) {
+    TickCore();
+
+    // Собираем контекст на кадр (размеры, матрицы и т.п.)
+    ui::EditorContext ctx{};
+    ctx.m_window    = GetNativeWindow();
+    ctx.m_scene     = m_scene.get();
+    ctx.m_viewportW = GetViewportWidth();
+    ctx.m_viewportH = GetViewportHeight();
+    ctx.m_view      = m_scene->GetViewMatrix();
+    ctx.m_proj      = m_scene->GetProjMatrix(ctx.m_viewportW, ctx.m_viewportH);
+
+    // === ВАЖНО: сначала начинаем UI-кадр (NewFrame + построение окон) ===
+    for (auto& e : m_extensions) e->OnBeginUI(*this, ctx);
+
+    // Теперь ImGui::GetIO().WantCaptureMouse/Keyboard — АКТУАЛЬНЫЕ
+    UpdateScene();
+    RenderScene();
+
+    // Завершаем UI (Render + RenderDrawData)
+    for (auto& e : m_extensions) e->OnEndUI(*this, ctx);
+
+    SwapBuffers();
+  }
+
+  for (auto& e : m_extensions) e->OnShutdown(*this);
+}
+
+
+void Application::InitGL() {
+  // активировать GL-контекст окна (если нужно), инициализировать glad
+  auto *win = static_cast<GLFWwindow *>(GetNativeWindow());
+  glfwMakeContextCurrent(win);
+
+  if (gladLoadGLLoader((GLADloadproc)glfwGetProcAddress) == 0) {
+    throw std::runtime_error("Failed to initialize GLAD");
+  }
+  glViewport(0, 0, m_width, m_height);
+}
+
+void Application::TickCore() {
+  // dt
+  auto now = static_cast<float>(glfwGetTime());
+  m_dt = now - m_last_frame_time;
+  m_last_frame_time = now;
+
+  // события окна/инпут
+  m_window->PollEvents();
+}
+
+void Application::UpdateScene() { m_scene->Update(m_dt); }
+
+void Application::RenderScene() { m_scene->Render(); }
+
+void Application::SwapBuffers() { m_window->SwapBuffers(); }
+
+bool Application::ShouldClose() const { return m_window->ShouldClose(); }
+
+GLFWwindow* engine::Application::GetNativeWindow() const {
+  return m_window->GetWindow();
+}
+
+int Application::GetViewportWidth() const { return m_width; }
+int Application::GetViewportHeight() const { return m_height; }
+float Application::GetDeltaTime() const { return m_dt; }
+Scene &Application::GetScene() { return *m_scene; }
 
 void Application::SaveScene(const std::string& path) {
     if (!m_serializer) {
         m_serializer = std::make_unique<data::SceneSerializer>(
-            std::make_shared<Scene>(m_scene));
+            m_scene);
     }
     m_serializer->Serialize(path);
 } 
 void Application::LoadScene(const std::string& path) {
     if (!m_serializer) {
         m_serializer = std::make_unique<data::SceneSerializer>(
-           std::make_shared<Scene>(m_scene));
+           m_scene);
     }
     m_serializer->Deserialize(path);
 }

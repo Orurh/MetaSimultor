@@ -3,6 +3,7 @@ project(DisasterSim LANGUAGES C CXX CUDA)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CUDA_STANDARD 23)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # 1) Пакеты
 find_package(OpenGL REQUIRED)
@@ -63,6 +64,7 @@ file(GLOB_RECURSE SOURCE_FILES
     src/graphics/OpenGL/*.cc
     src/scene/*.cc
     src/ui/*.cc
+    src/app/*.cc
 )
 
 # 4) Исполняемый файл

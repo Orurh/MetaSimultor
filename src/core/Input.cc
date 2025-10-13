@@ -1,12 +1,13 @@
 #include "Input.h"
 #include <iostream>
 void engine::InputSystem::Update() {
-    // Сохраняем предыдущие состояния
-    m_previousKeyState = m_currentKeyState;
-    m_prevMouseButtonState = m_mouseButtonState;
-    
-    // Сбрасываем дельту мыши (она обновляется каждый кадр)
+    // начало кадра: не трогаем previous-состояния!
+    // сбрасываем помкадровые величины
+    m_mouseDelta     = glm::vec2(0.0f, 0.0f); // если у тебя копится delta в SetMousePosition — можно убрать
+    m_mouseScrollY   = 0.0f;                  // или вызвать ResetMouseScroll()
+    // m_previousKeyState / m_prevMouseButtonState НЕ трогаем здесь
 }
+
 bool engine::InputSystem::GetKey(KeyCode key, InputState state) const {
   auto currentIt = m_currentKeyState.find(key);
   auto previousIt = m_previousKeyState.find(key);
