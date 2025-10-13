@@ -10,99 +10,47 @@ namespace engine::data{
 
     }
 
-    // void SceneSerializer::Serialize(const std::string& filepath) {
-    //     try {
-    //         YAML::Emitter out;
-    //         out << YAML::BeginMap;
-
-    //         out << YAML::Key << "metadata" << YAML::Value;
-    //         out << YAML::BeginMap;
-    //         out << YAML::Key << "version" << YAML::Value << "1.0";
-    //         out << YAML::Key << "date" << YAML::Value << getCurrentDateTime();
-    //         out << YAML::EndMap;
-
-    //         out << YAML::Key << "agents" << YAML::Value;
-    //         out << YAML::BeginSeq;
-    //         auto agents = m_scene->LoadAgentsFromGPU();
-    //         for (int i = 0; i < agents.size(); i++) {
-    //             SerializeAgent(out, agents[i], i);
-    //         }
-    //         out << YAML::EndSeq;
-        
-    //         out << YAML::EndMap;
-            
-    //         std::ofstream file(filepath);
-    //         file << out.c_str();
-    //         std::cout << "Scene saved to: " << filepath << std::endl;
-    //     }   catch (const std::exception& e) {
-    //         std::cerr << "Failed to serialize scene: " << e.what() << std::endl;
-    //     }
-    // }
-
     bool SceneSerializer::Serialize(const std::string& filepath) {
-    try {
-        // 0) Диагностика рабочей директории
-        std::cout << "[Serialize] CWD: " << std::filesystem::current_path() << "\n";
-
-        // 1) Собираем YAML
+        try {
         YAML::Emitter out;
         out << YAML::BeginMap;
 
+        // Метаданные
         out << YAML::Key << "metadata" << YAML::Value;
         out << YAML::BeginMap;
         out << YAML::Key << "version" << YAML::Value << "1.0";
-        out << YAML::Key << "date"    << YAML::Value << getCurrentDateTime();
+        out << YAML::Key << "date" << YAML::Value << getCurrentDateTime();
         out << YAML::EndMap;
 
+        // Агенты
         out << YAML::Key << "agents" << YAML::Value;
         out << YAML::BeginSeq;
         auto agents = m_scene->LoadAgentsFromGPU();
-        for (int i = 0; i < static_cast<int>(agents.size()); ++i) {
+        for (int i = 0; i < agents.size(); i++) {
             SerializeAgent(out, agents[i], i);
+        }
+        out << YAML::EndSeq;
+
+        // SceneObject'ы
+        out << YAML::Key << "scene_objects" << YAML::Value;
+        out << YAML::BeginSeq;
+        for (int i = 0; i < m_scene->GetSceneObjects().size(); i++) {
+            SerializeSceneObject(out, m_scene->GetSceneObjects()[i], i);
         }
         out << YAML::EndSeq;
 
         out << YAML::EndMap;
 
-        // 2) Гарантируем, что директория есть
-        std::filesystem::path p(filepath);
-        if (p.has_parent_path() && !p.parent_path().empty()) {
-            std::error_code ec;
-            std::filesystem::create_directories(p.parent_path(), ec);
-            if (ec) {
-                std::cerr << "[Serialize] create_directories failed for '"
-                          << p.parent_path() << "': " << ec.message() << "\n";
-                // продолжаем — возможно папка всё же есть
-            }
-        }
-
-        // 3) Открываем файл с проверкой + исключения
-        std::ofstream file;
-        file.exceptions(std::ios::badbit); // badbit -> исключение, failbit проверим сами
-        file.open(filepath, std::ios::binary | std::ios::trunc);
-        if (!file.is_open()) {
-            std::cerr << "[Serialize] cannot open for write: " << filepath << "\n";
-            return false;
-        }
-
-        // 4) Пишем буфер и проверяем статус
-        const char* data = out.c_str();
-        const std::size_t n = out.size();
-        file.write(data, static_cast<std::streamsize>(n));
-        file.flush();
-        if (!file.good()) {
-            std::cerr << "[Serialize] write failed: " << filepath << "\n";
-            return false;
-        }
-
-        std::cout << "[Serialize] Scene saved to: "
-                  << std::filesystem::absolute(p) << " (" << n << " bytes)\n";
+        std::ofstream file(filepath);
+        file << out.c_str();
+        std::cout << "Scene saved to: " << filepath << std::endl;
         return true;
+
     } catch (const std::exception& e) {
-        std::cerr << "[Serialize] exception: " << e.what() << "\n";
+        std::cerr << "Failed to serialize scene: " << e.what() << std::endl;
         return false;
     }
-}
+    }
 
 
     YAML::Emitter& SceneSerializer::SerializeFireCollider(YAML::Emitter& out, const FireCollider& collider) {
@@ -165,7 +113,146 @@ namespace engine::data{
         return out;
     }
 
-    void SceneSerializer::Deserialize(const std::string& filename) {
-        
+      YAML::Emitter& SceneSerializer::SerializeSceneObject(YAML::Emitter& out, const SceneObject& obj, int id) {
+        out << YAML::BeginMap;
+        out << YAML::Key << "id" << YAML::Value << id;
+        out << YAML::Key << "agent_id" << YAML::Value << obj.agent_id;
+        out << YAML::Key << "object_type" << YAML::Value << obj.object_type;
+        out << YAML::Key << "is_visible" << YAML::Value << obj.is_visible;
+
+        // Позиция и масштаб
+        out << YAML::Key << "position" << YAML::Value;
+        out << YAML::Flow << YAML::BeginSeq << obj.position.x << obj.position.y << obj.position.z << YAML::EndSeq;
+
+        out << YAML::Key << "scale" << YAML::Value;
+        out << YAML::Flow << YAML::BeginSeq << obj.scale.x << obj.scale.y << obj.scale.z << YAML::EndSeq;
+
+        out << YAML::EndMap;
+        return out;
     }
+
+    void SceneSerializer::Deserialize(const std::string& filename) {
+        try {
+        YAML::Node scene_data = YAML::LoadFile(filename);
+        
+        // Очищаем сцену
+        m_scene->Clear();
+        
+        // 1. Загружаем агентов
+        const YAML::Node& agents_node = scene_data["agents"];
+        std::vector<Agent> agents;
+        
+        for (const YAML::Node& agent_node : agents_node) {
+            agents.push_back(DeserializeAgent(agent_node));
+        }
+        
+        // Загружаем агентов в GPU
+        m_scene->GetAgentManager().SetAgents(agents);
+        
+        const YAML::Node& objects_node = scene_data["scene_objects"];
+        for (const YAML::Node& obj_node : objects_node) {
+            SceneObject obj = DeserializeSceneObject(obj_node);
+            m_scene->AddSceneObject(obj);
+        }
+        
+        std::cout << "Scene loaded: " << agents.size() << " agents, " 
+                  << objects_node.size() << " objects" << std::endl;
+        
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to deserialize scene: " << e.what() << std::endl;
+    }
+    }
+    SceneObject SceneSerializer::DeserializeSceneObject(const YAML::Node& obj_node) {
+    SceneObject obj;
+    
+    obj.agent_id = obj_node["agent_id"].as<int>();
+    obj.object_type = obj_node["object_type"].as<std::string>();
+    obj.is_visible = obj_node["is_visible"].as<bool>();
+    
+    // Позиция
+    const YAML::Node& pos_node = obj_node["position"];
+    obj.position = glm::vec3(
+        pos_node[0].as<float>(),
+        pos_node[1].as<float>(),
+        pos_node[2].as<float>()
+    );
+    
+    // Масштаб
+    const YAML::Node& scale_node = obj_node["scale"];
+    obj.scale = glm::vec3(
+        scale_node[0].as<float>(),
+        scale_node[1].as<float>(),
+        scale_node[2].as<float>()
+    );
+    
+    return obj;
+}
+
+     FireCollider SceneSerializer::DeserializeFireCollider(const YAML::Node& collider_node) {
+            FireCollider collider;
+
+            const YAML::Node& min_node = collider_node["bounds_min"];
+            collider.bounds_min = Float3(
+                min_node[0].as<float>(), 
+                min_node[1].as<float>(), 
+                min_node[2].as<float>()
+            );
+
+            const YAML::Node& max_node = collider_node["bounds_max"];
+            collider.bounds_max = Float3(
+                max_node[0].as<float>(), 
+                max_node[1].as<float>(), 
+                max_node[2].as<float>()
+            );
+
+            // Point count
+            collider.point_count = collider_node["point_count"].as<int>();
+
+            // Heat points
+            const YAML::Node& points_node = collider_node["heat_points"];
+            for (int i = 0; i < collider.point_count && i < points_node.size(); i++) {
+                const YAML::Node& point_node = points_node[i];
+                collider.heat_points[i] = Float3(
+                    point_node[0].as<float>(),
+                    point_node[1].as<float>(),
+                    point_node[2].as<float>()
+                );
+            }
+
+            // Intensities
+            const YAML::Node& intensities_node = collider_node["intensities"];
+            for (int i = 0; i < collider.point_count && i < intensities_node.size(); i++) {
+                collider.intensities[i] = intensities_node[i].as<float>();
+            }
+
+            // Fuels
+            const YAML::Node& fuels_node = collider_node["fuels"];
+            for (int i = 0; i < collider.point_count && i < fuels_node.size(); i++) {
+                collider.fuels[i] = fuels_node[i].as<float>();
+            }
+
+            return collider;
+          }
+
+        
+          Agent SceneSerializer::DeserializeAgent(const YAML::Node& agent_node) {
+            Agent agent;
+
+            agent.type = static_cast<AgentType>(agent_node["type"].as<int>());
+            agent.object_id = agent_node["object_id"].as<int>();
+            agent.intencity = agent_node["intensity"].as<float>();
+
+            const YAML::Node& pos_node = agent_node["position"];
+            agent.position = Float3(
+                pos_node[0].as<float>(),
+                pos_node[1].as<float>(), 
+                pos_node[2].as<float>()
+            );
+
+            if (agent_node["fire_collider"]) {
+                agent.fire_collider = DeserializeFireCollider(agent_node["fire_collider"]);
+            }
+
+            return agent;
+          }
 }

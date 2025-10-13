@@ -89,13 +89,13 @@ namespace engine::data {
         return agent;
     }
 
-    void PrefabSystem::CreatePrefabFromAgent(const std::string &name, const Agent &agent, const std::string &model_path)
+    void PrefabSystem::CreatePrefabFromAgent(const std::string &name, const Agent &agent, const std::string &model_path, const glm::vec3& scale)
     {
         AgentPrefab prefab;
         prefab.name = name;
         prefab.type = agent.type;
         prefab.model_path = model_path;
-        
+        prefab.model_scale = scale;
         prefab.bounds_min = agent.fire_collider.bounds_min.toGlm();
         prefab.bounds_max = agent.fire_collider.bounds_max.toGlm();
         
@@ -139,7 +139,11 @@ namespace engine::data {
     {
         node["type"] = static_cast<int>(prefab.type);
         node["model_path"] = prefab.model_path;
-        
+        node["model_scale"] = std::vector<float>{
+            prefab.model_scale.x, 
+            prefab.model_scale.y, 
+            prefab.model_scale.z
+        };
         node["bounds_min"] = std::vector<float>{prefab.bounds_min.x, prefab.bounds_min.y, prefab.bounds_min.z};
         node["bounds_max"] = std::vector<float>{prefab.bounds_max.x, prefab.bounds_max.y, prefab.bounds_max.z};
         
@@ -164,7 +168,12 @@ namespace engine::data {
         // Основные поля
         prefab.type = static_cast<AgentType>(node["type"].as<int>());
         prefab.model_path = node["model_path"].as<std::string>();
-        
+        if (node["model_scale"]) {
+            auto scale = node["model_scale"].as<std::vector<float>>();
+            prefab.model_scale = glm::vec3(scale[0], scale[1], scale[2]);
+        } else {
+            prefab.model_scale = glm::vec3(1.0f); 
+        }
         // Bounds
         auto bounds_min = node["bounds_min"].as<std::vector<float>>();
         auto bounds_max = node["bounds_max"].as<std::vector<float>>();

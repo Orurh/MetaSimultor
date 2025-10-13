@@ -3,7 +3,6 @@
 #include "core/simulation.cuh"
 #include <GLFW/glfw3.h>
 #include <cuda_runtime.h>
-#include <iostream>
 #include "core/Input.h"
 #include "core/Window.h"
 #include <imgui.h>
@@ -14,20 +13,28 @@ Scene::Scene() : m_agentManager(1000000), m_camera(glm::vec3(500.0f, 100.0f, 600
 
 void Scene::Init()
 {
-    m_treeModel = std::make_shared<Model>("res/models/LowPolytree/CartoonTree.obj");
-    m_burningModel = std::make_shared<Model>("res/models/CartoonTree/CartoonTree.obj");
-    m_burnedModel = std::make_shared<Model>("res/models/ChrTree/CartoonTree.obj");
+    LoadObjectModels("default_tree",
+        "res/models/LowPolytree/CartoonTree.obj",
+        "res/models/CartoonTree/CartoonTree.obj", 
+        "res/models/ChrTree/CartoonTree.obj"
+    );
+    LoadObjectModels("default_house",
+        "res/models/house/house.obj",
+        "res/models/house/house.obj", 
+        "res/models/house/house.obj"
+    );
     m_renderer.Init();
-    m_prefabSystem.LoadPrefabFromFile("prefabs/default_tree.yaml");
-    Generate();
 
-    // AddFire(510, 500);
+    m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_house.yaml");
+
+    m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_tree.yaml");
 }
 
 void Scene::Update(float dt) {
-  // 0) Симуляция — всегда идёт
-  SimulationStep(m_agentManager.getDeviceAgents(),
-                 m_agentManager.getAgentCount(), dt);
+    if(!m_sceneObjects.empty())
+        {
+            SimulationStep(m_agentManager.getDeviceAgents(), m_agentManager.getAgentCount(), dt);
+        }
 
   // 1) Флаги захвата UI
   const ImGuiIO& io = ImGui::GetIO();
@@ -102,14 +109,14 @@ void Scene::Render() {
     auto view = m_camera.GetViewMatrix();
     m_renderer.BeginScene(view, projection);
     
-    auto agents = LoadAgentsFromGPU(); 
+     auto agents = LoadAgentsFromGPU();
     
-     for (const auto& obj : m_sceneObjects) {
+    for (const auto& obj : m_sceneObjects) {
         if (!obj.is_visible) continue;
         
         if (obj.agent_id < agents.size()) {
             const Agent& agent = agents[obj.agent_id];
-            RenderAgent(agent);
+            RenderAgent(agent, obj); 
         }
     }
     
@@ -125,28 +132,25 @@ void Scene::Render() {
     m_renderer.EndScene();
 }
 
-void Scene::AddTree(float x, float y)
-{
-    static int tree_counter = 0;
-    
-    const auto& prefab = m_prefabSystem.GetPrefab("default_tree");
+void Scene::AddTree(float x, float y, const std::string& tree_type) {
+    const auto& prefab = m_prefabSystem.GetPrefab(tree_type);
     Agent agent = m_prefabSystem.CreateAgentFromPrefab(prefab, {x, 0, y});
     m_agentManager.AddAgent(agent);
-    int agent_index = m_agentManager.getAgentCount() - 1;
+    
     SceneObject obj;
-    obj.agent_id = agent_index;
-    obj.model_path = prefab.model_path; 
+    obj.agent_id = m_agentManager.getAgentCount() - 1;
+    obj.object_type = tree_type;
     obj.position = glm::vec3(x, 0, y);
     obj.is_visible = true;
+    obj.scale = prefab.model_scale;
     m_sceneObjects.push_back(obj);
-    tree_counter++;
 }
 
 void Scene::Generate()
 {
     for(int i = 0; i < 100; i+=3){
         for(int j = 0; j < 100; j+=3) {
-            AddTree(500 + i, 500 + j);
+            AddTree(500 + i, 500 + j, "default_tree");
         }
     }
 }
@@ -159,22 +163,41 @@ std::vector<Agent> Scene::LoadAgentsFromGPU()
     return agents;
 }
 
-void Scene::RenderAgent(const Agent &agent)
-{
+void Scene::RenderAgent(const Agent &agent, const SceneObject& scene_obj) {
     glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
     
-    switch (agent.type) {
-        case AgentType::TREE:
-            m_renderer.DrawModel(*m_treeModel, position, m_camera.GetPosition());
-            break;
-        case AgentType::BURNED:
-            m_renderer.DrawModel(*m_burnedModel, position, m_camera.GetPosition());
-            break;
-    }   
+    ObjectModels* models = nullptr;
+    auto it = m_objectModels.find(scene_obj.object_type);
+    if (it != m_objectModels.end()) {
+        models = &it->second;
+    }
+    
+    std::shared_ptr<Model> model_to_render;
+    
+    if (agent.type == AgentType::BURNED) {
+        // Сгоревшее состояние
+        model_to_render = models->burned ;
+    } else if (agent.isBurning() || agent.type == AgentType::FIRE_SOURCE) {
+        // Горящее состояние
+        model_to_render =  models->burning ;
+    } else {
+        // Нормальное состояние
+        model_to_render =models->normal;
+    }
+    if(model_to_render)
+        m_renderer.DrawModel(*model_to_render, position, scene_obj.scale, m_camera.GetPosition());
+   
 }
 
-void Scene::LoadPrimaryModel(const std::string& path) {
-    m_treeModel = std::make_shared<Model>(path);
-}
+  glm::mat4 Scene::GetProjMatrix(int w, int h) {
+    return glm::perspective(m_camera.GetZoom(),
+                            static_cast<float>(w) / static_cast<float>(h),
+                            0.1f, 2000.0f);
+  }
+
+  void Scene::Clear() {
+    m_sceneObjects.clear();
+     m_agentManager.Clear();
+  }
 
 } // namespace engine
