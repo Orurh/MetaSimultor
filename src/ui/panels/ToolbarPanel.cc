@@ -1,6 +1,7 @@
 // ui/panels/ToolbarPanel.cpp
 #include "ui/panels/ToolbarPanel.h"
 #include "core/scene/Scene.h"
+#include "imgui.h"
 #include "ui/Editor.h"
 #include "core/Input.h"          // ← у тебя именно так называется инпут
 #include "math/ScreenRay.h"      // луч из экрана
@@ -39,7 +40,7 @@ void ToolbarPanel::Draw(EditorContext& ctx) {
   if (ImGui::Button("Ignite at (X, Y)")) {
     ctx.m_scene->AddFire(fireX, fireY, m_fireIntensity);
   }
-
+  
   // --- Оставляем вариант по курсору (как было)
   ImGui::Separator();
   if (ImGui::Button("Ignite at cursor")) {

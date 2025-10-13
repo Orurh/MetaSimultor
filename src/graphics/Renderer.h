@@ -17,7 +17,7 @@ public:
   void Init();
   void Shutdown();
   void DrawCube(const glm::vec3& position, const glm::vec3& color, float scale);
-  void DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& camPos);
+  void DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& scale, const glm::vec3& camPos);
   void BeginScene(const glm::mat4& view, const glm::mat4& projection);
   void UploadAgentsData(const std::vector<Agent>& agents);
   void RenderWithGeometryShader();

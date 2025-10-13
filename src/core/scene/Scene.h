@@ -6,22 +6,35 @@
 
 namespace engine {
 class Entity;
+struct ObjectModels {
+    std::shared_ptr<Model> normal;   // Обычное состояние
+    std::shared_ptr<Model> burning;  // Горит
+    std::shared_ptr<Model> burned;   // Сгоревшее
+};
+ struct SceneObject {
+    int agent_id;           // ID агента в симуляции
+    std::string object_type; // Модель для рендеринга
+    glm::vec3 position;     // Позиция (дублируется с агентом)
+    glm::vec3 scale;
+    bool is_visible = true;
+};
 class Scene {
+ 
 public:
+
   Scene();
   void Init();
   void Update(float dt);
    
   void Render();
-  void AddTree(float x, float y);
+  void AddTree(float x, float y, const std::string& tree_type = "default_tree");
   // void AddFire(float x, float y) { m_agentManager.AddFire(x, y, 1.0f); }
   void AddFire(float x, float y, float intensity = 1.0f) {
       m_agentManager.AddFire(x, y, intensity);
   }
   void Generate();
+  void Clear();
 
-
-  // --- интерактив ---
   enum class PlaceMode { Tree, Fire };
   void SetPlaceMode(PlaceMode m) { m_placeMode = m; }
   void SetFireIntensity(float v) { m_fireIntensity = v; }
@@ -29,31 +42,34 @@ public:
 
   void LoadPrimaryModel(const std::string& path);  
 
-
-
-    Camera&       GetCamera()       { return m_camera; }
+  Camera&  GetCamera() { return m_camera; }
   const Camera& GetCamera() const { return m_camera; }
 
   glm::mat4 GetViewMatrix()   { return m_camera.GetViewMatrix(); }
-  glm::mat4 GetProjMatrix(int w, int h)  {
-    // если у тебя уже есть fov/zoom в камере — используй
-    return glm::perspective(m_camera.GetZoom(),
-                            static_cast<float>(w) / static_cast<float>(h),
-                            0.1f, 2000.0f);
-  }
-
+  glm::mat4 GetProjMatrix(int w, int h);
+  AgentManager& GetAgentManager() { return m_agentManager; }
   void SetViewport(int w, int h) { m_vpW = w; m_vpH = h; }
-
-private:
-struct SceneObject {
-    int agent_id;           // ID агента в симуляции
-    std::string model_path; // Модель для рендеринга
-    glm::vec3 position;     // Позиция (дублируется с агентом)
+  void LoadObjectModels(const std::string& object_name, 
+                         const std::string& normal_path,
+                         const std::string& burning_path,
+                         const std::string& burned_path) {
+        ObjectModels models;
+        models.normal = std::make_shared<Model>(normal_path);
+        models.burning = std::make_shared<Model>(burning_path);
+        models.burned = std::make_shared<Model>(burned_path);
+        m_objectModels[object_name] = models;
+  }
+    const std::vector<SceneObject>& GetSceneObjects() const { return m_sceneObjects; }
     
-    bool is_visible = true;
-};
+    // Метод для добавления SceneObject
+    void AddSceneObject(const SceneObject& obj) {
+        m_sceneObjects.push_back(obj);
+    }
+    
+private:
 
-  void RenderAgent(const Agent& agent);
+
+  void RenderAgent(const Agent &agent, const SceneObject& scene_obj);
 
   glm::vec3 ScreenToGround(const glm::vec2& mousePx, int w, int h);
 
@@ -62,9 +78,7 @@ struct SceneObject {
   std::unordered_map<std::string, std::shared_ptr<Model>> m_loadedModels;
   std::vector<SceneObject> m_sceneObjects;
   data::PrefabSystem m_prefabSystem;
-  std::shared_ptr<Model> m_treeModel;
-  std::shared_ptr<Model> m_burningModel;
-  std::shared_ptr<Model> m_burnedModel;
+  std::unordered_map<std::string, ObjectModels> m_objectModels;
   Camera m_camera;
 
   // --- интерактив ---

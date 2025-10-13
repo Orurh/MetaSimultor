@@ -12,6 +12,8 @@ namespace engine::data {
         std::string name;
         AgentType type = AgentType::TREE;
 
+        glm::vec3 model_scale = glm::vec3(1.0f);
+
         std::string model_path;
         glm::vec3 bounds_min = {-1.0f, 0.0f, -1.0f};
         glm::vec3 bounds_max = {1.0f, 2.0f, 1.0f};
@@ -44,7 +46,7 @@ namespace engine::data {
             Agent CreateAgentFromPrefab(const std::string& prefab_name, const glm::vec3& position);
             Agent CreateAgentFromPrefab(const AgentPrefab& prefab, const glm::vec3& position);
             void CreatePrefabFromAgent(const std::string& name, const Agent& agent, 
-                              const std::string& model_path);
+                              const std::string& model_path, const glm::vec3& scale = glm::vec3(1.0f));
     
             std::vector<std::string> GetPrefabNames() const;
             std::vector<std::string> GetPrefabsByType(AgentType type) const;
