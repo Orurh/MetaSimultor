@@ -1,12 +1,12 @@
 #include "Scene.h"
 #include "Entity.h"
 #include "core/simulation.cuh"
-#include <GLFW/glfw3.h>
 #include <cuda_runtime.h>
 #include <iostream>
+#include <limits>
+#include <cmath>
+#include <glm/gtc/matrix_transform.hpp> // glm::perspective
 #include "core/Input.h"
-#include "core/Window.h"
-#include <imgui.h>
 namespace engine {
 Scene::Scene() : m_agentManager(1000000), m_camera(glm::vec3(500.0f, 100.0f, 600.0f))
 {
@@ -29,10 +29,10 @@ void Scene::Update(float dt) {
   SimulationStep(m_agentManager.getDeviceAgents(),
                  m_agentManager.getAgentCount(), dt);
 
-  // 1) Флаги захвата UI
-  const ImGuiIO& io = ImGui::GetIO();
-  const bool ui_mouse = io.WantCaptureMouse;
-  const bool ui_kbd   = io.WantCaptureKeyboard;
+
+const bool ui_mouse = engine::InputSystem::Instance().UIMouseCaptured();
+const bool ui_kbd   = engine::InputSystem::Instance().UIKeyboardCaptured();
+
 
   // 2) WASD — только если UI не держит клавиатуру
   if (!ui_kbd) {
@@ -47,7 +47,7 @@ void Scene::Update(float dt) {
   const auto curMousePos = engine::InputSystem::Instance().GetMousePosition();
 
   if (!ui_mouse && engine::InputSystem::Instance()
-                       .GetMouseButton(GLFW_MOUSE_BUTTON_RIGHT, InputState::Held)) {
+                     .GetMouseButton(engine::MouseButton::Right, InputState::Held)) {
     const glm::vec2 delta = curMousePos - lastMousePos;
     if (delta != glm::vec2(0.0f)) {
       m_camera.ProcessMouseMovement(delta.x, delta.y);
@@ -58,7 +58,8 @@ void Scene::Update(float dt) {
 
   // 4) Постановка объекта — ОДНОРАЗОВО на клик ЛКМ и только если UI не держит мышь
   if (!ui_mouse && engine::InputSystem::Instance()
-                      .GetMouseButton(GLFW_MOUSE_BUTTON_LEFT, InputState::Pressed)) {
+                    .GetMouseButton(engine::MouseButton::Left, InputState::Pressed)) {
+
     const glm::vec2 mp = curMousePos;
     const glm::vec3 hit = ScreenToGround(mp, m_vpW, m_vpH);
     if (std::isfinite(hit.x) && std::isfinite(hit.z)) {
@@ -98,7 +99,10 @@ glm::vec3 Scene::ScreenToGround(const glm::vec2& mousePx, int w, int h) {
 }
 
 void Scene::Render() {
-    auto projection = glm::perspective(m_camera.GetZoom(), (float)1920 / (float)1080, 0.1f, 2000.0f);
+    auto projection = glm::perspective(
+    m_camera.GetZoom(),
+    static_cast<float>(m_vpW) / static_cast<float>(m_vpH),
+    0.1f, 2000.0f);
     auto view = m_camera.GetViewMatrix();
     m_renderer.BeginScene(view, projection);
     

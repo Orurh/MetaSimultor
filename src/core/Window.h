@@ -20,12 +20,18 @@ class Window {
     }
   }
 
-  static void MouseButtonCallback(GLFWwindow* window, int button, int action, int /*mods*/) {
-    auto* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
-    if (win != nullptr) {
-      InputSystem::Instance().SetMouseButtonState(button, action == GLFW_PRESS);
-    }
+static void MouseButtonCallback(GLFWwindow* window, int button, int action, int /*mods*/) {
+  auto* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
+  if (!win) return;
+
+  engine::MouseButton mb;
+  switch (button) {
+    case GLFW_MOUSE_BUTTON_LEFT:   mb = engine::MouseButton::Left;   break;
+    case GLFW_MOUSE_BUTTON_RIGHT:  mb = engine::MouseButton::Right;  break;
+    default:                       mb = engine::MouseButton::Middle; break;
   }
+  engine::InputSystem::Instance().SetMouseButtonState(mb, action == GLFW_PRESS);
+}
   static void MouseScrollCallback(GLFWwindow* window, double xoffset, double yoffset) {
     auto* win = static_cast<Window*>(glfwGetWindowUserPointer(window));
     if (win != nullptr) {

@@ -14,12 +14,10 @@
 // clang-format on
 
 // ImGui core + backends
-#include <backends/imgui_impl_glfw.h>
-#include <backends/imgui_impl_opengl3.h>
+
 #include <core/Window.h>
 #include <core/scene/Scene.h>
 #include "data/SceneSerializer.h"
-#include <imgui.h>
 #include <iostream>
 #include <stdexcept>
 #include <thread>
@@ -61,7 +59,6 @@ void Application::Run() {
 
     // === ВАЖНО: сначала начинаем UI-кадр (NewFrame + построение окон) ===
     for (auto& e : m_extensions) e->OnBeginUI(*this, ctx);
-
     // Теперь ImGui::GetIO().WantCaptureMouse/Keyboard — АКТУАЛЬНЫЕ
     UpdateScene();
     RenderScene();

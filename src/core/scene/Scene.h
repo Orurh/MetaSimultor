@@ -44,6 +44,7 @@ public:
 
   void SetViewport(int w, int h) { m_vpW = w; m_vpH = h; }
 
+
 private:
 struct SceneObject {
     int agent_id;           // ID агента в симуляции
