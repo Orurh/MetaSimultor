@@ -9,12 +9,12 @@ std::unique_ptr<VertexBuffer> CreateOpenGLVertexBuffer(float *vertices,
   return std::make_unique<OpenGLVertexBuffer>(vertices, size);
 }
 
-OpenGLVertexBuffer::OpenGLVertexBuffer(int32_t size) {
+OpenGLVertexBuffer::OpenGLVertexBuffer(int32_t size) : m_size(size) {
   glGenBuffers(1, &m_id);
   glBindBuffer(GL_ARRAY_BUFFER, m_id);
   glBufferData(GL_ARRAY_BUFFER, size, nullptr, GL_DYNAMIC_DRAW);
 }
-OpenGLVertexBuffer::OpenGLVertexBuffer(float *vertices, int32_t size) {
+OpenGLVertexBuffer::OpenGLVertexBuffer(float *vertices, int32_t size) : m_size(size) {
   glGenBuffers(1, &m_id);
   glBindBuffer(GL_ARRAY_BUFFER, m_id);
   glBufferData(GL_ARRAY_BUFFER, size, vertices, GL_STATIC_DRAW);
@@ -26,8 +26,11 @@ void OpenGLVertexBuffer::Bind() const { glBindBuffer(GL_ARRAY_BUFFER, m_id); }
 void OpenGLVertexBuffer::Unbind() const { glBindBuffer(GL_ARRAY_BUFFER, 0); }
 
 void OpenGLVertexBuffer::SetData(const void *data, uint32_t size) {
-  glBindBuffer(GL_ARRAY_BUFFER, m_id);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, size, data);
+    glBindBuffer(GL_ARRAY_BUFFER, m_id);
+    
+    // ИСПОЛЬЗУЙ glBufferData вместо glBufferSubData!
+    glBufferData(GL_ARRAY_BUFFER, size, data, GL_DYNAMIC_DRAW);
+    m_size = size;
 }
 
 void OpenGLVertexBuffer::SetLayout(const BufferLayout &layout) {

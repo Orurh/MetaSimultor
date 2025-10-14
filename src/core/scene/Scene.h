@@ -67,6 +67,7 @@ public:
     }
     
 private:
+  Model* GetModelForAgent(const Agent& agent, const std::string& object_type);
 
 
   void RenderAgent(const Agent &agent, const SceneObject& scene_obj);

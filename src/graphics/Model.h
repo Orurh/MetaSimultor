@@ -10,13 +10,14 @@ namespace engine {
         Mesh(const data::MeshData& meshData, const data::MaterialData& material);
         
         void Draw(Shader& shader);
-        
+        void DrawInstanced(Shader& shader, const std::vector<glm::mat4>& instanceMatrices);
     private:
         void SetupMesh(const data::MeshData& meshData);
         void SetupMaterial(Shader& shader, const data::MaterialData& material);
         std::shared_ptr<VertexArrayObject> m_vao;
         std::shared_ptr<VertexBuffer> m_vbo;
         std::shared_ptr<IndexBuffer> m_ebo;
+        std::shared_ptr<VertexBuffer> m_instanceBuffer; 
         size_t m_indexCount;
         data::MaterialData m_material;
     };
@@ -29,7 +30,9 @@ namespace engine {
         }
         
         void Draw(Shader& shader);
-        
+        void DrawInstanced(Shader& shader, const std::vector<glm::mat4>& instanceMatrices);
+        size_t GetMeshCount() const { return m_meshes.size(); }
+        size_t GetTriangleCount() const;
     private:
         void SetupModel();
         
