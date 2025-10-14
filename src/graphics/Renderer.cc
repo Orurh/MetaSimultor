@@ -147,7 +147,7 @@ void Renderer::EndScene()
     glUseProgram(0);
 }
 
-void Renderer::RenderWithGeometryShader()
+void Renderer::RenderWithGeometryShader(const glm::vec3& wind_force)
  {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -157,6 +157,7 @@ void Renderer::RenderWithGeometryShader()
     m_fireGeometryShader->SetMat4("u_view", m_viewMat);
     m_fireGeometryShader->SetMat4("u_projection", m_projectionMat);
     m_fireGeometryShader->SetFloat("u_time", glfwGetTime());
+    m_fireGeometryShader->SetVec3("u_wind_force", wind_force);
     
     glm::mat4 view = m_viewMat;
     glm::vec3 camera_right = glm::vec3(view[0][0], view[1][0], view[2][0]);

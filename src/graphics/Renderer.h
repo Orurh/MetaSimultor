@@ -20,7 +20,7 @@ public:
   void DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& scale, const glm::vec3& camPos);
   void BeginScene(const glm::mat4& view, const glm::mat4& projection);
   void UploadAgentsData(const std::vector<Agent>& agents);
-  void RenderWithGeometryShader();
+  void RenderWithGeometryShader(const glm::vec3& wind_force);
   void EndScene();
 private:
   glm::vec4 m_clearColor;
