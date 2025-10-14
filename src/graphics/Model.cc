@@ -1,8 +1,11 @@
 #include "Model.h"
+#include <iostream>
 namespace engine {
     Mesh::Mesh(const data::MeshData& meshData, const data::MaterialData& material)
         : m_material(material) {
         SetupMesh(meshData);
+        
+        
     }
     
     void Mesh::Draw(Shader& shader) {
@@ -32,8 +35,23 @@ namespace engine {
         
         SetupMaterial(shader, m_material);
         m_vao->Bind();
+        
         glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
+    }
+
+    void Mesh::DrawInstanced(Shader& shader, const std::vector<glm::mat4>& instanceMatrices) {
+        if (instanceMatrices.empty()) return;
+    
+        SetupMaterial(shader, m_material);
+        m_vao->Bind();
+        
+        m_vao->AddVertexBuffer(m_instanceBuffer);
+        
+        m_instanceBuffer->SetData(instanceMatrices.data(), instanceMatrices.size() * sizeof(glm::mat4));
+        glDrawElementsInstanced(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, 0, instanceMatrices.size());
+        
+        m_vao->Unbind();
     }
     
     void Mesh::SetupMaterial(Shader& shader, const data::MaterialData& material) {
@@ -61,7 +79,14 @@ namespace engine {
         });
 
         m_vao->AddVertexBuffer(m_vbo);
-
+        m_instanceBuffer = VertexBuffer::Create(100000 * sizeof(glm::mat4)); 
+        m_instanceBuffer->SetLayout({
+            {ShaderDataType::Float4, "a_instance_matrix0", 1},
+            {ShaderDataType::Float4, "a_instance_matrix1", 1},
+            {ShaderDataType::Float4, "a_instance_matrix2", 1},
+            {ShaderDataType::Float4, "a_instance_matrix3", 1}
+        });
+        
         m_ebo = IndexBuffer::Create(
             const_cast<uint32_t*>(meshData.indices.data()),
             meshData.indices.size()
@@ -74,6 +99,13 @@ namespace engine {
     {
         for (auto& mesh : m_meshes) {
             mesh.Draw(shader);
+        }
+    }
+    void Model::DrawInstanced(Shader& shader, const std::vector<glm::mat4>& instanceMatrices) {
+        if (instanceMatrices.empty()) return;
+        
+        for (auto& mesh : m_meshes) {
+            mesh.DrawInstanced(shader, instanceMatrices);
         }
     }
     void Model::SetupModel()

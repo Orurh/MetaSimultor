@@ -40,6 +40,7 @@ void Renderer::Init() {
     m_shader = Shader::Create("res/shaders/shader.sh");
     m_modelShader = Shader::Create("res/shaders/model_shader.sh");
     m_fireGeometryShader = Shader::Create("res/shaders/fire_geom.sh");
+    m_instanceModelShader = Shader::Create("res/shaders/instance_model_shader.sh");
     
     m_fireTexture = Texture::Create("res/textures/fire_texture3.png");
     m_vao = VertexArrayObject::Create();
@@ -60,6 +61,16 @@ void Renderer::Init() {
         {ShaderDataType::Float3, "a_bounds_max"}
     });
     m_agentVAO->AddVertexBuffer(m_agentVBO);
+    m_instanceBuffer = VertexBuffer::Create(10000 * sizeof(glm::mat4));
+    m_instanceBuffer->SetLayout({
+        {ShaderDataType::Float4, "a_instance_matrix0", 1},
+        {ShaderDataType::Float4, "a_instance_matrix1", 1},
+        {ShaderDataType::Float4, "a_instance_matrix2", 1},
+        {ShaderDataType::Float4, "a_instance_matrix3", 1}
+    });
+    
+    // Создаем отдельный VAO для инстансинга
+    m_instanceVAO = VertexArrayObject::Create();
 }
 
 void Renderer::Shutdown()
@@ -99,6 +110,21 @@ void Renderer::DrawModel(Model &model, const glm::vec3 &position, const glm::vec
     m_modelShader->SetVec3("light.specular", glm::vec3(1.0f));
     model.Draw(*m_modelShader);
 }
+void Renderer::DrawModelInstanced(Model& model, const std::vector<glm::mat4>& instances, 
+                                const glm::vec3& camPos) {
+    if (instances.empty()) return;
+    
+    m_instanceModelShader->Bind();
+    m_instanceModelShader->SetMat4("u_view", m_viewMat);
+    m_instanceModelShader->SetMat4("u_projection", m_projectionMat);
+    m_instanceModelShader->SetVec3("viewPos", camPos);
+    m_instanceModelShader->SetVec3("light.position", glm::vec3(500.0f, 200.0f, 100.0f));
+    m_instanceModelShader->SetVec3("light.ambient", glm::vec3(0.2f));
+    m_instanceModelShader->SetVec3("light.diffuse", glm::vec3(0.8f));
+    m_instanceModelShader->SetVec3("light.specular", glm::vec3(1.0f));
+    
+    model.DrawInstanced(*m_instanceModelShader, instances);
+}
 
 void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
     glClearColor(0.1, 0.1, 0.1, 1.0f);
@@ -114,10 +140,8 @@ void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
 void Renderer::UploadAgentsData(const std::vector<Agent> &agents)
 {
     m_agentRenderData.clear();
-    
     for (const auto& agent : agents) {
         if (!agent.isBurning()) continue; 
-        
         AgentRenderData data;
         data.position = glm::vec3(agent.position.x, agent.position.y, agent.position.z);
         data.intensity = agent.getOverallIntensity(); 
@@ -147,7 +171,7 @@ void Renderer::EndScene()
     glUseProgram(0);
 }
 
-void Renderer::RenderWithGeometryShader()
+void Renderer::RenderWithGeometryShader(const glm::vec3& wind_force)
  {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE);
@@ -157,6 +181,7 @@ void Renderer::RenderWithGeometryShader()
     m_fireGeometryShader->SetMat4("u_view", m_viewMat);
     m_fireGeometryShader->SetMat4("u_projection", m_projectionMat);
     m_fireGeometryShader->SetFloat("u_time", glfwGetTime());
+    m_fireGeometryShader->SetVec3("u_wind_force", wind_force);
     
     glm::mat4 view = m_viewMat;
     glm::vec3 camera_right = glm::vec3(view[0][0], view[1][0], view[2][0]);

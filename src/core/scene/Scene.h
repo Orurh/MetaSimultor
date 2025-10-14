@@ -1,9 +1,9 @@
 #pragma once
 #include "Camera.h"
+#include "graphics/Renderer.h"
 #include "core/AgentManager.h"
 #include "data/PrefabSystem.h"
-#include "graphics/Renderer.h"
-
+#include "configs/WindConfig.h"
 namespace engine {
 class Entity;
 struct ObjectModels {
@@ -92,7 +92,8 @@ class Scene {
   data::PrefabSystem m_prefabSystem;
   std::unordered_map<std::string, ObjectModels> m_objectModels;
   Camera m_camera;
-
+  WindConfig m_windConfig;
+  float m_windTime = 0.0f;
   // --- интерактив ---
   PlaceMode m_placeMode{PlaceMode::Tree};
   float m_fireIntensity{1.0F};
