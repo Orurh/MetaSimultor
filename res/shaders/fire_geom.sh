@@ -29,7 +29,7 @@ uniform mat4 u_projection;
 uniform float u_time;
 uniform vec3 u_camera_right;
 uniform vec3 u_camera_up;
-
+uniform vec3 u_wind_force;
 out vec2 f_texcoord;
 out float f_intensity;
 out float f_alpha;
@@ -56,12 +56,16 @@ void create_fire_particle(vec3 position, float size, float intensity, int partic
     float movement_reduction = smoothstep(0.4, 1.0, life_ratio);
     
     vec2 noise_pos = position.xz + u_time;
-    position.x += (noise(noise_pos) - 0.5) * 0.8 * life_ratio * (1.0 - movement_reduction);
-    position.z += (noise(noise_pos.yx) - 0.5) * 0.8 * life_ratio * (1.0 - movement_reduction);
+    vec2 wind_effect = u_wind_force.xz * life_ratio * 2.0; // Ветер усиливается со временем
     
-
+    position.x += (noise(noise_pos) - 0.5) * 0.8 * life_ratio * (1.0 - movement_reduction) + wind_effect.x;
+    position.z += (noise(noise_pos.yx) - 0.5) * 0.8 * life_ratio * (1.0 - movement_reduction) + wind_effect.y;
+    
     vec3 right = u_camera_right * size;
     vec3 up = u_camera_up * size;
+    
+    right += u_camera_right * wind_effect.x * 0.3f;
+    up += u_camera_up * wind_effect.y * 0.3f;
     
     vec3 vertices[4] = vec3[4](
         position - right - up,

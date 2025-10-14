@@ -28,13 +28,15 @@ void Scene::Init()
     m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_house.yaml");
 
     m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_tree.yaml");
+    Generate();
 }
 
 void Scene::Update(float dt) {
+    m_windTime += dt;
     if(!m_sceneObjects.empty())
-        {
-            SimulationStep(m_agentManager.getDeviceAgents(), m_agentManager.getAgentCount(), dt);
-        }
+    {
+        SimulationStep(m_agentManager.getDeviceAgents(), m_agentManager.getAgentCount(), dt, m_windConfig.getCurrentWind(m_windTime));
+    }
 
   // 1) Флаги захвата UI
   const ImGuiIO& io = ImGui::GetIO();
@@ -127,7 +129,7 @@ void Scene::Render() {
         }
     }
     m_renderer.UploadAgentsData(agents); 
-    m_renderer.RenderWithGeometryShader();
+    m_renderer.RenderWithGeometryShader(m_windConfig.getCurrentWind(m_windTime));
     
     m_renderer.EndScene();
 }
@@ -148,8 +150,8 @@ void Scene::AddTree(float x, float y, const std::string& tree_type) {
 
 void Scene::Generate()
 {
-    for(int i = 0; i < 100; i+=3){
-        for(int j = 0; j < 100; j+=3) {
+    for(int i = 0; i < 50; i+=3){
+        for(int j = 0; j < 50; j+=3) {
             AddTree(500 + i, 500 + j, "default_tree");
         }
     }
