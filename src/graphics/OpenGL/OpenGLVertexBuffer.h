@@ -12,9 +12,13 @@ public:
   virtual const BufferLayout &GetLayout() const override;
   void Bind() const override;
   void Unbind() const override;
-
+  size_t GetSize() const override {
+        return m_size;
+  }
 private:
   BufferLayout m_layout;
   GLuint m_id;
+  size_t m_size; 
+
 };
 } // namespace engine

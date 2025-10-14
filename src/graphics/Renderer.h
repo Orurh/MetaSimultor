@@ -3,6 +3,8 @@
 #include <glm/vec3.hpp>
 #include <memory>
 #include <core/agent.h>
+#include <unordered_map>
+
 #include "Texture.h"
 #include "Model.h"
 namespace engine {
@@ -18,6 +20,8 @@ public:
   void Shutdown();
   void DrawCube(const glm::vec3& position, const glm::vec3& color, float scale);
   void DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& scale, const glm::vec3& camPos);
+  void DrawModelInstanced(Model& model, const std::vector<glm::mat4>& instances, 
+                          const glm::vec3& camPos);
   void BeginScene(const glm::mat4& view, const glm::mat4& projection);
   void UploadAgentsData(const std::vector<Agent>& agents);
   void RenderWithGeometryShader(const glm::vec3& wind_force);
@@ -31,6 +35,7 @@ private:
   std::unique_ptr<Shader> m_shader;
   std::shared_ptr<Shader> m_modelShader;
   std::shared_ptr<Shader> m_fireGeometryShader;
+  std::shared_ptr<Shader> m_instanceModelShader;
 
   //fire particles
   std::shared_ptr<Texture> m_fireTexture;
@@ -42,6 +47,8 @@ private:
   std::shared_ptr<VertexArrayObject> m_vao;
   std::shared_ptr<VertexBuffer> m_vbo;
   std::shared_ptr<IndexBuffer> m_ebo;
-
+  std::shared_ptr<VertexBuffer> m_instanceBuffer;
+    std::shared_ptr<VertexArrayObject> m_instanceVAO;
+  std::unordered_map<Model*, std::vector<glm::mat4>> m_instanceBatch;
 };
 } // namespace engine

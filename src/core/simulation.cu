@@ -4,7 +4,7 @@
 #include <cmath>
 #include <iostream>
 #include <glm/glm.hpp>
-
+const int MAX_NEIGHBORS = 50;
 __device__ float distance3d(float x1, float y1, float z1, float x2, float y2, float z2) {
     float dx = x1 - x2;
     float dy = y1 - y2;
@@ -60,8 +60,10 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt, float3 
                 agent->fire_collider.heat_points[i].z
             );
             
-            for (int other_idx = 0; other_idx < count; other_idx++) {
+            for (int n = 0; n < MAX_NEIGHBORS; n++) {
+                int other_idx = (idx + n * 37) % count; // Псевдослучайные соседи
                 if (other_idx == idx) continue;
+
                 
                 Agent* other_agent = &agents[other_idx];
                 
@@ -193,6 +195,7 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt, float3 
         }
     }
     
+    // 4. Обновляем тип агента на основе точек горения
     bool all_burned = true;
     
     for (int i = 0; i < agent->fire_collider.point_count; i++) {
@@ -211,7 +214,7 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt, float3 
 
 void SimulationStep(Agent* agents, int count, float dt, const glm::vec3& wind_force) {
     cudaDeviceSynchronize();
-    dt*= 0.1;
+    dt *= 0.1f;
     const int block_size = 256;
     const int grid_size = (count + block_size - 1) / block_size;
     float3 f = {wind_force.x, wind_force.y, wind_force.z};
