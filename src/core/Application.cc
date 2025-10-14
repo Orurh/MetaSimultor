@@ -28,7 +28,7 @@ Application::Application(int width, int height, const char *title)
       m_height(height) {
   // Создание окна/GL
   m_window = std::make_unique<Window>(width, height, std::string(title));
-  InitGL();
+  InitGL(); 
 
   // Сцена
   m_scene = std::make_unique<Scene>();

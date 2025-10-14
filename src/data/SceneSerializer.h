@@ -12,7 +12,7 @@ namespace engine::data {
           bool Serialize(const std::string& path);
           
           void Deserialize(const std::string& path);
-        private:    
+        private:
           std::string getCurrentDateTime() {
             auto now = std::chrono::system_clock::now();
             auto in_time_t = std::chrono::system_clock::to_time_t(now);
@@ -22,8 +22,12 @@ namespace engine::data {
             return ss.str();
           }
           YAML::Emitter& SerializeAgent(YAML::Emitter& out, const Agent& agent, int id);
+          YAML::Emitter& SerializeSceneObject(YAML::Emitter& out, const SceneObject& obj, int id);
 
           YAML::Emitter& SerializeFireCollider(YAML::Emitter& out, const FireCollider& collider);
+          SceneObject DeserializeSceneObject(const YAML::Node& obj_node);
+          Agent DeserializeAgent(const YAML::Node& agent_node);
+          FireCollider DeserializeFireCollider(const YAML::Node& collider_node);
           std::shared_ptr<Scene> m_scene;
     };
 }

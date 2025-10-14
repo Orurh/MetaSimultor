@@ -1,6 +1,5 @@
 #include "AgentManager.h"
 #include <cuda_runtime.h>
-#include <vector>
 #include <random>
 #include <iostream>
 
@@ -144,4 +143,21 @@ void AgentManager::AddAgent(const Agent &agent) {
     
     cudaMemcpy(m_agents + m_count, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
     m_count++;
+}
+void AgentManager::Clear() {
+    m_count = 0;
+    cudaMemset(m_agents, 0, m_capacity * sizeof(Agent));
+}
+Agent AgentManager::CreateAgent(AgentType type, Float3 position, const AgentComponents& components) {
+    Agent agent;
+    agent.type = type;
+    agent.position = position;
+    agent.object_id = components.object_id;
+    agent.intencity = components.intencity;
+    
+    agent.fire_collider.bounds_min = components.collider_bounds_min;
+    agent.fire_collider.bounds_max = components.collider_bounds_max;
+    generateTreeHeatPoints(agent.fire_collider, position.x, position.z);
+    AddAgent(agent);
+    return agent;
 }

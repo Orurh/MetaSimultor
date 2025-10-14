@@ -33,4 +33,21 @@ inline bool IntersectRayPlaneY0(const glm::vec3 &ro, const glm::vec3 &rd,
   hit = ro + rd * t;
   return true;
 }
+
+inline bool IntersectRayPlaneAtDepth(const glm::vec3 &ro, const glm::vec3 &rd,
+                                     const glm::vec3 &camDir, float depth,
+                                     glm::vec3 &hit) {
+  // Плоскость: нормаль = camDir, точка на плоскости = ro + depth * camDir
+  glm::vec3 planePoint = ro + depth * camDir;
+  float denom = glm::dot(rd, camDir);
+  if (std::fabs(denom) < 1e-6f) {
+    return false; // Луч параллелен плоскости
+  }
+  float t = glm::dot(planePoint - ro, camDir) / denom;
+  if (t < 0.0f) {
+    return false; // Пересечение позади камеры
+  }
+  hit = ro + rd * t;
+  return true;
+}
 } // namespace math

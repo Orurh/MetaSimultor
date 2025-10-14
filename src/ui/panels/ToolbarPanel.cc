@@ -1,9 +1,10 @@
 // ui/panels/ToolbarPanel.cpp
 #include "ui/panels/ToolbarPanel.h"
+#include "core/Input.h"  // ← у тебя именно так называется инпут
 #include "core/scene/Scene.h"
+#include "imgui.h"
+#include "math/ScreenRay.h"  // луч из экрана
 #include "ui/Editor.h"
-#include "core/Input.h"          // ← у тебя именно так называется инпут
-#include "math/ScreenRay.h"      // луч из экрана
 
 namespace ui {
 
@@ -11,10 +12,14 @@ void ToolbarPanel::Draw(EditorContext& ctx) {
   bool visible = true;
   if (!ImGui::Begin(Id(), &visible)) {
     ImGui::End();
-    if (m_wasVisible) { OnHide(ctx); }
+    if (m_wasVisible) {
+      OnHide(ctx);
+    }
     return;
   }
-  if (!m_wasVisible) { OnShow(ctx); }
+  if (!m_wasVisible) {
+    OnShow(ctx);
+  }
 
   // Текущий активный инструмент
   const auto ACTIVE = ctx.GetActiveToolType();
@@ -32,8 +37,8 @@ void ToolbarPanel::Draw(EditorContext& ctx) {
   // --- Новый блок: поджог по фиксированным координатам (мировым)
   ImGui::Separator();
   ImGui::TextUnformatted("Ignite by world coords");
-  static float fireX = 510.0f;   // X мира
-  static float fireY = 501.0f;   // Z мира (у тебя второй параметр — это Z)
+  static float fireX = 510.0f;  // X мира
+  static float fireY = 501.0f;  // Z мира (у тебя второй параметр — это Z)
   ImGui::InputFloat("X", &fireX);
   ImGui::InputFloat("Y", &fireY);
   if (ImGui::Button("Ignite at (X, Y)")) {
@@ -43,18 +48,22 @@ void ToolbarPanel::Draw(EditorContext& ctx) {
   // --- Оставляем вариант по курсору (как было)
   ImGui::Separator();
   if (ImGui::Button("Ignite at cursor")) {
-    // курсор в пикселях из GLFW
-    double mx = NAN, my = NAN;
+    // 1) Позиция курсора в координатах окна
+    double mx = 0.0, my = 0.0;
     glfwGetCursorPos(ctx.m_window, &mx, &my);
 
-    // луч из экрана в мир
-    glm::vec3 ro, rd;
-    math::ScreenPointToRay(
-      static_cast<float>(mx), static_cast<float>(my),
-      static_cast<float>(ctx.m_viewportW), static_cast<float>(ctx.m_viewportH),
-      ctx.m_proj, ctx.m_view, ro, rd);
+    // 2) Перевод в координаты ВЬЮПОРТА (framebuffer-пиксели)
+    const glm::vec2 vp = ctx.WindowToViewportFB(float(mx), float(my));
+    if (vp.x < 0.f || vp.y < 0.f || vp.x >= float(ctx.m_viewportW) ||
+        vp.y >= float(ctx.m_viewportH))
+      return;
 
-    // пересечение с плоскостью Y=0
+    // 3) Луч из экрана в мир (всё в framebuffer-пикселях)
+    glm::vec3 ro, rd;
+    math::ScreenPointToRay(vp.x, vp.y, float(ctx.m_viewportW), float(ctx.m_viewportH), ctx.m_proj,
+                           ctx.m_view, ro, rd);
+
+    // 4) Пересечение с Y=0
     glm::vec3 hit;
     if (math::IntersectRayPlaneY0(ro, rd, hit)) {
       ctx.m_scene->AddFire(hit.x, hit.z, m_fireIntensity);
@@ -64,5 +73,4 @@ void ToolbarPanel::Draw(EditorContext& ctx) {
   ImGui::End();
 }
 
-
-} // namespace ui
+}  // namespace ui

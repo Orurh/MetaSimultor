@@ -133,12 +133,10 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt) {
     }
     
     // 4. Обновляем тип агента на основе точек горения
-    bool is_burning = false;
     bool all_burned = true;
     
     for (int i = 0; i < agent->fire_collider.point_count; i++) {
         if (agent->fire_collider.intensities[i] > 0.1f) {
-            is_burning = true;
             all_burned = false;
         }
         if (agent->fire_collider.fuels[i] > 0.1f) {

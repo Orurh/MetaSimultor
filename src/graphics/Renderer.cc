@@ -83,10 +83,11 @@ void Renderer::DrawCube(const glm::vec3& position, const glm::vec3& color, float
     m_shader->Unbind();
 }
 
-void Renderer::DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& camPos)
+void Renderer::DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& scale, const glm::vec3& camPos)
 {
     glm::mat4 modelmat = glm::mat4(1.0f);
     modelmat = glm::translate(modelmat, position);
+    modelmat = glm::scale(modelmat, scale);
     m_modelShader->Bind();
     m_modelShader->SetMat4("u_model", modelmat);
     m_modelShader->SetMat4("u_view", m_viewMat);

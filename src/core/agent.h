@@ -1,5 +1,4 @@
 #pragma once
-#include <cstdint>
 #include <glm/glm.hpp>
 
 #include "cuda_include.h"
