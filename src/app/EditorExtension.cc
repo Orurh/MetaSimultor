@@ -41,12 +41,12 @@ void EditorExtension::OnBeginUI(engine::Application& /*app*/, ui::EditorContext&
   int fbw = 0, fbh = 0, ww = 0, wh = 0;
   glfwGetFramebufferSize(ctx.m_window, &fbw, &fbh);
   glfwGetWindowSize(ctx.m_window, &ww, &wh);
-  ctx.vpScaleX = (ww > 0) ? static_cast<float>(fbw) / static_cast<float>(ww) : 1.f;
-  ctx.vpScaleY = (wh > 0) ? static_cast<float>(fbh) / static_cast<float>(wh) : 1.f;
+  ctx.m_vpScaleX = (ww > 0) ? static_cast<float>(fbw) / static_cast<float>(ww) : 1.f;
+  ctx.m_vpScaleY = (wh > 0) ? static_cast<float>(fbh) / static_cast<float>(wh) : 1.f;
 
   // 4) Размеры вьюпорта для проекций (в framebuffer-пикселях)
-  ctx.m_viewportW = static_cast<int>(ctx.vpW * ctx.vpScaleX);
-  ctx.m_viewportH = static_cast<int>(ctx.vpH * ctx.vpScaleY);
+  ctx.m_viewportW = static_cast<int>(ctx.vpW * ctx.m_vpScaleX);
+  ctx.m_viewportH = static_cast<int>(ctx.vpH * ctx.m_vpScaleY);
 
   // 5) Обновляем матрицы из сцены с ПРАВИЛЬНЫМИ размерами
   ctx.m_view = ctx.m_scene->GetViewMatrix();
@@ -54,7 +54,7 @@ void EditorExtension::OnBeginUI(engine::Application& /*app*/, ui::EditorContext&
 
   // 6) Сообщаем сцене актуальные параметры viewport
   ctx.m_scene->SetViewportRect(ctx.vpX, ctx.vpY, ctx.vpW, ctx.vpH);
-  ctx.m_scene->SetViewportScale(ctx.vpScaleX, ctx.vpScaleY);
+  ctx.m_scene->SetViewportScale(ctx.m_vpScaleX, ctx.m_vpScaleY);
 
   // 7) Рендер UI редактора
   m_editor->DrawUI(ctx);

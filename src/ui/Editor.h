@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "ui/EditorState.h"
 #include "ui/IModule.h"
 #include "ui/IPanel.h"
 #include "ui/ITool.h"
@@ -14,6 +15,7 @@ struct IModule;
 } // namespace ui
 
 namespace ui {
+  struct EditorContext;
 
 class Editor {
 public:
@@ -135,6 +137,7 @@ public:
     return m_activeStack.empty() ? ToolType::OTHER_TOOL
                                  : m_activeStack.back()->Type();
   }
+  EditorState m_state;
 
 private:
   ITool *FindTool(ToolType type) {

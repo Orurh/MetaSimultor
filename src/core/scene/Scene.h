@@ -1,9 +1,10 @@
 #pragma once
+#include <memory>
 #include "Camera.h"
-#include "graphics/Renderer.h"
+#include "configs/WindConfig.h"
 #include "core/AgentManager.h"
 #include "data/PrefabSystem.h"
-#include "configs/WindConfig.h"
+#include "graphics/Renderer.h"
 namespace engine {
 class Entity;
 struct ObjectModels {
@@ -80,10 +81,16 @@ class Scene {
   PlaceMode GetPlaceMode() const { return m_placeMode; }
 
   void AddPrefab(const std::string& prefab_id, float x, float z);
-  const std::vector<std::string>& ListPrefabIds() const; 
+  const std::vector<std::string>& ListPrefabIds() const;
+
+  engine::data::PrefabSystem& GetPrefabSystem() { return m_prefabSystem; }
+  const engine::data::PrefabSystem& GetPrefabSystem() const { return m_prefabSystem; }
 
  private:
   void RenderAgent(const Agent& agent, const SceneObject& scene_obj);
+  void EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab);
+
+
 
   AgentManager m_agentManager;
   Renderer m_renderer;
@@ -93,7 +100,7 @@ class Scene {
   std::unordered_map<std::string, ObjectModels> m_objectModels;
   Camera m_camera;
   WindConfig m_windConfig;
-  float m_windTime = 0.0f;
+  float m_windTime = 0.0F;
   // --- интерактив ---
   PlaceMode m_placeMode{PlaceMode::Tree};
   float m_fireIntensity{1.0F};

@@ -1,8 +1,15 @@
-// #include "ui/EditorContext.h"
-// #include "ui/Editor.h"  // нужен только тут, не в .h
+#include "ui/EditorContext.h"
+#include "ui/Editor.h"   // здесь уже можно, цикл не страшен в .cc
 
-// namespace ui {
-// ToolType EditorContext::GetActiveToolType() const noexcept {
-//   return (m_editor != nullptr) ? m_editor->ActiveToolType() : ToolType::OTHER_TOOL;
-// }
-// } // namespace ui
+namespace ui {
+
+EditorState& EditorContext::State() {
+  return m_editor->m_state;
+}
+
+const EditorState& EditorContext::State() const {
+  return m_editor->m_state;
+}
+
+
+} // namespace ui

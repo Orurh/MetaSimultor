@@ -2,10 +2,11 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "ui/Editor.h"
 
 namespace ui {
 struct EditorContext;
-}
+} // namespace ui
 struct IAppExtension;
 
 struct GLFWwindow; // fwd, если используешь GLFW
@@ -16,7 +17,7 @@ class Window;
 class Scene;
 namespace data {
     class SceneSerializer;
-}
+} // namespace data
 
 class Application {
 public:
@@ -47,6 +48,7 @@ private:
 
   std::unique_ptr<Window> m_window;
   std::shared_ptr<Scene> m_scene;
+  ui::Editor m_editor;
   float m_dt{0.F};
   float m_last_frame_time{0.F};
   int m_width{0}, m_height{0};

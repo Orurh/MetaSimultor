@@ -1,6 +1,7 @@
 // modules/BasicToolsModule.cc
 #include "ui/modules/BasicToolsModule.h"
 #include "ui/Editor.h"
+#include "ui/panels/PrefabBrowserPanel.h"
 #include "ui/panels/SceneIOPanel.h"
 #include "ui/panels/ToolbarPanel.h"
 #include "ui/tools/PlaceOnGroundTool.h"
@@ -11,6 +12,7 @@ void BasicToolsModule::Startup(Editor& editor) {
   editor.RegisterPanel(std::make_unique<ToolbarPanel>());
   editor.RegisterTool(std::make_unique<PlaceOnGroundTool>("res/models/LowPolytree/CartoonTree.obj"));
   editor.RegisterPanel(std::make_unique<ui::SceneIOPanel>());
+  editor.RegisterPanel(std::make_unique<ui::PrefabBrowserPanel>()); 
 }
 
 void BasicToolsModule::Shutdown() {

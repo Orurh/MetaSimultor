@@ -1,7 +1,10 @@
 name: default_house
 type: 0
 model_path: res/models/house/house.obj
-model_scale: [0.3, 0.3, 0.3]
+model_scale:
+  - 0.300000012
+  - 0.300000012
+  - 0.300000012
 bounds_min:
   - -1
   - 0

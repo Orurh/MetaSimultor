@@ -1,7 +1,7 @@
 #pragma once
 #include "ui/ITool.h"
 #include "ui/ToolType.h"
-#include <string_view> // +++
+#include <string_view> 
 
 namespace ui {
 
