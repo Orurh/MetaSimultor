@@ -291,9 +291,16 @@ void Scene::AddSceneObjectFromSerialized(const SceneObject& obj) {
   const auto& prefab = m_prefabSystem.GetPrefab(obj.object_type);
   EnsureModelsForPrefab(obj.object_type, prefab);
 
-  // Установка масштаба из префаба, если нужно
   SceneObject o = obj;
-  o.scale = prefab.m_modelScale;
+
+  // Если в файле есть ненулевой масштаб — используем его, но домножаем на префабный базовый
+  if (glm::length(obj.scale) > 1e-6f) {
+    o.scale = glm::vec3(obj.scale.x * prefab.m_modelScale.x,
+                        obj.scale.y * prefab.m_modelScale.y,
+                        obj.scale.z * prefab.m_modelScale.z);
+  } else {
+    o.scale = prefab.m_modelScale;
+  }
 
   m_sceneObjects.push_back(o);
 }
