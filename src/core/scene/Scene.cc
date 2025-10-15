@@ -81,8 +81,8 @@ void Scene::Update(float dt) {
   if (!UI_MOUSE) {
     const float SCROLL_Y = engine::InputSystem::Instance().GetMouseScrollY();
     if (SCROLL_Y != 0.0F) {
-      m_camera.ProcessMouseScroll(SCROLL_Y);
-      engine::InputSystem::Instance().ResetMouseScroll();
+      // m_camera.ProcessMouseScroll(SCROLL_Y);
+      // engine::InputSystem::Instance().ResetMouseScroll();
     }
   }
 }
@@ -156,7 +156,7 @@ void Scene::LoadObjectModels(const std::string& object_name, const std::string& 
 }
 
 void Scene::RenderAgent(const Agent& agent, const SceneObject& scene_obj) {
-    glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
+  glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
 
   // Получаем префаб
   const auto& prefab = m_prefabSystem.GetPrefab(scene_obj.object_type);
@@ -290,18 +290,8 @@ void Scene::ReloadModelForPrefab(const std::string& prefab_id,
 void Scene::AddSceneObjectFromSerialized(const SceneObject& obj) {
   const auto& prefab = m_prefabSystem.GetPrefab(obj.object_type);
   EnsureModelsForPrefab(obj.object_type, prefab);
-
   SceneObject o = obj;
-
-  // Если в файле есть ненулевой масштаб — используем его, но домножаем на префабный базовый
-  if (glm::length(obj.scale) > 1e-6f) {
-    o.scale = glm::vec3(obj.scale.x * prefab.m_modelScale.x,
-                        obj.scale.y * prefab.m_modelScale.y,
-                        obj.scale.z * prefab.m_modelScale.z);
-  } else {
-    o.scale = prefab.m_modelScale;
-  }
-
+  o.scale = prefab.m_modelScale;
   m_sceneObjects.push_back(o);
 }
 
