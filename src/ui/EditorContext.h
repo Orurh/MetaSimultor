@@ -5,15 +5,19 @@
 #include "ui/ToolType.h"
 
 struct GLFWwindow;
-namespace engine { class Scene; class Camera; class Application; }
+namespace engine {
+class Scene;
+class Camera;
+class Application;
+}  // namespace engine
 
 namespace ui {
-class Editor;                 // <-- только форвард!
+class Editor;  // <-- только форвард!
 
 struct EditorContext {
-  engine::Application* m_app   = nullptr;
-  GLFWwindow*          m_window= nullptr;
-  engine::Scene*       m_scene = nullptr;
+  engine::Application* m_app = nullptr;
+  GLFWwindow* m_window = nullptr;
+  engine::Scene* m_scene = nullptr;
   const engine::Camera* m_camera = nullptr;
 
   glm::mat4 m_view{}, m_proj{};
@@ -24,7 +28,7 @@ struct EditorContext {
   Editor* m_editor = nullptr;  // не владеем
 
   // Только объявления — БЕЗ ТЕЛ в .h!
-  EditorState&       State();
+  EditorState& State();
   [[nodiscard]] const EditorState& State() const;
 
   [[nodiscard]] ToolType GetActiveToolType() const noexcept;
@@ -33,7 +37,8 @@ struct EditorContext {
     return {mx - static_cast<float>(vpX), my - static_cast<float>(vpY)};
   }
   [[nodiscard]] glm::vec2 WindowToViewportFB(float mx, float my) const {
-    return {(mx - static_cast<float>(vpX)) * m_vpScaleX, (my - static_cast<float>(vpY)) * m_vpScaleY};
+    return {(mx - static_cast<float>(vpX)) * m_vpScaleX,
+            (my - static_cast<float>(vpY)) * m_vpScaleY};
   }
 };
-} // namespace ui
+}  // namespace ui
