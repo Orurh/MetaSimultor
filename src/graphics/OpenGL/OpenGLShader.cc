@@ -151,6 +151,16 @@ void OpenGLShader::SetFloat(const std::string &name, float value) {
   }
 }
 
+void OpenGLShader::SetBool(const std::string &name, bool value) {
+    auto loc = glGetUniformLocation(m_rendererID, name.c_str());
+  if (loc != -1) {
+    glUniform1i(loc, (int)value);
+  } else {
+    std::cout << "Warning: uniform '" + name + "' doesn't exist!\n";
+  }
+}
+
+
 GLuint OpenGLShader::CompileShader(GLenum type, const std::string &source) {
   GLuint shader = glCreateShader(type);
   const char *src = source.c_str();

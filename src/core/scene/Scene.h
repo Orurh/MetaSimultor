@@ -19,6 +19,8 @@ struct SceneObject {
   glm::vec3 scale;
   bool is_visible = true;
 };
+class Material;
+
 class Scene {
 
  public:
@@ -28,7 +30,6 @@ class Scene {
 
   void Render();
   void AddTree(float x, float y, const std::string& tree_type = "default_tree");
-  // void AddFire(float x, float y) { m_agentManager.AddFire(x, y, 1.0f); }
   void AddFire(float x, float y, float intensity = 1.0f) {
     m_agentManager.AddFire(x, y, intensity);
   }
@@ -55,13 +56,7 @@ class Scene {
     m_vpH = h;
   }
   void LoadObjectModels(const std::string& object_name, const std::string& normal_path,
-                        const std::string& burning_path, const std::string& burned_path) {
-    ObjectModels models;
-    models.normal = std::make_shared<Model>(normal_path);
-    models.burning = std::make_shared<Model>(burning_path);
-    models.burned = std::make_shared<Model>(burned_path);
-    m_objectModels[object_name] = models;
-  }
+                        const std::string& burning_path, const std::string& burned_path);
   const std::vector<SceneObject>& GetSceneObjects() const { return m_sceneObjects; }
 
   // Метод для добавления SceneObject
@@ -85,7 +80,7 @@ class Scene {
 
   engine::data::PrefabSystem& GetPrefabSystem() { return m_prefabSystem; }
   const engine::data::PrefabSystem& GetPrefabSystem() const { return m_prefabSystem; }
-
+  void LoadMaterials();
  private:
   void RenderAgent(const Agent& agent, const SceneObject& scene_obj);
   void EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab);
@@ -95,6 +90,8 @@ class Scene {
   AgentManager m_agentManager;
   Renderer m_renderer;
   std::unordered_map<std::string, std::shared_ptr<Model>> m_loadedModels;
+  std::unordered_map<std::string, std::shared_ptr<Material>> m_treeMaterials;
+  std::unordered_map<std::string, std::shared_ptr<Material>> m_houseMaterials;
   std::vector<SceneObject> m_sceneObjects;
   data::PrefabSystem m_prefabSystem;
   std::unordered_map<std::string, ObjectModels> m_objectModels;

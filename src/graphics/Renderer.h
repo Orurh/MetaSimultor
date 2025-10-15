@@ -7,6 +7,7 @@
 
 #include "Texture.h"
 #include "Model.h"
+#include "Material.h"
 namespace engine {
    struct AgentRenderData {
     glm::vec3 position;
@@ -22,6 +23,11 @@ public:
   void DrawModel(Model &model, const glm::vec3 &position, const glm::vec3& scale, const glm::vec3& camPos);
   void DrawModelInstanced(Model& model, const std::vector<glm::mat4>& instances, 
                           const glm::vec3& camPos);
+  void DrawModelWithMaterial(Model& model, 
+                                    const glm::vec3& position,
+                                    const glm::vec3& scale, 
+                                    const glm::vec3& camPos,
+                                    const std::shared_ptr<Material>& material); 
   void BeginScene(const glm::mat4& view, const glm::mat4& projection);
   void UploadAgentsData(const std::vector<Agent>& agents);
   void RenderWithGeometryShader(const glm::vec3& wind_force);

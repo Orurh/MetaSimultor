@@ -183,6 +183,21 @@ std::vector<Agent> Scene::LoadAgentsFromGPU() {
 
   return agents;
 }
+void Scene::LoadObjectModels(const std::string& object_name, 
+                         const std::string& normal_path,
+                         const std::string& burning_path,
+                         const std::string& burned_path) {
+        try {
+          ObjectModels models;
+          models.normal = std::make_shared<Model>(normal_path);
+          models.burning = std::make_shared<Model>(burning_path);
+          models.burned = std::make_shared<Model>(burned_path);
+          m_objectModels[object_name] = models;
+        } catch (const std::exception& e) {
+           std::cout << "Failed to load model '" << object_name << "': " << e.what() << std::endl;
+        }
+        
+  }
 
 void Scene::RenderAgent(const Agent& agent, const SceneObject& scene_obj) {
   glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
@@ -271,6 +286,37 @@ void Scene::AddTree(float x, float z, const std::string& tree_type) {
 // Список id префабов (проксируем)
 const std::vector<std::string>& Scene::ListPrefabIds() const {
   return m_prefabSystem.ListIds();
+}
+
+
+void Scene::LoadMaterials() {
+    // Материалы для деревьев
+    m_treeMaterials["normal"] = Material::Create(
+        "res/models/tree/tree_diffuse.png",
+        "res/models/tree/tree_specular.png",
+        "res/models/tree/tree_normal.png"
+    );
+    
+    m_treeMaterials["burning"] = Material::Create(
+        "res/models/tree/tree_burning_diffuse.png",
+        "res/models/tree/tree_burning_specular.png",
+        "res/models/tree/tree_normal.png",
+        glm::vec3(1.0f, 0.3f, 0.1f), 
+        glm::vec3(1.0f, 0.5f, 0.2f)
+    );
+    
+    m_treeMaterials["burned"] = Material::Create(
+        "res/models/tree/tree_burned_diffuse.png",
+        "",
+        "res/models/tree/tree_normal.png", 
+        glm::vec3(0.2f, 0.2f, 0.2f),
+        glm::vec3(0.1f, 0.1f, 0.1f)
+    );
+    
+    m_houseMaterials["normal"] = Material::Create(
+        "res/models/house/house_diffuse.png",
+        "res/models/house/house_specular.png"
+    );
 }
 
 }  // namespace engine
