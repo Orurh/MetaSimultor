@@ -216,7 +216,7 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt, float3 
         }
     }
     
-    if (all_burned && agent->type == TREE) {
+    if (all_burned && agent->type == NORMAL) {
         agent->type = BURNED;
     }
 }

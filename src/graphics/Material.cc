@@ -38,7 +38,7 @@ std::shared_ptr<Material> Material::Create(const std::string& diffusePath,
             material->m_specularColor = specularColor;
             return material;
         }
-        
+
 void Material::Bind(Shader& shader) const {
     // Биндим текстуры
     if (m_diffuseTexture) {

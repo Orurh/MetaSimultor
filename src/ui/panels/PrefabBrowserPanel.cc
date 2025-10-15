@@ -75,9 +75,9 @@ const std::string& PrefabBrowserPanel::EnsureSelection(EditorContext& ctx, const
     m_edit = ctx.m_scene->GetPrefabSystem().GetPrefab(id);
     // Синхронизируем текстовые буферы один раз при загрузке
     std::snprintf(m_modelBuf, sizeof(m_modelBuf), "%s", m_edit->m_modelPath.c_str());
-    std::snprintf(m_matNormalBuf,  sizeof(m_matNormalBuf),  "%s", m_edit->m_visuals.m_normal_material.c_str());
-    std::snprintf(m_matBurningBuf, sizeof(m_matBurningBuf), "%s", m_edit->m_visuals.m_burning_material.c_str());
-    std::snprintf(m_matBurnedBuf,  sizeof(m_matBurnedBuf),  "%s", m_edit->m_visuals.m_burned_material.c_str());
+    std::snprintf(m_matNormalBuf,  sizeof(m_matNormalBuf),  "%s", m_edit->normal_material.normal_path.c_str());
+    std::snprintf(m_matBurningBuf, sizeof(m_matBurningBuf), "%s", m_edit->normal_material.specular_path.c_str());
+    std::snprintf(m_matBurnedBuf,  sizeof(m_matBurnedBuf),  "%s", m_edit->normal_material.diffuse_path.c_str());
   }
   return id;
 }
@@ -90,9 +90,9 @@ void PrefabBrowserPanel::DrawLeftColumn(EditorContext& ctx, const std::vector<st
       // Перезагружаем редактируемую копию и буферы
       m_edit = ctx.m_scene->GetPrefabSystem().GetPrefab(ids[i]);
       std::snprintf(m_modelBuf, sizeof(m_modelBuf), "%s", m_edit->m_modelPath.c_str());
-      std::snprintf(m_matNormalBuf,  sizeof(m_matNormalBuf),  "%s", m_edit->m_visuals.m_normal_material.c_str());
-      std::snprintf(m_matBurningBuf, sizeof(m_matBurningBuf), "%s", m_edit->m_visuals.m_burning_material.c_str());
-      std::snprintf(m_matBurnedBuf,  sizeof(m_matBurnedBuf),  "%s", m_edit->m_visuals.m_burned_material.c_str());
+      std::snprintf(m_matNormalBuf,  sizeof(m_matNormalBuf),  "%s", m_edit->normal_material.normal_path.c_str());
+      std::snprintf(m_matBurningBuf, sizeof(m_matBurningBuf), "%s", m_edit->normal_material.specular_path.c_str());
+      std::snprintf(m_matBurnedBuf,  sizeof(m_matBurnedBuf),  "%s", m_edit->normal_material.diffuse_path.c_str());
     }
     if (sel) ImGui::SetItemDefaultFocus();
   }
@@ -160,9 +160,15 @@ void PrefabBrowserPanel::DrawVisuals(AgentPrefab& P) {
   changed |= ImGui::InputText("Burning", m_matBurningBuf, IM_ARRAYSIZE(m_matBurningBuf));
   changed |= ImGui::InputText("Burned",  m_matBurnedBuf,  IM_ARRAYSIZE(m_matBurnedBuf));
   if (changed) {
-    P.m_visuals.m_normal_material  = m_matNormalBuf;
-    P.m_visuals.m_burning_material = m_matBurningBuf;
-    P.m_visuals.m_burned_material  = m_matBurnedBuf;
+    P.normal_material.normal_path = m_matNormalBuf;
+    P.normal_material.diffuse_path = m_matNormalBuf;
+    P.normal_material.specular_path = m_matNormalBuf;
+    P.burning_material.normal_path = m_matBurningBuf;
+    P.burning_material.diffuse_path = m_matBurningBuf;
+    P.burning_material.specular_path = m_matBurningBuf;
+    P.burned_material.normal_path = m_matBurnedBuf;
+    P.burned_material.diffuse_path = m_matBurnedBuf;
+    P.burned_material.specular_path = m_matBurnedBuf;
   }
 }
 

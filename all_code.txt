@@ -120354,8 +120354,8 @@ struct IAppExtension {
 
 #include "cuda_include.h"
 enum AgentType {
-    TREE = 0,
-    FIRE_SOURCE = 1,   
+    NORMAL = 0,
+    BURNING = 1,   
     BURNED = 2
 };
 
@@ -120405,7 +120405,7 @@ struct Agent {
     FireCollider fire_collider;
     
     __host__ __device__
-    Agent() : position(), type(TREE), object_id(-1) {}
+    Agent() : position(), type(NORMAL), object_id(-1) {}
     
     __host__ __device__
     Agent(float x, float y, float z, AgentType type, int id) 
@@ -120449,7 +120449,7 @@ AgentManager::~AgentManager() {
 
 Agent AgentManager::AddTree(int tree_id, float base_x, float base_z) {
     Agent tree;
-    tree.type = TREE;
+    tree.type = NORMAL;
     tree.object_id = tree_id;
     tree.position = {base_x, 0.0f, base_z};
     
@@ -120542,7 +120542,7 @@ void AgentManager::AddFire(float x, float y, float intensity) {
     if(m_count >= m_capacity) return;
     
     Agent fire;
-    fire.type = FIRE_SOURCE;
+    fire.type = BURNING;
     fire.object_id = -1;
     // fire.position = {x, y, 0.0f};
     fire.position = {x, 0.0f, y};  
@@ -121173,7 +121173,7 @@ void Scene::Render() {
     
     std::vector<Agent> burningBranches;
     for (const auto& agent : agents) {
-        if ((agent.type == AgentType::TREE || agent.type == AgentType::BURNED)) {
+        if ((agent.type == AgentType::NORMAL || agent.type == AgentType::BURNED)) {
             burningBranches.push_back(agent);
         }
     }
@@ -121222,7 +121222,7 @@ void Scene::RenderAgent(const Agent &agent)
     glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
     
     switch (agent.type) {
-        case AgentType::TREE:
+        case AgentType::NORMAL:
             m_renderer.DrawModel(*m_treeModel, position, m_camera.GetPosition());
             break;
         case AgentType::BURNED:
@@ -121881,7 +121881,7 @@ namespace engine::data {
 
     struct AgentPrefab {
         std::string name;
-        AgentType type = AgentType::TREE;
+        AgentType type = AgentType::NORMAL;
 
         std::string model_path;
         glm::vec3 bounds_min = {-1.0f, 0.0f, -1.0f};

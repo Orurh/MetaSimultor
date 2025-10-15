@@ -13,7 +13,7 @@ AgentManager::~AgentManager() {
 
 Agent AgentManager::AddTree(int tree_id, float base_x, float base_z) {
     Agent tree;
-    tree.type = TREE;
+    tree.type = NORMAL;
     tree.object_id = tree_id;
     tree.position = {base_x, 0.0f, base_z};
     
@@ -106,7 +106,7 @@ void AgentManager::AddFire(float x, float y, float intensity) {
     if(m_count >= m_capacity) return;
     
     Agent fire;
-    fire.type = FIRE_SOURCE;
+    fire.type = BURNING;
     fire.object_id = -1;
     // fire.position = {x, y, 0.0f};
     fire.position = {x, 0.0f, y};  

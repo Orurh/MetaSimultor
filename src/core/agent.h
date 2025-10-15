@@ -3,8 +3,8 @@
 
 #include "cuda_include.h"
 enum AgentType {
-    TREE = 0,
-    FIRE_SOURCE = 1,   
+    NORMAL = 0,
+    BURNING = 1,   
     BURNED = 2
 };
 
@@ -54,7 +54,7 @@ struct Agent {
     FireCollider fire_collider;
     
     __host__ __device__
-    Agent() : position(), type(TREE), object_id(-1) {}
+    Agent() : position(), type(NORMAL), object_id(-1) {}
     
     __host__ __device__
     Agent(float x, float y, float z, AgentType type, int id) 

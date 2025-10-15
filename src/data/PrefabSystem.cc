@@ -167,52 +167,19 @@ void PrefabSystem::SerializePrefab(const AgentPrefab& prefab, YAML::Node& node) 
     fp_node["initial_fuel"] = fp.m_initialFuel;
     node["fire_points"].push_back(fp_node);
   }
-
-  // Visuals
-  node["visuals"]["normal_material"] = prefab.m_visuals.m_normal_material;
-  node["visuals"]["burning_material"] = prefab.m_visuals.m_burning_material;
-  node["visuals"]["burned_material"] = prefab.m_visuals.m_burned_material;
+  YAML::Node normal_node;
+  YAML::Node burning_node;
+  YAML::Node burned_node;
+  
+  SerializeMaterialInfo(prefab.normal_material, normal_node);
+  SerializeMaterialInfo(prefab.burning_material, burning_node);
+  SerializeMaterialInfo(prefab.burned_material, burned_node);
+  
+  // ПРИСВАИВАЕМ созданные ноды
+  node["materials"]["normal"] = normal_node;
+  node["materials"]["burning"] = burning_node;
+  node["materials"]["burned"] = burned_node;
 }
-//     AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node &node) const
-//     {
-//         AgentPrefab prefab;
-
-//         // Основные поля
-//         prefab.type = static_cast<AgentType>(node["type"].as<int>());
-//         prefab.model_path = node["model_path"].as<std::string>();
-//         if (node["model_scale"]) {
-//             auto scale = node["model_scale"].as<std::vector<float>>();
-//             prefab.model_scale = glm::vec3(scale[0], scale[1], scale[2]);
-//         } else {
-//             prefab.model_scale = glm::vec3(1.0f);
-//         }
-//         // Bounds
-//         auto bounds_min = node["bounds_min"].as<std::vector<float>>();
-//         auto bounds_max = node["bounds_max"].as<std::vector<float>>();
-//         prefab.bounds_min = glm::vec3(bounds_min[0], bounds_min[1], bounds_min[2]);
-//         prefab.bounds_max = glm::vec3(bounds_max[0], bounds_max[1], bounds_max[2]);
-
-//         // Physics
-//         prefab.physics.intencity = node["physics"]["intensity"].as<float>();
-
-//         // Fire points
-//         if (node["fire_points"]) {
-//             for (const auto& fp_node : node["fire_points"]) {
-//                 AgentPrefab::FirePoint fp;
-//                 auto pos = fp_node["position"].as<std::vector<float>>();
-//                 fp.position = glm::vec3(pos[0], pos[1], pos[2]);
-//                 fp.initial_fuel = fp_node["initial_fuel"].as<float>();
-//                 prefab.fire_points.push_back(fp);
-//             }
-//         }
-
-//         // Visuals
-//         prefab.visuals.normal_material = node["visuals"]["normal_material"].as<std::string>();
-//         prefab.visuals.burning_material = node["visuals"]["burning_material"].as<std::string>();
-//         prefab.visuals.burned_material = node["visuals"]["burned_material"].as<std::string>();
-
-//         return prefab;
-// }
 
 // устойчивый к неполным файлам
 AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
@@ -222,7 +189,7 @@ AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
   if (auto t = node["type"]) {
     prefab.m_type = static_cast<AgentType>(t.as<int>());
   } else {
-    prefab.m_type = AgentType::TREE;
+    prefab.m_type = AgentType::NORMAL;
   }
 
   // model_path
@@ -284,16 +251,19 @@ AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
       prefab.m_firePoints.push_back(fp);
     }
   }
-
-  // visuals (всё опционально)
-  if (auto vis = node["visuals"]) {
-    if (auto n = vis["normal_material"])
-      prefab.m_visuals.m_normal_material = n.as<std::string>();
-    if (auto b = vis["burning_material"])
-      prefab.m_visuals.m_burning_material = b.as<std::string>();
-    if (auto d = vis["burned_material"])
-      prefab.m_visuals.m_burned_material = d.as<std::string>();
-  }
+    // Materials - ЗАПОЛНЯЕМ MaterialInfo
+    if (node["materials"]["normal"]) {
+        prefab.normal_material = ParseMaterialInfo(node["materials"]["normal"]);
+    }
+    if (node["materials"]["burning"]) {
+        prefab.burning_material = ParseMaterialInfo(node["materials"]["burning"]);
+    }
+    if (node["materials"]["burned"]) {
+        prefab.burned_material = ParseMaterialInfo(node["materials"]["burned"]);
+    }
+    
+    // Загружаем текстуры
+    prefab.LoadMaterials();
 
   return prefab;
 }
