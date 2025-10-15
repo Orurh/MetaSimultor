@@ -153,33 +153,54 @@ void PrefabBrowserPanel::DrawFirePoints(AgentPrefab& P) {
 }
 
 void PrefabBrowserPanel::DrawVisuals(AgentPrefab& P) {
-  if (!ImGui::CollapsingHeader("Visuals", ImGuiTreeNodeFlags_DefaultOpen)) return;
+    if (!ImGui::CollapsingHeader("Visuals", ImGuiTreeNodeFlags_DefaultOpen)) return;
 
-  bool changed = false;
-  changed |= ImGui::InputText("Normal",  m_matNormalBuf,  IM_ARRAYSIZE(m_matNormalBuf));
-  changed |= ImGui::InputText("Burning", m_matBurningBuf, IM_ARRAYSIZE(m_matBurningBuf));
-  changed |= ImGui::InputText("Burned",  m_matBurnedBuf,  IM_ARRAYSIZE(m_matBurnedBuf));
-  if (changed) {
-    P.normal_material.normal_path = m_matNormalBuf;
-    P.normal_material.diffuse_path = m_matNormalBuf;
-    P.normal_material.specular_path = m_matNormalBuf;
-    P.burning_material.normal_path = m_matBurningBuf;
-    P.burning_material.diffuse_path = m_matBurningBuf;
-    P.burning_material.specular_path = m_matBurningBuf;
-    P.burned_material.normal_path = m_matBurnedBuf;
-    P.burned_material.diffuse_path = m_matBurnedBuf;
-    P.burned_material.specular_path = m_matBurnedBuf;
-  }
+    bool changed = false;
+
+    // Пути к текстурам
+    changed |= ImGui::InputText("Normal",  m_matNormalBuf,  IM_ARRAYSIZE(m_matNormalBuf));
+    changed |= ImGui::InputText("Burning", m_matBurningBuf, IM_ARRAYSIZE(m_matBurningBuf));
+    changed |= ImGui::InputText("Burned",  m_matBurnedBuf,  IM_ARRAYSIZE(m_matBurnedBuf));
+
+    // Цвета
+    changed |= ImGui::ColorEdit3("Normal diffuse",  &P.normal_material.diffuse_color[0]);
+    changed |= ImGui::ColorEdit3("Normal specular", &P.normal_material.specular_color[0]);
+    changed |= ImGui::ColorEdit3("Burning diffuse",  &P.burning_material.diffuse_color[0]);
+    changed |= ImGui::ColorEdit3("Burning specular", &P.burning_material.specular_color[0]);
+    changed |= ImGui::ColorEdit3("Burned diffuse",   &P.burned_material.diffuse_color[0]);
+    changed |= ImGui::ColorEdit3("Burned specular",  &P.burned_material.specular_color[0]);
+
+    // Шайнинесс
+    changed |= ImGui::DragFloat("Normal shininess",  &P.normal_material.shininess, 1.0f, 0.0f, 256.0f);
+    changed |= ImGui::DragFloat("Burning shininess", &P.burning_material.shininess, 1.0f, 0.0f, 256.0f);
+    changed |= ImGui::DragFloat("Burned shininess",  &P.burned_material.shininess, 1.0f, 0.0f, 256.0f);
+
+    // Обновляем пути текстур, если изменились
+    if (changed) {
+        P.normal_material.diffuse_path  = m_matNormalBuf;
+        P.normal_material.specular_path = m_matNormalBuf;
+        P.normal_material.normal_path   = m_matNormalBuf;
+
+        P.burning_material.diffuse_path  = m_matBurningBuf;
+        P.burning_material.specular_path = m_matBurningBuf;
+        P.burning_material.normal_path   = m_matBurningBuf;
+
+        P.burned_material.diffuse_path  = m_matBurnedBuf;
+        P.burned_material.specular_path = m_matBurnedBuf;
+        P.burned_material.normal_path   = m_matBurnedBuf;
+    }
 }
+
 
 void PrefabBrowserPanel::DrawSaveButtons(EditorContext& ctx, const std::string& id, AgentPrefab& P) {
   static float tConfirm = -1000.f;
 
-  if (ImGui::Button("Apply (runtime)")) {
-    // Обновляем в системе (в памяти)
-    ctx.m_scene->GetPrefabSystem().SavePrefab(id, P); // интерфейс PrefabSystem
+if (ImGui::Button("Apply (runtime)")) {
+    ctx.m_scene->GetPrefabSystem().SavePrefab(id, P); 
+    P.LoadMaterials();    
+    ctx.m_scene->ReloadModelForPrefab(id, P); // <-- передаем P напрямую
     tConfirm = (float)ImGui::GetTime();
-  }
+}
   if ((float)ImGui::GetTime() - tConfirm < 1.0f) {
     ImGui::SameLine(); ImGui::TextColored(ImVec4(0,1,0,1), "Saved");
   }
@@ -191,6 +212,8 @@ void PrefabBrowserPanel::DrawSaveButtons(EditorContext& ctx, const std::string& 
     std::snprintf(m_saveBuf, sizeof(m_saveBuf), "%s", m_savePath.c_str());
     m_savePopupOpen = true;
     ImGui::OpenPopup("Save Prefab");
+        P.LoadMaterials();    
+    ctx.m_scene->ReloadModelForPrefab(id, P); // <-- передаем P напрямую
   }
 }
 

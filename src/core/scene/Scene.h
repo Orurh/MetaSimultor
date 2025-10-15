@@ -81,6 +81,8 @@ class Scene {
   engine::data::PrefabSystem& GetPrefabSystem() { return m_prefabSystem; }
   const engine::data::PrefabSystem& GetPrefabSystem() const { return m_prefabSystem; }
   void LoadMaterials();
+  void ReloadModelForPrefab(const std::string& prefab_id, const engine::data::AgentPrefab& prefab);
+  void AddSceneObjectFromSerialized(const SceneObject& obj);
  private:
   void RenderAgent(const Agent& agent, const SceneObject& scene_obj);
   void EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab);

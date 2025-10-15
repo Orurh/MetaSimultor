@@ -17,6 +17,7 @@ void PrefabSystem::SavePrefab(const std::string& name, const AgentPrefab& prefab
   m_prefabs[name] = prefab;
   PushUnique(m_idsInLoadOrder, name);
 }
+
 void PrefabSystem::SavePrefabToFile(const std::string& prefab_name, const std::string& file_path) {
   if (!PrefabExists(prefab_name)) {
     throw std::runtime_error("Prefab not found: " + prefab_name);
