@@ -262,8 +262,7 @@ AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
     if (node["materials"]["burned"]) {
         prefab.burned_material = ParseMaterialInfo(node["materials"]["burned"]);
     }
-    
-    // Загружаем текстуры
+   
     prefab.LoadMaterials();
 
   return prefab;

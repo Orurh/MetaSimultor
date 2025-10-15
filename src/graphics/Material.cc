@@ -42,36 +42,12 @@ std::shared_ptr<Material> Material::Create(const std::string& diffusePath,
         }
 
 void Material::Bind(Shader& shader) const {
-    if (m_diffuseTexture) {
-        // m_diffuseTexture->Bind(0);
-        // std::cout << "here" << std::endl;
-        // shader.SetInt("material.diffuse_map", 0);
-        // shader.SetBool("material.use_diffuse_map", true);
-        shader.SetVec3("material.diffuse", m_diffuseColor);
-    } else {
-        shader.SetBool("material.use_diffuse_map", false);
-        shader.SetVec3("material.diffuse", m_diffuseColor);
-    }
-    
-    if (m_specularTexture) {
-        // m_specularTexture->Bind(1);
-        // shader.SetInt("material.specular_map", 1);
-        // shader.SetBool("material.use_specular_map", true);
-        shader.SetVec3("material.specular", m_specularColor);
+    shader.SetVec3("material.diffuse", m_diffuseColor);
+    shader.SetVec3("material.specular", m_specularColor);
+    shader.SetBool("material.use_diffuse_map", false);
+    shader.SetBool("material.use_normal_map", false);
+    shader.SetBool("material.use_specular_map", false);
 
-    } else {
-        shader.SetBool("material.use_specular_map", false);
-        shader.SetVec3("material.specular", m_specularColor);
-    }
-    
-    if (m_normalTexture) {
-        m_normalTexture->Bind(2);
-        shader.SetInt("material.normal_map", 2);
-        shader.SetBool("material.use_normal_map", true);
-    } else {
-        shader.SetBool("material.use_normal_map", false);
-    }
-    
     shader.SetFloat("material.shininess", m_shininess);
 }
 
