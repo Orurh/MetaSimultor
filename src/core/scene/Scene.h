@@ -81,6 +81,10 @@ class Scene {
   engine::data::PrefabSystem& GetPrefabSystem() { return m_prefabSystem; }
   const engine::data::PrefabSystem& GetPrefabSystem() const { return m_prefabSystem; }
   void LoadMaterials();
+
+  WindConfig& GetWindConfig() { return m_windConfig; }
+  const WindConfig& GetWindConfig() const { return m_windConfig; }
+  float GetWindTime() const { return m_windTime; }
   void ReloadModelForPrefab(const std::string& prefab_id, const engine::data::AgentPrefab& prefab);
   void AddSceneObjectFromSerialized(const SceneObject& obj);
  private:

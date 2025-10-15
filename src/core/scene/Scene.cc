@@ -156,7 +156,7 @@ void Scene::LoadObjectModels(const std::string& object_name, const std::string& 
 }
 
 void Scene::RenderAgent(const Agent& agent, const SceneObject& scene_obj) {
-  glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
+    glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
 
   // Получаем префаб
   const auto& prefab = m_prefabSystem.GetPrefab(scene_obj.object_type);
