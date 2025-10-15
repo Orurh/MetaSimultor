@@ -26,25 +26,28 @@ void Scene::Init()
         "res/models/house/house.obj"
     );
     m_renderer.Init();
+    try {
+        m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_house.yaml");
 
-    m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_house.yaml");
-
-    m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_tree.yaml");
-    Generate();
+        m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_tree.yaml");
+    } catch (const std::exception& e) {
+        std::cout << "Failed to load model prefab " << e.what() << std::endl;
+    }
+    
 }
 
 void Scene::Update(float dt) {
-     auto startTime = std::chrono::high_resolution_clock::now();
-    
-    m_windTime += dt;
-    
-    auto simStart = std::chrono::high_resolution_clock::now();
-    if(!m_sceneObjects.empty())
-    {
-        SimulationStep(m_agentManager.getDeviceAgents(), m_agentManager.getAgentCount(), dt, m_windConfig.getCurrentWind(m_windTime));
-    }
-    auto simTime = std::chrono::high_resolution_clock::now();
-   std::cout << "sim time" <<  std::chrono::duration_cast<std::chrono::milliseconds>(simTime - startTime).count() << std::endl;
+  auto startTime = std::chrono::high_resolution_clock::now();
+  
+  m_windTime += dt;
+  
+  auto simStart = std::chrono::high_resolution_clock::now();
+  if(!m_sceneObjects.empty())
+  {
+      SimulationStep(m_agentManager.getDeviceAgents(), m_agentManager.getAgentCount(), dt, m_windConfig.getCurrentWind(m_windTime));
+  }
+  auto simTime = std::chrono::high_resolution_clock::now();
+  std::cout << "sim time" <<  std::chrono::duration_cast<std::chrono::milliseconds>(simTime - startTime).count() << std::endl;
 
   // 1) Флаги захвата UI
   const ImGuiIO& io = ImGui::GetIO();
@@ -257,5 +260,50 @@ Model* Scene::GetModelForAgent(const Agent& agent, const std::string& object_typ
         return models.normal.get();
     }
 }
+void Scene::LoadObjectModels(const std::string& object_name, 
+                         const std::string& normal_path,
+                         const std::string& burning_path,
+                         const std::string& burned_path) {
+        try {
+          ObjectModels models;
+          models.normal = std::make_shared<Model>(normal_path);
+          models.burning = std::make_shared<Model>(burning_path);
+          models.burned = std::make_shared<Model>(burned_path);
+          m_objectModels[object_name] = models;
+        } catch (const std::exception& e) {
+           std::cout << "Failed to load model '" << object_name << "': " << e.what() << std::endl;
+        }
+        
+  }
 
+
+void Scene::LoadMaterials() {
+    // Материалы для деревьев
+    m_treeMaterials["normal"] = Material::Create(
+        "res/models/tree/tree_diffuse.png",
+        "res/models/tree/tree_specular.png",
+        "res/models/tree/tree_normal.png"
+    );
+    
+    m_treeMaterials["burning"] = Material::Create(
+        "res/models/tree/tree_burning_diffuse.png",
+        "res/models/tree/tree_burning_specular.png",
+        "res/models/tree/tree_normal.png",
+        glm::vec3(1.0f, 0.3f, 0.1f), 
+        glm::vec3(1.0f, 0.5f, 0.2f)
+    );
+    
+    m_treeMaterials["burned"] = Material::Create(
+        "res/models/tree/tree_burned_diffuse.png",
+        "",
+        "res/models/tree/tree_normal.png", 
+        glm::vec3(0.2f, 0.2f, 0.2f),
+        glm::vec3(0.1f, 0.1f, 0.1f)
+    );
+    
+    m_houseMaterials["normal"] = Material::Create(
+        "res/models/house/house_diffuse.png",
+        "res/models/house/house_specular.png"
+    );
+}
 } // namespace engine

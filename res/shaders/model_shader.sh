@@ -26,17 +26,19 @@ void main() {
 #version 330 core
 out vec4 FragColor;
 
-in vec2 TexCoords;
+in vec2 TexCoord;
 in vec3 Normal;
-in vec3 FragPos;
-
+in vec3 FragPos;\
 struct Material {
     vec3 diffuse;
     vec3 specular;
     float shininess;
-    sampler2D texture_diffuse1;
-    sampler2D texture_specular1;
-    sampler2D texture_normal1;
+    sampler2D diffuse_map;
+    sampler2D specular_map;
+    sampler2D normal_map;
+    bool use_diffuse_map;
+    bool use_specular_map;
+    bool use_normal_map;
 };
 
 struct Light {
@@ -52,20 +54,36 @@ uniform vec3 viewPos;
 
 void main() {
     // Ambient
-    vec3 ambient = light.ambient * material.diffuse;
+    vec3 ambient = light.ambient;
+    if (material.use_diffuse_map) {
+        ambient *= texture(material.diffuse_map, TexCoord).rgb;
+    } else {
+        ambient *= material.diffuse;
+    }
     
     // Diffuse 
     vec3 norm = normalize(Normal);
     vec3 lightDir = normalize(light.position - FragPos);
     float diff = max(dot(norm, lightDir), 0.0);
-    vec3 diffuse = light.diffuse * diff * material.diffuse;
+    
+    vec3 diffuse = light.diffuse * diff;
+    if (material.use_diffuse_map) {
+        diffuse *= texture(material.diffuse_map, TexCoord).rgb;
+    } else {
+        diffuse *= material.diffuse;
+    }
     
     // Specular
     vec3 viewDir = normalize(viewPos - FragPos);
     vec3 reflectDir = reflect(-lightDir, norm);
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
-    vec3 specular = light.specular * spec * material.specular;
     
+    vec3 specular = light.specular * spec;
+    if (material.use_specular_map) {
+        specular *= texture(material.specular_map, TexCoord).rgb;
+    } else {
+        specular *= material.specular;
+    }
     
     vec3 result = ambient + diffuse + specular;
     FragColor = vec4(result, 1.0);

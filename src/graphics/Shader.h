@@ -14,6 +14,7 @@ public:
   virtual void SetVec3(const std::string &name, const glm::vec3 &vector) = 0;
   virtual void SetVec4(const std::string &name, const glm::vec4 &vector) = 0;
   virtual void SetInt(const std::string &name, int value) = 0;
+  virtual void SetBool(const std::string& name, bool value) = 0;
   virtual void SetFloat(const std::string &name, float value) = 0;
   static std::unique_ptr<Shader> Create(const std::string &filename);
   static std::unique_ptr<Shader> Create(const std::string &vertexSrc,

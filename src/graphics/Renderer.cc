@@ -126,6 +126,47 @@ void Renderer::DrawModelInstanced(Model& model, const std::vector<glm::mat4>& in
     model.DrawInstanced(*m_instanceModelShader, instances);
 }
 
+void Renderer::DrawModelWithMaterial(Model& model, 
+                                    const glm::vec3& position,
+                                    const glm::vec3& scale, 
+                                    const glm::vec3& camPos,
+                                    const std::shared_ptr<Material>& material) {
+    
+    // 1. Вычисляем матрицу модели
+    glm::mat4 modelmat = glm::mat4(1.0f);
+    modelmat = glm::translate(modelmat, position);
+    modelmat = glm::scale(modelmat, scale);
+    
+    // 2. Биндим шейдер и устанавливаем uniform'ы
+    m_modelShader->Bind();
+    m_modelShader->SetMat4("u_model", modelmat);
+    m_modelShader->SetMat4("u_view", m_viewMat);
+    m_modelShader->SetMat4("u_projection", m_projectionMat);
+    m_modelShader->SetVec3("viewPos", camPos);
+    
+    // 3. Настройка освещения (как у тебя было)
+    m_modelShader->SetVec3("light.position", glm::vec3(500.0f, 200.0f, 100.0f));
+    m_modelShader->SetVec3("light.ambient", glm::vec3(0.2f));
+    m_modelShader->SetVec3("light.diffuse", glm::vec3(0.8f));
+    m_modelShader->SetVec3("light.specular", glm::vec3(1.0f));
+    
+    // 4. Биндим материал (если он есть)
+    if (material) {
+        material->Bind(*m_modelShader);
+    } else {
+        // Fallback: используем дефолтные значения
+        m_modelShader->SetBool("material.use_diffuse_map", false);
+        m_modelShader->SetBool("material.use_specular_map", false);
+        m_modelShader->SetVec3("material.diffuse", glm::vec3(0.8f));
+        m_modelShader->SetVec3("material.specular", glm::vec3(0.5f));
+        m_modelShader->SetFloat("material.shininess", 32.0f);
+    }
+    
+    // 5. Рендерим модель (БЕЗ её внутренних материалов)
+    model.Draw(*m_modelShader);
+    //model.DrawGeometryOnly(*m_modelShader);
+}
+
 void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {
     glClearColor(0.1, 0.1, 0.1, 1.0f);
     

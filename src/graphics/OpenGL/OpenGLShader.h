@@ -18,6 +18,7 @@ public:
   void SetVec4(const std::string &name, const glm::vec4 &vector) override;
   void SetInt(const std::string &name, int value) override;
   void SetFloat(const std::string &name, float value) override;
+  void SetBool(const std::string &name, bool value) override;
 
 private:
   GLuint CompileShader(GLenum type, const std::string &source);
