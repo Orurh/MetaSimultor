@@ -286,7 +286,22 @@ fire_points:
       - 7.5
       - -1.06066036
     initial_fuel: 20
-visuals:
-  normal_material: ""
-  burning_material: ""
-  burned_material: ""
+materials:
+  normal:
+    diffuse_path: "res/textures/fire_texture3.png"
+    specular_path: "res/textures/fire_texture3.png"
+    normal_path: "res/textures/fire_texture3.png"
+    diffuse_color: [0.2, 0.8, 0.2]
+    shininess: 64.0
+    
+  burning:
+    diffuse_path: "res/textures/fire_texture3.png"
+    specular_path: "res/textures/fire_texture3.png"
+    normal_path: "res/textures/fire_texture3.png"
+    diffuse_color: [1.0, 0.3, 0.1]
+    shininess: 64.0
+    
+  burned:
+    diffuse_path: "res/textures/fire_texture3.png"
+    diffuse_color: [0.2, 0.2, 0.2]
+    shininess: 8.0

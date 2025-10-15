@@ -18,7 +18,7 @@ void WindPanel::Draw(EditorContext& ctx) {
     ImGui::Text("Wind Direction");
     ImGui::SameLine();
     ImGui::SetNextItemWidth(100);
-    if (ImGui::DragFloat2("##Direction", m_direction, 0.1f, -1.0f, 1.0f)) {
+    if (ImGui::DragFloat3("##Direction", m_direction, 0.1f, -1.0f, 1.0f)) {
         windConfig.direction = glm::vec3(m_direction[0], m_direction[1], m_direction[2]);
     }
     

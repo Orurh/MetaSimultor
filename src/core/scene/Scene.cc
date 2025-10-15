@@ -15,6 +15,7 @@ Scene::Scene() : m_agentManager(1000000), m_camera(glm::vec3(500.0f, 100.0f, 600
 void Scene::Init() {
   GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
   m_renderer.Init();
+  Generate();
 }
 
 void Scene::EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab) {
@@ -134,7 +135,6 @@ std::vector<Agent> Scene::LoadAgentsFromGPU() {
   cudaMemcpy(agents.data(), m_agentManager.getDeviceAgents(), currentCount * sizeof(Agent),
              cudaMemcpyDeviceToHost);
 
-  // Проверка ошибок CUDA
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
     printf("CUDA memcpy error: %s\n", cudaGetErrorString(err));
