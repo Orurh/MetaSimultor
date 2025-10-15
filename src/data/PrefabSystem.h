@@ -33,7 +33,7 @@ struct AgentPrefab {
       std::string diffuse_path;
       std::string specular_path;
       std::string normal_path;
-      glm::vec3 diffuse_color = glm::vec3(0.8f);
+      glm::vec3 diffuse_color = glm::vec3(1.0f, 0.0f, 1.0f);
       glm::vec3 specular_color = glm::vec3(0.5f);
       float shininess = 32.0f;
       

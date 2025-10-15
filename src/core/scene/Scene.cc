@@ -13,7 +13,7 @@ namespace engine {
 Scene::Scene() : m_agentManager(1000000), m_camera(glm::vec3(500.0f, 100.0f, 600.0f)) {}
 
 void Scene::Init() {
-  GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
+    m_prefabSystem.LoadPrefabFromFile("res/prefabs/default_house2.yaml");
   m_renderer.Init();
 }
 

@@ -132,15 +132,7 @@ namespace engine::data {
 
         auto normalMaps = LoadMaterialTextures(material, aiTextureType_NORMALS, "texture_normal", directory);
         materialData.textures.insert(materialData.textures.end(), normalMaps.begin(), normalMaps.end());
-        std::cout << "Material: " << materialData.name 
-              << " textures: "
-              << materialData.textures.size()
-              << " diffuse: (" << materialData.diffuseColor.r 
-              << ", "
-              << materialData.diffuseColor.g
-              << ", " 
-              << materialData.diffuseColor.b << ")"
-              << std::endl;
+       
         return materialData;
     }
 

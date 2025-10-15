@@ -53,6 +53,13 @@ namespace engine {
         
         m_vao->Unbind();
     }
+
+    void Mesh::DrawGeometryOnly(Shader& shader) {
+        m_vao->Bind();
+        glDrawElements(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, 0);
+        m_vao->Unbind();
+    }
+
     
     void Mesh::SetupMaterial(Shader& shader, const data::MaterialData& material) {
           glm::vec3 diffuse = (material.diffuseColor == glm::vec3(0.0f)) 
@@ -79,13 +86,6 @@ namespace engine {
         });
 
         m_vao->AddVertexBuffer(m_vbo);
-        m_instanceBuffer = VertexBuffer::Create(100000 * sizeof(glm::mat4)); 
-        m_instanceBuffer->SetLayout({
-            {ShaderDataType::Float4, "a_instance_matrix0", 1},
-            {ShaderDataType::Float4, "a_instance_matrix1", 1},
-            {ShaderDataType::Float4, "a_instance_matrix2", 1},
-            {ShaderDataType::Float4, "a_instance_matrix3", 1}
-        });
         
         m_ebo = IndexBuffer::Create(
             const_cast<uint32_t*>(meshData.indices.data()),
@@ -108,6 +108,13 @@ namespace engine {
             mesh.DrawInstanced(shader, instanceMatrices);
         }
     }
+
+    void Model::DrawGeometryOnly(Shader& shader) {
+          for (auto& mesh : m_meshes) {
+            mesh.DrawGeometryOnly(shader);
+        }
+    }
+
     void Model::SetupModel()
     {
         for (size_t i = 0; i < m_modelData.meshes.size(); i++) {

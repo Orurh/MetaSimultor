@@ -138,7 +138,9 @@ void Renderer::DrawModelWithMaterial(Model& model,
     modelmat = glm::scale(modelmat, scale);
     
     // 2. Биндим шейдер и устанавливаем uniform'ы
-    m_modelShader->Bind();
+     m_modelShader->Bind();
+    
+    // ДОБАВЬ ПРОВЕРКУ:
     m_modelShader->SetMat4("u_model", modelmat);
     m_modelShader->SetMat4("u_view", m_viewMat);
     m_modelShader->SetMat4("u_projection", m_projectionMat);
@@ -154,7 +156,6 @@ void Renderer::DrawModelWithMaterial(Model& model,
     if (material) {
         material->Bind(*m_modelShader);
     } else {
-        // Fallback: используем дефолтные значения
         m_modelShader->SetBool("material.use_diffuse_map", false);
         m_modelShader->SetBool("material.use_specular_map", false);
         m_modelShader->SetVec3("material.diffuse", glm::vec3(0.8f));
@@ -162,9 +163,7 @@ void Renderer::DrawModelWithMaterial(Model& model,
         m_modelShader->SetFloat("material.shininess", 32.0f);
     }
     
-    // 5. Рендерим модель (БЕЗ её внутренних материалов)
-    model.Draw(*m_modelShader);
-    //model.DrawGeometryOnly(*m_modelShader);
+    model.DrawGeometryOnly(*m_modelShader);
 }
 
 void Renderer::BeginScene(const glm::mat4& view, const glm::mat4& projection) {

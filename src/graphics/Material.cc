@@ -34,26 +34,31 @@ std::shared_ptr<Material> Material::Create(const std::string& diffusePath,
                     std::cout << "Failed to load normal texture" << e.what() << std::endl;
                 }
             }
+            std::cout << "Diffuse color create: " << diffuseColor.r << ", " << diffuseColor.g << ", " << diffuseColor.b << std::endl;
+
             material->m_diffuseColor = diffuseColor;
             material->m_specularColor = specularColor;
             return material;
         }
 
 void Material::Bind(Shader& shader) const {
-    // Биндим текстуры
     if (m_diffuseTexture) {
-        m_diffuseTexture->Bind(0);
-        shader.SetInt("material.diffuse_map", 0);
-        shader.SetBool("material.use_diffuse_map", true);
+        // m_diffuseTexture->Bind(0);
+        // std::cout << "here" << std::endl;
+        // shader.SetInt("material.diffuse_map", 0);
+        // shader.SetBool("material.use_diffuse_map", true);
+        shader.SetVec3("material.diffuse", m_diffuseColor);
     } else {
         shader.SetBool("material.use_diffuse_map", false);
         shader.SetVec3("material.diffuse", m_diffuseColor);
     }
     
     if (m_specularTexture) {
-        m_specularTexture->Bind(1);
-        shader.SetInt("material.specular_map", 1);
-        shader.SetBool("material.use_specular_map", true);
+        // m_specularTexture->Bind(1);
+        // shader.SetInt("material.specular_map", 1);
+        // shader.SetBool("material.use_specular_map", true);
+        shader.SetVec3("material.specular", m_specularColor);
+
     } else {
         shader.SetBool("material.use_specular_map", false);
         shader.SetVec3("material.specular", m_specularColor);

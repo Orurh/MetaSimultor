@@ -11,6 +11,7 @@ namespace engine {
         
         void Draw(Shader& shader);
         void DrawInstanced(Shader& shader, const std::vector<glm::mat4>& instanceMatrices);
+        void DrawGeometryOnly(Shader& shader);
     private:
         void SetupMesh(const data::MeshData& meshData);
         void SetupMaterial(Shader& shader, const data::MaterialData& material);
@@ -30,6 +31,7 @@ namespace engine {
         }
         
         void Draw(Shader& shader);
+        void DrawGeometryOnly(Shader& shader);
         void DrawInstanced(Shader& shader, const std::vector<glm::mat4>& instanceMatrices);
         size_t GetMeshCount() const { return m_meshes.size(); }
         size_t GetTriangleCount() const;
