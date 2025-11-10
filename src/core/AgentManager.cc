@@ -153,7 +153,7 @@ Agent AgentManager::CreateAgent(AgentType type, Float3 position, const AgentComp
     agent.type = type;
     agent.position = position;
     agent.object_id = components.object_id;
-    agent.intencity = components.intencity;
+    agent.intensity = components.intencity;
     
     agent.fire_collider.bounds_min = components.collider_bounds_min;
     agent.fire_collider.bounds_max = components.collider_bounds_max;

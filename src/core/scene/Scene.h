@@ -30,9 +30,9 @@ public:
   void Update(float dt);
 
   void Render();
-  void AddTree(float x, float y, const std::string &tree_type = "default_tree");
-  void AddFire(float x, float y, float intensity = 1.0f) {
-    m_agentManager.AddFire(x, y, intensity);
+  void AddTree(float x, float z, const std::string &tree_type = "default_tree");
+  void AddFire(float x, float z, float intensity = 1.0f) {
+    m_agentManager.AddFire(x, z, intensity);
   }
   void Generate();
   void Clear();
@@ -95,6 +95,9 @@ public:
                             const engine::data::AgentPrefab &prefab);
   void AddSceneObjectFromSerialized(const SceneObject &obj);
   void GenerateTerrain(const TerrainGenerationSettings &s);
+
+
+  float GetGroundHeight(float x, float z) const;
 
 private:
   void RenderAgent(const Agent &agent, const SceneObject &scene_obj);

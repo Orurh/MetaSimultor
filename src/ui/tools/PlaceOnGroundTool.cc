@@ -69,5 +69,25 @@ void PlaceOnGroundTool::OnUpdate(EditorContext& ctx) {
   } else {
     ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hit.x, hit.z);
   }
+
+// надо расширить методы под y
+//   glm::vec3 hit{};
+// const auto& prefab = ctx.m_scene->GetPrefabSystem().GetPrefab(ctx.State().m_selectedPrefab);
+// // якорь: чтобы нижняя грань (bounds_min.y * scale.y) легла на землю
+// const float anchorY = -prefab.m_bounds_min.y * prefab.m_modelScale.y;
+
+// if (!RaycastTerrain(*ctx.m_scene->GetTerrain(), ro, rd, anchorY, &hit)) {
+//   return;
+// }
+
+// // 7) Действие
+// if (ctx.State().m_placeKind == EditorState::PlaceKind::FIRE) {
+//   // для огня anchor не нужен — просто ставим ровно в hit
+//   ctx.m_scene->AddFire(hit.x, hit.z, ctx.State().m_fireIntensity);
+// } else {
+//   // важное: сюда передаём ПОЛНУЮ мировую точку (x,y,z), без дополнительного подъёма!
+//   ctx.m_scene->AddPrefabAt(ctx.State().m_selectedPrefab, hit);
+// }
+
 }
 }  // namespace ui

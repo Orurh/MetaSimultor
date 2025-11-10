@@ -1,5 +1,4 @@
-
-===== ./backends/ImGuiBackend.cc =====
+===== FILE: ./backends/ImGuiBackend.cc =====
 #include "ui/backends/ImGuiBackend.h"
 #include <imgui.h>
 
@@ -97,7 +96,8 @@ void ImGuiBackend::LoadLayout(const char* path) {
   ImGui::LoadIniSettingsFromDisk(path);
 }
 } // namespace ui
-===== ./backends/ImGuiBackend.h =====
+
+===== FILE: ./backends/ImGuiBackend.h =====
 // ui/backends/ImGuiBackend.h
 #pragma once
 #include "ui/IGuiBackend.h"
@@ -116,7 +116,8 @@ public:
 };
 } // namespace ui
 
-===== ./Editor.cc =====
+
+===== FILE: ./Editor.cc =====
 // EditorContext helper
 #include "ui/Editor.h"
 #include "ui/EditorContext.h"
@@ -128,21 +129,31 @@ ToolType EditorContext::GetActiveToolType() const noexcept {
 }
 } // namespace ui
 
-===== ./EditorContext.cc =====
-// #include "ui/EditorContext.h"
-// #include "ui/Editor.h"  // нужен только тут, не в .h
 
-// namespace ui {
-// ToolType EditorContext::GetActiveToolType() const noexcept {
-//   return (m_editor != nullptr) ? m_editor->ActiveToolType() : ToolType::OTHER_TOOL;
-// }
-// } // namespace ui
+===== FILE: ./EditorContext.cc =====
+#include "ui/EditorContext.h"
+#include "ui/Editor.h"   // здесь уже можно, цикл не страшен в .cc
 
-===== ./EditorContext.h =====
+namespace ui {
+
+EditorState& EditorContext::State() {
+  return m_editor->m_state;
+}
+
+const EditorState& EditorContext::State() const {
+  return m_editor->m_state;
+}
+
+
+} // namespace ui
+
+
+===== FILE: ./EditorContext.h =====
 #pragma once
 #include <glm/glm.hpp>
-#include "ui/ToolType.h"
 #include <string>
+#include "ui/EditorState.h"
+#include "ui/ToolType.h"
 
 struct GLFWwindow;
 namespace engine {
@@ -150,55 +161,41 @@ class Scene;
 class Camera;
 class Application;
 }  // namespace engine
-namespace ui {
-class Editor;
-}  // namespace ui
 
 namespace ui {
+class Editor;  // <-- только форвард!
 
 struct EditorContext {
   engine::Application* m_app = nullptr;
-  GLFWwindow* m_window = nullptr;            // не владеем
-  engine::Scene* m_scene = nullptr;          // не владеем
-  const engine::Camera* m_camera = nullptr;  // не владеем
+  GLFWwindow* m_window = nullptr;
+  engine::Scene* m_scene = nullptr;
+  const engine::Camera* m_camera = nullptr;
 
-  // Матрицы камеры
-  glm::mat4 m_view{};
-  glm::mat4 m_proj{};
-
-  // Размеры вьюпорта в framebuffer-пикселях (для Ray/Projection)
-  int m_viewportW = 1920;
-  int m_viewportH = 1080;
-
-  // --- NEW: прямоугольник рабочей области (логические пиксели ImGui)
+  glm::mat4 m_view{}, m_proj{};
+  int m_viewportW = 1920, m_viewportH = 1080;
   int vpX{0}, vpY{0}, vpW{1920}, vpH{1080};
-
-  // --- NEW: HiDPI scale (логические → framebuffer)
-  float vpScaleX{1.f}, vpScaleY{1.f};
+  float m_vpScaleX{1.F}, m_vpScaleY{1.F};
 
   Editor* m_editor = nullptr;  // не владеем
-  enum class PlaceKind { PREFAB, FIRE };
-  PlaceKind m_placeKind = PlaceKind::PREFAB;
 
-  std::string selectedPrefab = "default_tree";
-  float m_fireIntensity = 1.0f;
+  // Только объявления — БЕЗ ТЕЛ в .h!
+  EditorState& State();
+  [[nodiscard]] const EditorState& State() const;
 
   [[nodiscard]] ToolType GetActiveToolType() const noexcept;
 
-  // --- NEW: перевод координаты окна → координаты вьюпорта в framebuffer-пикселях
   [[nodiscard]] glm::vec2 WindowToViewportLogical(float mx, float my) const {
     return {mx - static_cast<float>(vpX), my - static_cast<float>(vpY)};
   }
-
-  // окно -> внутрь вьюпорта (framebuffer-пиксели)
   [[nodiscard]] glm::vec2 WindowToViewportFB(float mx, float my) const {
-    return {(mx - static_cast<float>(vpX)) * vpScaleX, (my - static_cast<float>(vpY)) * vpScaleY};
+    return {(mx - static_cast<float>(vpX)) * m_vpScaleX,
+            (my - static_cast<float>(vpY)) * m_vpScaleY};
   }
 };
-
 }  // namespace ui
 
-===== ./Editor.h =====
+
+===== FILE: ./Editor.h =====
 // ui/Editor.h
 #pragma once
 #include <memory>
@@ -206,6 +203,7 @@ struct EditorContext {
 #include <type_traits>
 #include <vector>
 
+#include "ui/EditorState.h"
 #include "ui/IModule.h"
 #include "ui/IPanel.h"
 #include "ui/ITool.h"
@@ -215,6 +213,7 @@ struct IModule;
 } // namespace ui
 
 namespace ui {
+  struct EditorContext;
 
 class Editor {
 public:
@@ -336,6 +335,7 @@ public:
     return m_activeStack.empty() ? ToolType::OTHER_TOOL
                                  : m_activeStack.back()->Type();
   }
+  EditorState m_state;
 
 private:
   ITool *FindTool(ToolType type) {
@@ -355,22 +355,25 @@ private:
 
 } // namespace ui
 
-===== ./EditorState.h =====
+
+===== FILE: ./EditorState.h =====
 // ui/EditorState.h
 #pragma once
+#include <cstdint>
 #include <string>
 
 namespace ui {
 struct EditorState {
   // какой префаб сейчас выбран в браузере префабов
-  std::string selectedPrefab = "default_tree";
-
-  // параметры текущего инструмента (если надо)
-  float fireIntensity = 1.0f;
+  enum class PlaceKind : std::uint8_t { PREFAB, FIRE };
+  PlaceKind m_placeKind = PlaceKind::PREFAB;
+  std::string m_selectedPrefab = "default_tree";
+  float m_fireIntensity = 1.0F;
 };
-}
+}  // namespace ui
 
-===== ./IGuiBackend.h =====
+
+===== FILE: ./IGuiBackend.h =====
 // ui/IGuiBackend.h
 #pragma once
 #include "ui/Interface.h"
@@ -390,7 +393,8 @@ public:
 };
 } // namespace ui
 
-===== ./IModule.h =====
+
+===== FILE: ./IModule.h =====
 // ui/IModule.h
 #pragma once
 #include "ui/Interface.h"
@@ -408,7 +412,8 @@ struct IModule : public Interface {
 };
 } // namespace ui
 
-===== ./Interface.h =====
+
+===== FILE: ./Interface.h =====
 // ui/Interface.h
 #pragma once
 namespace ui {
@@ -422,7 +427,8 @@ struct Interface {
 };
 } // namespace ui
 
-===== ./IPanel.h =====
+
+===== FILE: ./IPanel.h =====
 // ui/IPanel.h
 #pragma once
 #include "ui/EditorContext.h"
@@ -439,7 +445,8 @@ struct IPanel : public Interface {
 };
 } // namespace ui
 
-===== ./ITool.h =====
+
+===== FILE: ./ITool.h =====
 // ui/ITool.h
 #pragma once
 #include "ui/EditorContext.h"
@@ -462,22 +469,27 @@ struct ITool : public Interface {
 
 } // namespace ui
 
-===== ./modules/BasicToolsModule.cc =====
+
+===== FILE: ./modules/BasicToolsModule.cc =====
 // modules/BasicToolsModule.cc
 #include "ui/modules/BasicToolsModule.h"
 #include "ui/Editor.h"
 #include "ui/panels/PrefabBrowserPanel.h"
 #include "ui/panels/SceneIOPanel.h"
+#include "ui/panels/TerrainConfigPanel.h"
 #include "ui/panels/ToolbarPanel.h"
+#include "ui/panels/WindPanel.h"
 #include "ui/tools/PlaceOnGroundTool.h"
-
 namespace ui {
 
-void BasicToolsModule::Startup(Editor& editor) {
+void BasicToolsModule::Startup(Editor &editor) {
   editor.RegisterPanel(std::make_unique<ToolbarPanel>());
-  editor.RegisterTool(std::make_unique<PlaceOnGroundTool>("res/models/LowPolytree/CartoonTree.obj"));
+  editor.RegisterTool(std::make_unique<PlaceOnGroundTool>(
+      "res/models/LowPolytree/CartoonTree.obj"));
   editor.RegisterPanel(std::make_unique<ui::SceneIOPanel>());
-  editor.RegisterPanel(std::make_unique<ui::PrefabBrowserPanel>()); 
+  editor.RegisterPanel(std::make_unique<ui::WindPanel>());
+  editor.RegisterPanel(std::make_unique<ui::PrefabBrowserPanel>());
+  editor.RegisterPanel(std::make_unique<ui::TerrainConfigPanel>());
 }
 
 void BasicToolsModule::Shutdown() {
@@ -488,7 +500,8 @@ void BasicToolsModule::Shutdown() {
 
 } // namespace ui
 
-===== ./modules/BasicToolsModule.h =====
+
+===== FILE: ./modules/BasicToolsModule.h =====
 // modules/BasicToolsModule.h
 #pragma once
 #include "ui/IModule.h"
@@ -501,16 +514,32 @@ public:
 };
 } // namespace ui
 
-===== ./panels/PrefabBrowserPanel.cc =====
+
+===== FILE: ./panels/PrefabBrowserPanel.cc =====
 #include "ui/panels/PrefabBrowserPanel.h"
 #include "ui/EditorContext.h"
 #include "core/scene/Scene.h"
 #include "data/PrefabSystem.h"
 #include <imgui.h>
+#include <filesystem>
 
 using engine::data::AgentPrefab;
 
 namespace ui {
+
+    inline bool DragVec3(const char* label,
+                     glm::vec3& v,
+                     float speed = 0.1F,
+                     float v_min = -FLT_MAX,
+                     float v_max =  FLT_MAX,
+                     const char* fmt = "%.3f")
+{
+    float a[3] = { v.x, v.y, v.z };
+    const bool CHANGED = ImGui::DragFloat3(label, a, speed, v_min, v_max, fmt);
+    if (CHANGED) { v.x = a[0]; v.y = a[1]; v.z = a[2]; }
+    return CHANGED;
+}
+
 
 void PrefabBrowserPanel::Draw(EditorContext& ctx) {
   bool open = true;
@@ -523,157 +552,298 @@ void PrefabBrowserPanel::Draw(EditorContext& ctx) {
     return;
   }
 
-  // Левый сайдбар: список префабов
-  ImGui::BeginChild("##left", ImVec2(200, 0), true);
-  for (int i = 0; i < (int)ids.size(); ++i) {
-    bool sel = (i == m_selectedIndex);
-    if (ImGui::Selectable(ids[i].c_str(), sel)) {
-      m_selectedIndex = i;
-      // загружаем копию в редактор
-      m_edit = ctx.m_scene->GetPrefabSystem().GetPrefab(ids[i]); // const ref -> копия
-    }
-    if (sel) ImGui::SetItemDefaultFocus();
-  }
+  // Поддерживаем корректный выбор и m_edit
+  const std::string& id = EnsureSelection(ctx, ids);
+
+  // ===== ЛЕВО =====
+  ImGui::BeginChild("##left", ImVec2(220, 0), true);
+  DrawLeftColumn(ctx, ids);
   ImGui::EndChild();
   ImGui::SameLine();
 
-  // Правая часть: свойства
+  // ===== ПРАВО =====
   ImGui::BeginChild("##right", ImVec2(0, 0), true);
-  const std::string& id = ids[m_selectedIndex];
-  if (!m_edit.has_value()) {
-    m_edit = ctx.m_scene->GetPrefabSystem().GetPrefab(id);
-  }
   AgentPrefab& P = *m_edit;
+  DrawHeader(id);
 
-  ImGui::Text("Prefab: %s", id.c_str());
-  ImGui::Separator();
-
-  // Тип
-  {
-    int t = (int)P.type;
-    const char* types[] = { "Tree", "Burned", "Fire", "House" /* подставь свои */ };
-    if (ImGui::Combo("Type", &t, types, IM_ARRAYSIZE(types))) {
-      P.type = static_cast<AgentType>(t);
-    }
-  }
-
-  // Модель
-  {
-    char buf[512]; std::snprintf(buf, sizeof(buf), "%s", P.model_path.c_str());
-    if (ImGui::InputText("Model path", buf, IM_ARRAYSIZE(buf))) {
-      P.model_path = buf;
-    }
-    DragVec3("Model scale", P.model_scale, 0.01f);
-  }
-
-  // Bounds
-  if (ImGui::CollapsingHeader("Bounds", ImGuiTreeNodeFlags_DefaultOpen)) {
-    DragVec3("Min", P.bounds_min, 0.01f);
-    DragVec3("Max", P.bounds_max, 0.01f);
-  }
-
-  // Physics
-  if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen)) {
-    ImGui::DragFloat("Intensity", &P.physics.intencity, 0.05f, 0.0f, 1000.0f);
-  }
-
-  // Fire points
-  if (ImGui::CollapsingHeader("Fire points", ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::Button("Add point")) {
-      P.fire_points.push_back({glm::vec3(0), 100.0f});
-    }
-    for (int i = 0; i < (int)P.fire_points.size(); ++i) {
-      ImGui::PushID(i);
-      ImGui::Separator();
-      DragVec3("Pos", P.fire_points[i].position, 0.01f);
-      ImGui::DragFloat("Fuel", &P.fire_points[i].initial_fuel, 0.5f, 0.0f, 10000.0f);
-      ImGui::SameLine();
-      if (ImGui::SmallButton("Remove")) {
-        P.fire_points.erase(P.fire_points.begin() + i);
-        ImGui::PopID();
-        break;
-      }
-      ImGui::PopID();
-    }
-  }
-
-  // Visuals (плейсхолдеры под материалы)
-  if (ImGui::CollapsingHeader("Visuals", ImGuiTreeNodeFlags_DefaultOpen)) {
-    char nbuf[256], bbuf[256], dbuf[256];
-    std::snprintf(nbuf, sizeof(nbuf), "%s", P.visuals.normal_material.c_str());
-    std::snprintf(bbuf, sizeof(bbuf), "%s", P.visuals.burning_material.c_str());
-    std::snprintf(dbuf, sizeof(dbuf), "%s", P.visuals.burned_material.c_str());
-    if (ImGui::InputText("Normal", nbuf, IM_ARRAYSIZE(nbuf)))   P.visuals.normal_material  = nbuf;
-    if (ImGui::InputText("Burning", bbuf, IM_ARRAYSIZE(bbuf)))  P.visuals.burning_material = bbuf;
-    if (ImGui::InputText("Burned", dbuf, IM_ARRAYSIZE(dbuf)))   P.visuals.burned_material  = dbuf;
-  }
+  DrawType(P);
+  DrawModelSection(P);
+  DrawBounds(P);
+  DrawPhysics(P);
+  DrawFirePoints(P);
+  DrawVisuals(P);
 
   ImGui::Separator();
-  // Применить в рантайм (в память) и сохранить на диск
-  if (ImGui::Button("Apply (runtime)")) {
-    ctx.m_scene->GetPrefabSystem().SavePrefab(id, P); // перезаписали в систему
-    // если этот префаб сейчас выбран — ничего больше не нужно
-  }
-  ImGui::SameLine();
-  if (ImGui::Button("Save to file")) {
-    if (m_savePath.empty()) m_savePath = "res/prefabs/" + id + ".yaml";
-    // простейший input под путь
-    ImGui::OpenPopup("Save Prefab");
-  }
-
-  if (ImGui::BeginPopupModal("Save Prefab", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-    static char pathBuf[512];
-    std::snprintf(pathBuf, sizeof(pathBuf), "%s", m_savePath.c_str());
-    ImGui::InputText("Path", pathBuf, IM_ARRAYSIZE(pathBuf));
-    if (ImGui::Button("Save")) {
-      m_savePath = pathBuf;
-      // перед сохранением убеждаемся, что рантайм обновлён
-      ctx.m_scene->GetPrefabSystem().SavePrefab(id, P);
-      ctx.m_scene->GetPrefabSystem().SavePrefabToFile(id, m_savePath);
-      ImGui::CloseCurrentPopup();
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Cancel")) {
-      ImGui::CloseCurrentPopup();
-    }
-    ImGui::EndPopup();
-  }
-
+  DrawSaveButtons(ctx, id, P);
+  DrawSavePopup(ctx, id, P);
   ImGui::EndChild();
+
   ImGui::End();
 }
 
+// ------------------ helpers ------------------
+
+const std::string& PrefabBrowserPanel::EnsureSelection(EditorContext& ctx, const std::vector<std::string>& ids) {
+  if (m_selectedIndex < 0 || m_selectedIndex >= (int)ids.size()) {
+    m_selectedIndex = 0;
+    m_edit.reset();
+  }
+  const std::string& id = ids[m_selectedIndex];
+  if (!m_edit.has_value()) {
+    m_edit = ctx.m_scene->GetPrefabSystem().GetPrefab(id);
+    // Синхронизируем текстовые буферы один раз при загрузке
+    std::snprintf(m_modelBuf, sizeof(m_modelBuf), "%s", m_edit->m_modelPath.c_str());
+    std::snprintf(m_matNormalBuf,  sizeof(m_matNormalBuf),  "%s", m_edit->normal_material.normal_path.c_str());
+    std::snprintf(m_matBurningBuf, sizeof(m_matBurningBuf), "%s", m_edit->normal_material.specular_path.c_str());
+    std::snprintf(m_matBurnedBuf,  sizeof(m_matBurnedBuf),  "%s", m_edit->normal_material.diffuse_path.c_str());
+  }
+  return id;
+}
+
+void PrefabBrowserPanel::DrawLeftColumn(EditorContext& ctx, const std::vector<std::string>& ids) {
+  for (int i = 0; i < (int)ids.size(); ++i) {
+    const bool sel = (i == m_selectedIndex);
+    if (ImGui::Selectable(ids[i].c_str(), sel)) {
+      m_selectedIndex = i;
+      // Перезагружаем редактируемую копию и буферы
+      m_edit = ctx.m_scene->GetPrefabSystem().GetPrefab(ids[i]);
+      std::snprintf(m_modelBuf, sizeof(m_modelBuf), "%s", m_edit->m_modelPath.c_str());
+      std::snprintf(m_matNormalBuf,  sizeof(m_matNormalBuf),  "%s", m_edit->normal_material.normal_path.c_str());
+      std::snprintf(m_matBurningBuf, sizeof(m_matBurningBuf), "%s", m_edit->normal_material.specular_path.c_str());
+      std::snprintf(m_matBurnedBuf,  sizeof(m_matBurnedBuf),  "%s", m_edit->normal_material.diffuse_path.c_str());
+    }
+    if (sel) ImGui::SetItemDefaultFocus();
+  }
+}
+
+void PrefabBrowserPanel::DrawHeader(const std::string& id) {
+  ImGui::Text("Prefab: %s", id.c_str());
+  ImGui::Separator();
+}
+
+void PrefabBrowserPanel::DrawType(AgentPrefab& P) {
+  int t = (int)P.m_type;
+  const char* types[] = { "Tree", "Burned", "Fire", "House" };
+  if (ImGui::Combo("Type", &t, types, IM_ARRAYSIZE(types))) {
+    P.m_type = static_cast<AgentType>(t);
+  }
+}
+
+void PrefabBrowserPanel::DrawModelSection(AgentPrefab& P) {
+  if (ImGui::InputText("Model path", m_modelBuf, IM_ARRAYSIZE(m_modelBuf))) {
+    P.m_modelPath = m_modelBuf;
+  }
+  DragVec3("Model scale", P.m_modelScale, 0.01F);
+}
+
+void PrefabBrowserPanel::DrawBounds(AgentPrefab& P) {
+  if (ImGui::CollapsingHeader("Bounds", ImGuiTreeNodeFlags_DefaultOpen)) {
+    DragVec3("Min", P.m_bounds_min, 0.01f);
+    DragVec3("Max", P.m_bounds_max, 0.01f);
+  }
+}
+
+void PrefabBrowserPanel::DrawPhysics(AgentPrefab& P) {
+  if (ImGui::CollapsingHeader("Physics", ImGuiTreeNodeFlags_DefaultOpen)) {
+    ImGui::DragFloat("Intensity", &P.m_physics.m_intencity, 0.05f, 0.0f, 1000.0f);
+  }
+}
+
+void PrefabBrowserPanel::DrawFirePoints(AgentPrefab& P) {
+  if (!ImGui::CollapsingHeader("Fire points", ImGuiTreeNodeFlags_DefaultOpen)) return;
+
+  if (ImGui::Button("Add point")) {
+    P.m_firePoints.push_back({glm::vec3(0), 100.0f});
+  }
+  for (int i = 0; i < (int)P.m_firePoints.size(); ++i) {
+    ImGui::PushID(i);
+    ImGui::Separator();
+    DragVec3("Pos", P.m_firePoints[i].m_position, 0.01f);
+    ImGui::DragFloat("Fuel", &P.m_firePoints[i].m_initialFuel, 0.5f, 0.0f, 10000.0f);
+    ImGui::SameLine();
+    if (ImGui::SmallButton("Remove")) {
+      P.m_firePoints.erase(P.m_firePoints.begin() + i);
+      ImGui::PopID();
+      break; // корректный выход из цикла после erase
+    }
+    ImGui::PopID();
+  }
+}
+
+void PrefabBrowserPanel::DrawVisuals(AgentPrefab& P) {
+    if (!ImGui::CollapsingHeader("Visuals", ImGuiTreeNodeFlags_DefaultOpen)) return;
+
+    bool changed = false;
+
+    // Пути к текстурам
+    changed |= ImGui::InputText("Normal",  m_matNormalBuf,  IM_ARRAYSIZE(m_matNormalBuf));
+    changed |= ImGui::InputText("Burning", m_matBurningBuf, IM_ARRAYSIZE(m_matBurningBuf));
+    changed |= ImGui::InputText("Burned",  m_matBurnedBuf,  IM_ARRAYSIZE(m_matBurnedBuf));
+
+    // Цвета
+    changed |= ImGui::ColorEdit3("Normal diffuse",  &P.normal_material.diffuse_color[0]);
+    changed |= ImGui::ColorEdit3("Normal specular", &P.normal_material.specular_color[0]);
+    changed |= ImGui::ColorEdit3("Burning diffuse",  &P.burning_material.diffuse_color[0]);
+    changed |= ImGui::ColorEdit3("Burning specular", &P.burning_material.specular_color[0]);
+    changed |= ImGui::ColorEdit3("Burned diffuse",   &P.burned_material.diffuse_color[0]);
+    changed |= ImGui::ColorEdit3("Burned specular",  &P.burned_material.specular_color[0]);
+
+    // Шайнинесс
+    changed |= ImGui::DragFloat("Normal shininess",  &P.normal_material.shininess, 1.0f, 0.0f, 256.0f);
+    changed |= ImGui::DragFloat("Burning shininess", &P.burning_material.shininess, 1.0f, 0.0f, 256.0f);
+    changed |= ImGui::DragFloat("Burned shininess",  &P.burned_material.shininess, 1.0f, 0.0f, 256.0f);
+
+    // Обновляем пути текстур, если изменились
+    if (changed) {
+        P.normal_material.diffuse_path  = m_matNormalBuf;
+        P.normal_material.specular_path = m_matNormalBuf;
+        P.normal_material.normal_path   = m_matNormalBuf;
+
+        P.burning_material.diffuse_path  = m_matBurningBuf;
+        P.burning_material.specular_path = m_matBurningBuf;
+        P.burning_material.normal_path   = m_matBurningBuf;
+
+        P.burned_material.diffuse_path  = m_matBurnedBuf;
+        P.burned_material.specular_path = m_matBurnedBuf;
+        P.burned_material.normal_path   = m_matBurnedBuf;
+    }
+}
+
+
+void PrefabBrowserPanel::DrawSaveButtons(EditorContext& ctx, const std::string& id, AgentPrefab& P) {
+  static float tConfirm = -1000.f;
+
+if (ImGui::Button("Apply (runtime)")) {
+    ctx.m_scene->GetPrefabSystem().SavePrefab(id, P); 
+    P.LoadMaterials();    
+    ctx.m_scene->ReloadModelForPrefab(id, P); // <-- передаем P напрямую
+    tConfirm = (float)ImGui::GetTime();
+}
+  if ((float)ImGui::GetTime() - tConfirm < 1.0f) {
+    ImGui::SameLine(); ImGui::TextColored(ImVec4(0,1,0,1), "Saved");
+  }
+
+  ImGui::SameLine();
+
+  if (ImGui::Button("Save to file")) {
+    if (m_savePath.empty()) m_savePath = "res/prefabs/" + id + ".yaml";
+    std::snprintf(m_saveBuf, sizeof(m_saveBuf), "%s", m_savePath.c_str());
+    m_savePopupOpen = true;
+    ImGui::OpenPopup("Save Prefab");
+        P.LoadMaterials();    
+    ctx.m_scene->ReloadModelForPrefab(id, P); // <-- передаем P напрямую
+  }
+}
+
+void PrefabBrowserPanel::DrawSavePopup(EditorContext& ctx, const std::string& id, AgentPrefab& P) {
+  if (!ImGui::BeginPopupModal("Save Prefab", &m_savePopupOpen, ImGuiWindowFlags_AlwaysAutoResize))
+    return;
+
+  ImGui::InputText("Path", m_saveBuf, IM_ARRAYSIZE(m_saveBuf));
+
+  if (ImGui::Button("Save")) {
+    m_savePath = m_saveBuf;
+
+    auto& sys = ctx.m_scene->GetPrefabSystem();
+
+    // --- новый id берём из имени файла (res/prefabs/<newId>.yaml) ---
+    // если хочешь иначе — поменяй стратегию (читать из YAML, хранить поле id и т.д.)
+    std::string newId;
+    {
+      // <filesystem> должен быть подключён где-то один раз в TU
+      // #include <filesystem>
+      std::filesystem::path out(m_savePath);
+      newId = out.stem().string();
+      if (newId.empty()) newId = id; // fallback
+    }
+
+    // 1) гарантируем актуальность рантайма под НОВЫМ id
+    // В большинстве реализаций SavePrefab(id, P) добавляет/заменяет запись в реестре.
+    // Если у тебя отдельный метод AddOrReplacePrefab, зови его здесь вместо SavePrefab.
+    sys.SavePrefab(newId, P);
+
+    // 2) пишем на диск под НОВЫМ id
+    sys.SavePrefabToFile(newId, m_savePath);
+
+    // 3) обновляем список префабов в системе (перескан каталога)
+    // Если в твоём PrefabSystem нет ReloadAll(), замени это место на ImportFromFile(m_savePath)
+    // или просто оставь шаг 1) — он уже внёс запись в реестр.
+    // sys.ReloadAll();
+
+    // 4) перевыбор элемента в левом списке и сброс локального кэша
+    m_selectedIndex = 0;
+    const auto& ids = ctx.m_scene->ListPrefabIds();
+    for (int i = 0; i < (int)ids.size(); ++i) {
+      if (ids[i] == newId) { m_selectedIndex = i; break; }
+    }
+    m_edit.reset(); // EnsureSelection() подхватит свежую копию и синхронизирует буферы
+
+    ImGui::CloseCurrentPopup();
+    m_savePopupOpen = false;
+  }
+
+  ImGui::SameLine();
+  if (ImGui::Button("Cancel")) {
+    ImGui::CloseCurrentPopup();
+    m_savePopupOpen = false;
+  }
+  ImGui::EndPopup();
+}
+
+
 } // namespace ui
 
-===== ./panels/PrefabBrowserPanel.h =====
+
+===== FILE: ./panels/PrefabBrowserPanel.h =====
+// ui/panels/PrefabBrowserPanel.h
 #pragma once
+#include "data/PrefabSystem.h"
+#include "ui/IPanel.h"
 #include <optional>
 #include <string>
-#include "data/PrefabSystem.h"
-#include "imgui.h"
-#include "ui/IPanel.h"
+#include <vector>
 
 namespace ui {
 
 class PrefabBrowserPanel final : public IPanel {
- public:
-  [[nodiscard]] const char* Id() const override { return "Prefab Browser"; }
+public:
+  [[nodiscard]] const char* Id() const override { return "Prefabs"; }
   void Draw(EditorContext& ctx) override;
 
- private:
-  int m_selectedIndex = 0;
-  std::string m_savePath;  // путь для Save to file
-  // локальная копия редактируемого префаба
+private:
+  // разбиение
+  const std::string& EnsureSelection(EditorContext& ctx, const std::vector<std::string>& ids);
+  void DrawLeftColumn(EditorContext& ctx, const std::vector<std::string>& ids);
+  void DrawHeader(const std::string& id);
+  void DrawType(engine::data::AgentPrefab& P);
+  void DrawModelSection(engine::data::AgentPrefab& P);
+  void DrawBounds(engine::data::AgentPrefab& P);
+  void DrawPhysics(engine::data::AgentPrefab& P);
+  void DrawFirePoints(engine::data::AgentPrefab& P);
+  void DrawVisuals(engine::data::AgentPrefab& P);
+  void DrawSaveButtons(EditorContext& ctx, const std::string& id, engine::data::AgentPrefab& P);
+  void DrawSavePopup(EditorContext& ctx, const std::string& id, engine::data::AgentPrefab& P);
+
+
+  int m_selectedIndex = -1;
   std::optional<engine::data::AgentPrefab> m_edit;
-  // служебка для ввода вектора
-  static bool DragVec3(const char* label, glm::vec3& v, float speed = 0.01F) {
-    return ImGui::DragFloat3(label, &v.x, speed);
-  }
+
+  // постоянные текстовые буферы (чтобы не форматировать каждый кадр)
+  char m_modelBuf[512]{};
+  char m_matNormalBuf[256]{};
+  char m_matBurningBuf[256]{};
+  char m_matBurnedBuf[256]{};
+
+  // сохранение в файл
+  bool m_savePopupOpen = false;
+  std::string m_savePath;
+  char m_saveBuf[512]{};
 };
 
-}  // namespace ui
+} // namespace ui
 
-===== ./panels/SceneIOPanel.cc =====
+
+===== FILE: ./panels/SceneIOPanel.cc =====
 #include "ui/panels/SceneIOPanel.h"
 #include "core/Application.h"
 #include "ui/EditorContext.h"
@@ -730,7 +900,8 @@ void SceneIOPanel::Draw(EditorContext& ctx) {
   ImGui::End();
 }
 
-===== ./panels/SceneIOPanel.h =====
+
+===== FILE: ./panels/SceneIOPanel.h =====
 #pragma once
 #include "ui/IPanel.h"
 #include <array>
@@ -752,7 +923,110 @@ private:
 
 } // namespace ui
 
-===== ./panels/ToolbarPanel.cc =====
+
+===== FILE: ./panels/TerrainConfigPanel.cc =====
+// src/ui/panels/TerrainConfigPanel.cc
+#include "TerrainConfigPanel.h"
+#include "core/scene/Scene.h"
+#include "core/scene/Terrain.h"
+#include <imgui.h>
+#include <random>
+namespace ui {
+
+void TerrainConfigPanel::Draw(EditorContext &ctx) {
+  ImGui::Begin("Terrain Configuration", nullptr,
+               ImGuiWindowFlags_AlwaysAutoResize);
+
+  ImGui::PushItemWidth(120);
+
+  bool changed = false;
+
+  changed |= ImGui::SliderInt("Width", &m_settings.width, 32, 512, "%d",
+                              ImGuiSliderFlags_AlwaysClamp);
+  changed |= ImGui::SliderInt("Depth", &m_settings.depth, 32, 512, "%d",
+                              ImGuiSliderFlags_AlwaysClamp);
+  changed |=
+      ImGui::SliderFloat("Scale", &m_settings.scale, 0.1f, 10.0f, "%.2f");
+  changed |= ImGui::SliderFloat("Max Height", &m_settings.maxHeight, 1.0f,
+                                300.0f, "%.1f");
+  changed |= ImGui::SliderInt("Octaves", &m_settings.octaves, 1, 10);
+  changed |= ImGui::SliderFloat("Frequency", &m_settings.frequency, 0.001f,
+                                0.1f, "%.4f");
+  changed |= ImGui::SliderFloat("Persistence", &m_settings.persistence, 0.1f,
+                                1.0f, "%.2f");
+  changed |= ImGui::SliderFloat("Lacunarity", &m_settings.lacunarity, 1.0f,
+                                4.0f, "%.2f");
+
+  ImGui::PopItemWidth();
+
+  ImGui::Separator();
+
+  if (ImGui::Button("Random Seed")) {
+    std::random_device rd;
+    m_settings.seed = rd();
+    changed = true;
+  }
+  ImGui::SameLine();
+  ImGui::Text("Seed: %u", m_settings.seed);
+  changed |=
+      ImGui::InputInt("##seed", reinterpret_cast<int *>(&m_settings.seed));
+
+  ImGui::Separator();
+
+  if (ImGui::Button("Regenerate Terrain", ImGui::GetContentRegionAvail())) {
+    m_regenerate = true;
+  }
+
+  if (m_regenerate || changed) {
+    engine::TerrainGenerationSettings s;
+    s.width = m_settings.width;
+    s.depth = m_settings.depth;
+    s.scale = m_settings.scale;
+    s.maxHeight = m_settings.maxHeight;
+    s.seed = m_settings.seed;
+    s.frequency = m_settings.frequency;
+    s.octaves = m_settings.octaves;
+    s.persistence = m_settings.persistence;
+    s.lacunarity = m_settings.lacunarity;
+    ctx.m_scene->GenerateTerrain(s);
+    m_regenerate = false;
+  }
+  ImGui::End();
+}
+
+} // namespace ui
+
+===== FILE: ./panels/TerrainConfigPanel.h =====
+// src/ui/panels/TerrainConfigPanel.h
+#pragma once
+#include "ui/IPanel.h"
+namespace ui {
+
+class TerrainConfigPanel final : public IPanel {
+public:
+  [[nodiscard]] const char *Id() const override { return "Terrain Config"; }
+
+  void Draw(EditorContext &ctx) override;
+
+private:
+  struct Settings {
+    int width = 256;
+    int depth = 256;
+    float scale = 2.0f;
+    float maxHeight = 80.0f;
+    uint32_t seed = 42;
+    float frequency = 0.02f;
+    int octaves = 6;
+    float persistence = 0.5f;
+    float lacunarity = 2.0f;
+  } m_settings;
+
+  bool m_regenerate = false;
+};
+
+} // namespace ui
+
+===== FILE: ./panels/ToolbarPanel.cc =====
 // ui/panels/ToolbarPanel.cpp
 #include "ui/panels/ToolbarPanel.h"
 
@@ -767,90 +1041,55 @@ private:
 namespace ui {
 
 void ToolbarPanel::Draw(EditorContext& ctx) {
-  bool visible = true;
-  if (!ImGui::Begin(Id(), &visible)) { ImGui::End(); return; }
+  auto& st = ctx.State();
 
-  const bool isPlace = (ctx.GetActiveToolType() == ToolType::PLACE_ON_GROUND);
-  if (ImGui::Selectable("Place on ground", isPlace)) {
-    ctx.m_editor->SetActiveTool(ToolType::PLACE_ON_GROUND, ctx);
-  }
-
-  ImGui::Separator();
-
-  // --- Чёткая привязка к состоянию без локальных mode ---
-bool isPrefab = (ctx.m_placeKind == EditorContext::PlaceKind::PREFAB);
-if (ImGui::RadioButton("Prefab##mode", isPrefab)) {
-  ctx.m_placeKind = EditorContext::PlaceKind::PREFAB;
-  std::cout << "Prefab mode" << std::endl;
+  // режим
+  bool isPrefab = (st.m_placeKind == EditorState::PlaceKind::PREFAB);
+  if (ImGui::RadioButton("Prefab##mode", isPrefab)) {
+    st.m_placeKind = EditorState::PlaceKind::PREFAB;
 }
-ImGui::SameLine();
-bool isFire = (ctx.m_placeKind == EditorContext::PlaceKind::FIRE);
-if (ImGui::RadioButton("Fire##mode", isFire)) {
-  ctx.m_placeKind = EditorContext::PlaceKind::FIRE;
-  std::cout << "Fire mode" << std::endl;
+  ImGui::SameLine();
+  bool isFire = (st.m_placeKind == EditorState::PlaceKind::FIRE);
+  if (ImGui::RadioButton("Fire##mode", isFire)) {
+    st.m_placeKind = EditorState::PlaceKind::FIRE;
 }
 
-  // --- Огонь ---
-  if (ctx.m_placeKind == EditorContext::PlaceKind::FIRE) {
-    ImGui::SliderFloat("Fire intensity", &ctx.m_fireIntensity, 0.0f, 10.0f);
-    ctx.m_scene->SetFireIntensity(ctx.m_fireIntensity);
-
-    if (ImGui::Button("Ignite at cursor")) {
-      double mx=0, my=0; glfwGetCursorPos(ctx.m_window, &mx, &my);
-      const glm::vec2 vp = ctx.WindowToViewportFB((float)mx, (float)my);
-      if (vp.x >= 0 && vp.y >= 0 && vp.x < (float)ctx.m_viewportW && vp.y < (float)ctx.m_viewportH) {
-        glm::vec3 ro, rd;
-        math::ScreenPointToRay(vp.x, vp.y,
-                               (float)ctx.m_viewportW, (float)ctx.m_viewportH,
-                               ctx.m_proj, ctx.m_view, ro, rd);
-        glm::vec3 hit;
-        if (math::IntersectRayPlaneY0(ro, rd, hit))
-          ctx.m_scene->AddFire(hit.x, hit.z, ctx.m_fireIntensity);
-      }
-    }
-    static float fireX = 510.0f, fireZ = 501.0f;
-    ImGui::InputFloat("X", &fireX);
-    ImGui::InputFloat("Z", &fireZ);
-    if (ImGui::Button("Ignite at (X,Z)")) {
-      ctx.m_scene->AddFire(fireX, fireZ, ctx.m_fireIntensity);
-    }
+  // огонь
+  if (st.m_placeKind == EditorState::PlaceKind::FIRE) {
+    ImGui::SliderFloat("Fire intensity", &st.m_fireIntensity, 0.f, 10.f);
+    ctx.m_scene->SetFireIntensity(st.m_fireIntensity);
+    // … кнопки поджига как у тебя, только в AddFire передавать st.fireIntensity
   }
 
-  // --- Префабы ---
-  if (ctx.m_placeKind == EditorContext::PlaceKind::PREFAB) {
+  // префабы
+  if (st.m_placeKind == EditorState::PlaceKind::PREFAB) {
     const auto& ids = ctx.m_scene->ListPrefabIds();
-    if (ids.empty()) {
-      ImGui::TextDisabled("no prefabs loaded");
-    } else {
-      // гарантируем валидный выбор
-      if (ctx.selectedPrefab.empty()
-          || std::ranges::find(ids, ctx.selectedPrefab) == ids.end()) {
-        ctx.selectedPrefab = ids.front();
-      }
-      int current = 0;
-      for (int i = 0; i < (int)ids.size(); ++i) if (ids[i] == ctx.selectedPrefab) { current = i; break; }
-
-      if (ImGui::BeginCombo("Prefab##combo", ids[current].c_str())) {
-        for (int i = 0; i < (int)ids.size(); ++i) {
-          const bool sel = (i == current);
-          if (ImGui::Selectable(ids[i].c_str(), sel)) {
-            ctx.selectedPrefab = ids[i];
-          }
-          if (sel) ImGui::SetItemDefaultFocus();
+    if (!ids.empty()) {
+      if (std::ranges::find(ids, st.m_selectedPrefab) == ids.end()) {
+        st.m_selectedPrefab = ids.front();
+}
+      if (ImGui::BeginCombo("Prefab##combo", st.m_selectedPrefab.c_str())) {
+        for (const auto& id : ids) {
+          bool sel = (id == st.m_selectedPrefab);
+          if (ImGui::Selectable(id.c_str(), sel)) st.m_selectedPrefab = id;
+          if (sel) { ImGui::SetItemDefaultFocus();
+}
         }
         ImGui::EndCombo();
       }
+    } else {
+      ImGui::TextDisabled("no prefabs loaded");
     }
   }
-
-  ImGui::End();
 }
+
 
 
 
 }  // namespace ui
 
-===== ./panels/ToolbarPanel.h =====
+
+===== FILE: ./panels/ToolbarPanel.h =====
 // ui/panels/ToolbarPanel.h
 #pragma once
 #include "ui/IPanel.h"
@@ -873,76 +1112,183 @@ private:
 };
 } // namespace ui
 
-===== ./tools/PlaceOnGroundTool.cc =====
-#include "ui/tools/PlaceOnGroundTool.h"
 
-#include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
-#include <cmath>                    // + нужно для std::abs
-
-#include "core/Input.h"
-#include "core/scene/Scene.h"
+===== FILE: ./panels/WindPanel.cc =====
+#include "WindPanel.h"
 #include "ui/EditorContext.h"
-#include "math/ScreenRay.h"  
-#include <iostream>
-using engine::MouseButton;
-using engine::InputState;
+#include "core/scene/Scene.h"
+#include <imgui.h>
+#include <glm/gtc/type_ptr.hpp>
 
 namespace ui {
 
-ToolType PlaceOnGroundTool::Type() const noexcept { return ToolType::PLACE_ON_GROUND; }
-const char* PlaceOnGroundTool::Name() const noexcept { return "Place on ground"; }
-const char* PlaceOnGroundTool::Id()   const noexcept { return "Tool.PlaceOnGround"; }
+void WindPanel::Draw(EditorContext& ctx) {
+    if (!ctx.m_scene) return;
+    
+    auto& scene = *ctx.m_scene;
+    auto& windConfig = scene.GetWindConfig();
+    
+    ImGui::Begin("Wind Configuration", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    
+    // Направление ветра
+    ImGui::Text("Wind Direction");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(100);
+    if (ImGui::DragFloat3("##Direction", m_direction, 0.1f, -1.0f, 1.0f)) {
+        windConfig.direction = glm::vec3(m_direction[0], m_direction[1], m_direction[2]);
+    }
+    
+    // Сила ветра
+    ImGui::Text("Strength");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(150);
+    if (ImGui::SliderFloat("##Strength", &m_strength, 0.0f, 50.0f, "%.1f")) {
+        windConfig.strength = m_strength;
+    }
+    
+    // Порывистость
+    ImGui::Text("Gustiness");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(150);
+    if (ImGui::SliderFloat("##Gustiness", &m_gustiness, 0.0f, 1.0f, "%.2f")) {
+        windConfig.gustiness = m_gustiness;
+    }
+    
+    // Скорость изменения
+    ImGui::Text("Change Speed");
+    ImGui::SameLine();
+    ImGui::SetNextItemWidth(150);
+    if (ImGui::SliderFloat("##ChangeSpeed", &m_changeSpeed, 0.0f, 1.0f, "%.2f")) {
+        windConfig.change_speed = m_changeSpeed;
+    }
+    
+    ImGui::Separator();
+    
+    // Визуализация
+    ImGui::Checkbox("Show Wind Visualization", &m_showWindVisualization);
+    
+    // Текущий ветер
+    auto currentWind = windConfig.getCurrentWind(scene.GetWindTime()); 
+    ImGui::Text("Current Wind: (%.1f, %.1f, %.1f)", 
+                currentWind.x, currentWind.y, currentWind.z);
+    
+    // Кнопка сброса
+    if (ImGui::Button("Reset to Default")) {
+        windConfig = WindConfig();
+        m_direction[0] = 1.0f; m_direction[1] = 0.0f;
+        m_strength = 10.0f;
+        m_gustiness = 0.3f;
+        m_changeSpeed = 0.1f;
+    }
+    
+    ImGui::End();
+}
+
+} // namespace ui
+
+===== FILE: ./panels/WindPanel.h =====
+#pragma once
+#include "ui/IPanel.h"
+
+namespace ui {
+
+class WindPanel final : public IPanel {
+public:
+    [[nodiscard]] const char* Id() const override { return "Wind Configuration"; }
+    void Draw(EditorContext& ctx) override;
+
+private:
+    float m_direction[3] = {1.0f, 0.0f, 0.0f};
+    float m_strength = 10.0f;
+    float m_gustiness = 0.3f;
+    float m_changeSpeed = 0.1f;
+    
+    // Для визуализации
+    bool m_showWindVisualization = true;
+};
+
+} // namespace ui
+
+===== FILE: ./tools/PlaceOnGroundTool.cc =====
+#include "ui/tools/PlaceOnGroundTool.h"
+
+#include <GLFW/glfw3.h>
+#include <cmath>  // + нужно для std::abs
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
+
+#include <iostream>
+#include "core/Input.h"
+#include "core/scene/Scene.h"
+#include "math/ScreenRay.h"
+#include "ui/EditorContext.h"
+
+namespace ui {
+
+ToolType PlaceOnGroundTool::Type() const noexcept {
+  return ToolType::PLACE_ON_GROUND;
+}
+const char* PlaceOnGroundTool::Name() const noexcept {
+  return "Place on ground";
+}
+const char* PlaceOnGroundTool::Id() const noexcept {
+  return "Tool.PlaceOnGround";
+}
 
 void PlaceOnGroundTool::OnUpdate(EditorContext& ctx) {
-  if (engine::InputSystem::Instance().UIMouseCaptured()) return;
+  if (engine::InputSystem::Instance().UIMouseCaptured()) {
+    return;
+  }
   if (!engine::InputSystem::Instance().GetMouseButton(engine::MouseButton::Left,
-                                                      engine::InputState::Pressed)) return;
+                                                      engine::InputState::Pressed)) {
+    return;
+  }
 
   // 1) Курсор в логических координатах окна
-  double mx = 0.0, my = 0.0;
+  double mx = 0.0;
+  double my = 0.0;
   glfwGetCursorPos(ctx.m_window, &mx, &my);
 
   // 2) Окно -> панель вьюпорта (логические пиксели панели)
-  const glm::vec2 vpl = ctx.WindowToViewportLogical((float)mx, (float)my);
-  if (vpl.x < 0.f || vpl.y < 0.f || vpl.x >= (float)ctx.vpW || vpl.y >= (float)ctx.vpH) return;
+  const glm::vec2 VPL = ctx.WindowToViewportLogical(static_cast<float>(mx), static_cast<float>(my));
+  if (VPL.x < 0.F || VPL.y < 0.F || VPL.x >= static_cast<float>(ctx.vpW) ||
+      VPL.y >= static_cast<float>(ctx.vpH)) {
+    return;
+  }
 
   // 3) Логические -> framebuffer пиксели (HiDPI масштаб панели)
-  const float px = vpl.x * ctx.vpScaleX;   // 0 слева
-  const float py = vpl.y * ctx.vpScaleY;   // 0 СВЕРХУ (ровно как ждёт ScreenPointToRay)
+  const float PX = VPL.x * ctx.m_vpScaleX;
+  const float PY = VPL.y * ctx.m_vpScaleY;
 
   // 4) Размеры framebuffer рендер-области (под них построена проекция)
-  const float fbW = (float)ctx.m_viewportW;  // = vpW * vpScaleX
-  const float fbH = (float)ctx.m_viewportH;  // = vpH * vpScaleY
+  const auto FB_W = static_cast<float>(ctx.m_viewportW);
+  const auto FB_H = static_cast<float>(ctx.m_viewportH);
 
   // 5) Луч из пикселя экрана -> мир
-  glm::vec3 ro{}, rd{};
-  math::ScreenPointToRay(px, py, fbW, fbH, ctx.m_proj, ctx.m_view, ro, rd);
+  glm::vec3 ro{};
+  glm::vec3 rd{};
+  math::ScreenPointToRay(PX, PY, FB_W, FB_H, ctx.m_proj, ctx.m_view, ro, rd);
 
   // 6) Пересечение с плоскостью Y=0
   glm::vec3 hit{};
-  if (!math::IntersectRayPlaneY0(ro, rd, hit)) return;
-
-  // (необязательно) отладка — убедиться, что всё консистентно
-  // std::cout << "[DBG] win=("<<mx<<","<<my<<") vpLog=("<<vpl.x<<","<<vpl.y
-  //           <<") fb=("<<px<<","<<py<<") fbSize=("<<fbW<<","<<fbH<<") hit=("
-  //           <<hit.x<<","<<hit.y<<","<<hit.z<<")\n";
+  if (!math::IntersectRayPlaneY0(ro, rd, hit)) {
+    return;
+  }
 
   // 7) Действие
-if (ctx.m_placeKind == ui::EditorContext::PlaceKind::FIRE) {
-  ctx.m_scene->AddFire(hit.x, hit.z, ctx.m_fireIntensity);
-} else {
-  ctx.m_scene->AddPrefab(ctx.selectedPrefab, hit.x, hit.z);
+  if (ctx.State().m_placeKind == EditorState::PlaceKind::FIRE) {
+    ctx.m_scene->AddFire(hit.x, hit.z, ctx.State().m_fireIntensity);
+  } else {
+    ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hit.x, hit.z);
+  }
 }
+}  // namespace ui
 
-}
-} // namespace ui   
-===== ./tools/PlaceOnGroundTool.h =====
+===== FILE: ./tools/PlaceOnGroundTool.h =====
 #pragma once
 #include "ui/ITool.h"
 #include "ui/ToolType.h"
-#include <string_view> // +++
+#include <string_view> 
 
 namespace ui {
 
@@ -964,7 +1310,8 @@ public:
 
 } // namespace ui
 
-===== ./ToolType.h =====
+
+===== FILE: ./ToolType.h =====
 #pragma once
 #include <cstdint>
 
@@ -977,3 +1324,5 @@ enum class ToolType : std::uint8_t {
 };
 
 } // namespace ui
+
+

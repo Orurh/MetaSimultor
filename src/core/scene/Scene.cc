@@ -231,15 +231,17 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z) {
   // 1) гарантируем, что модели для этого prefab загружены
   EnsureModelsForPrefab(prefab_id, prefab);
 
+  const float y = GetGroundHeight(x, z);
+
   // 2) создаём агента
-  Agent agent = m_prefabSystem.CreateAgentFromPrefab(prefab, {x, 0, z});
+  Agent agent = m_prefabSystem.CreateAgentFromPrefab(prefab, {x, y, z});
   m_agentManager.AddAgent(agent);
 
   // 3) объект сцены
   SceneObject obj;
   obj.agent_id = m_agentManager.getAgentCount() - 1;
   obj.object_type = prefab_id; // ключ в m_objectModels
-  obj.position = glm::vec3(x, 0, z);
+  obj.position = glm::vec3(x, y, z);
   obj.scale = prefab.m_modelScale;
   obj.is_visible = true;
   m_sceneObjects.push_back(obj);
@@ -289,5 +291,10 @@ void Scene::AddSceneObjectFromSerialized(const SceneObject &obj) {
   o.scale = prefab.m_modelScale;
   m_sceneObjects.push_back(o);
 }
+
+float Scene::GetGroundHeight(float x, float z) const {
+  return m_terrain ? m_terrain->GetHeightAt(x, z) : 0.0F;
+}
+
 
 } // namespace engine

@@ -101,7 +101,7 @@ YAML::Emitter& SceneSerializer::SerializeAgent(YAML::Emitter& out, const Agent& 
   out << YAML::Key << "id" << YAML::Value << id;
   out << YAML::Key << "type" << YAML::Value << static_cast<int>(agent.type);
   out << YAML::Key << "object_id" << YAML::Value << agent.object_id;
-  out << YAML::Key << "intensity" << YAML::Value << agent.intencity;
+  out << YAML::Key << "intensity" << YAML::Value << agent.intensity;
 
   out << YAML::Key << "position" << YAML::Value;
   out << YAML::Flow << YAML::BeginSeq << agent.position.x << agent.position.y << agent.position.z
@@ -228,7 +228,7 @@ Agent SceneSerializer::DeserializeAgent(const YAML::Node& agent_node) {
 
   agent.type = static_cast<AgentType>(agent_node["type"].as<int>());
   agent.object_id = agent_node["object_id"].as<int>();
-  agent.intencity = agent_node["intensity"].as<float>();
+  agent.intensity = agent_node["intensity"].as<float>();
 
   const YAML::Node& pos_node = agent_node["position"];
   agent.position =

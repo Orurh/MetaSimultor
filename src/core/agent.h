@@ -47,7 +47,7 @@ struct FireCollider {
 struct Agent {
     Float3 position;
     AgentType type;
-    float intencity;
+    float intensity{};
     int object_id; 
     
     // Универсальный коллайдер для огня
