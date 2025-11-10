@@ -26,8 +26,6 @@ public:
   void GenerateRandom(const TerrainGenerationSettings &settings);
   bool LoadHeightmap(const std::string &path);
 
-  void RegenerateMesh();
-
   float GetHeightAt(float worldX, float worldZ) const;
   glm::vec3 GetNormalAt(float worldX, float worldZ) const;
 

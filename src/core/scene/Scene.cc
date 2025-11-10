@@ -29,6 +29,10 @@ void Scene::Init() {
   Generate();
 }
 
+void Scene::GenerateTerrain(const TerrainGenerationSettings &s) {
+  m_terrain->GenerateRandom(s);
+}
+
 void Scene::EnsureModelsForPrefab(const std::string &id,
                                   const engine::data::AgentPrefab &prefab) {
   if (m_objectModels.count(id)) {

@@ -94,6 +94,7 @@ public:
   void ReloadModelForPrefab(const std::string &prefab_id,
                             const engine::data::AgentPrefab &prefab);
   void AddSceneObjectFromSerialized(const SceneObject &obj);
+  void GenerateTerrain(const TerrainGenerationSettings &s);
 
 private:
   void RenderAgent(const Agent &agent, const SceneObject &scene_obj);
