@@ -105,3 +105,31 @@ target_compile_options(disaster_sim PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
     $<$<COMPILE_LANGUAGE:CUDA>:-arch=sm_60>
 )
+
+# Тесты - ТОЛЬКО CORE файлы
+file(GLOB CORE_SOURCE_FILES src/core/*.cc
+src/core/scene/*.cc)
+add_library(core_for_tests STATIC ${CORE_SOURCE_FILES})
+
+# ДОБАВИЛ ПУТИ К GLAD ДЛЯ CORE_FOR_TESTS
+target_include_directories(core_for_tests PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    libs/glad/include/    # ← ДОБАВИЛ ЭТО
+)
+
+# ДОБАВИЛ GLAD В ЛИНКОВКУ ДЛЯ CORE_FOR_TESTS
+target_link_libraries(core_for_tests PUBLIC glad)
+
+find_package(GTest REQUIRED)
+file(GLOB TEST_SRC_FILES "tests/*.cc")
+add_executable(unit_tests ${TEST_SRC_FILES})
+
+target_link_libraries(unit_tests
+    core_for_tests
+    GTest::GTest
+    GTest::Main
+)
+
+enable_testing()
+add_test(NAME Tests COMMAND unit_tests)

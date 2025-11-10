@@ -1,4 +1,7 @@
 {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+    "clangd.path": "/usr/bin/clangd-20",
     "files.associations": {
         "array": "cpp",
         "atomic": "cpp",
@@ -72,19 +75,13 @@
         "stream_ref": "cpp",
         "unordered_set": "cpp",
         "__bit_reference": "cpp",
-        "set": "cpp"
-       {
-    "clangd.path": "/usr/bin/clangd",
-    "clangd.arguments": [
-        "--background-index",
-        "--compile-commands-dir=${workspaceFolder}",
-        "--log=verbose"
-    ],
+        "set": "cpp",
+       
+    
     
     // Полностью отключаем C/C++ расширение
     "C_Cpp.intelliSenseEngine": "disabled",
     "C_Cpp.autocomplete": "disabled", 
     "C_Cpp.errorSquiggles": "disabled"
-}
     }
 }
