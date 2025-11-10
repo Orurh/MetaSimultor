@@ -33,7 +33,7 @@ public:
   void RenderWithGeometryShader(const glm::vec3 &wind_force);
   void EndScene();
   void DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
-                   const glm::vec3 &camPos);
+                   const glm::vec3 &terrainPos);
 
 private:
   glm::vec4 m_clearColor;

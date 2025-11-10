@@ -1,5 +1,4 @@
 #include "Scene.h"
-#include "Entity.h"
 #include "core/Input.h"
 #include "core/Window.h"
 #include "core/agent.h"
@@ -16,17 +15,8 @@ Scene::Scene()
 
 void Scene::Init() {
   m_terrain = std::make_unique<Terrain>();
-  TerrainGenerationSettings s;
-  s.width = 256;
-  s.depth = 256;
-  s.scale = 2.0f;
-  s.maxHeight = 40.0f;
-  s.seed = 200;
-
-  m_terrain->GenerateRandom(s);
   GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
   m_renderer.Init();
-  Generate();
 }
 
 void Scene::GenerateTerrain(const TerrainGenerationSettings &s) {
@@ -135,7 +125,7 @@ void Scene::Render() {
   }
 
   m_renderer.UploadAgentsData(agents);
-  m_renderer.DrawTerrain(m_terrain->GetVAO(), m_camera.GetPosition());
+  m_renderer.DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition());
   m_renderer.RenderWithGeometryShader(m_windConfig.getCurrentWind(m_windTime));
 
   m_renderer.EndScene();

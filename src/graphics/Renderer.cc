@@ -230,17 +230,17 @@ void Renderer::RenderWithGeometryShader(const glm::vec3 &wind_force) {
 }
 
 void Renderer::DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
-                           const glm::vec3 &camPos) {
+                           const glm::vec3 &terrainPos) {
   if (!vao || !m_terrainShader)
     return;
 
   auto ib = vao->GetIndexBuffer();
   uint32_t count = ib ? ib->GetCount() : 0;
-
+  glm::mat4 model = glm::translate(glm::mat4(1.0f), terrainPos);
   m_terrainShader->Bind();
   m_terrainShader->SetMat4("u_View", m_viewMat);
   m_terrainShader->SetMat4("u_Projection", m_projectionMat);
-  m_terrainShader->SetMat4("u_Model", glm::mat4(1.0f));
+  m_terrainShader->SetMat4("u_Model", model);
 
   m_terrainShader->SetVec3("u_LightPos", glm::vec3(100.0f, 100.0f, 100.0f));
   m_terrainShader->SetFloat("u_MaxHeight", 80.0f);

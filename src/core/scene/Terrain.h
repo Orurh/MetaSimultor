@@ -33,6 +33,14 @@ public:
   int GetWidth() const;
   int GetDepth() const;
   float GetScale() const;
+  float GetMaxHeight() const;
+  uint32_t GetSeed() const;
+  float GetFrequency() const;
+  int GetOctaves() const;
+  float GetPersistence() const;
+  float GetLacunarity() const;
+  glm::vec3 GetPosition() const;
+  void SetPosition(const glm::vec3 &pos);
 
 private:
   class PImpl;

@@ -1,6 +1,7 @@
 // src/ui/panels/TerrainConfigPanel.h
 #pragma once
 #include "ui/IPanel.h"
+#include <glm/glm.hpp>
 namespace ui {
 
 class TerrainConfigPanel final : public IPanel {
@@ -11,6 +12,7 @@ public:
 
 private:
   struct Settings {
+    glm::vec3 position = glm::vec3(0.0f);
     int width = 256;
     int depth = 256;
     float scale = 2.0f;

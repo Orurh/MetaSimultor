@@ -95,6 +95,7 @@ public:
                             const engine::data::AgentPrefab &prefab);
   void AddSceneObjectFromSerialized(const SceneObject &obj);
   void GenerateTerrain(const TerrainGenerationSettings &s);
+  Terrain *GetTerrain() const { return m_terrain.get(); }
 
 private:
   void RenderAgent(const Agent &agent, const SceneObject &scene_obj);

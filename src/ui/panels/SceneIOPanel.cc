@@ -5,9 +5,12 @@
 
 using namespace ui;
 
-void SceneIOPanel::Draw(EditorContext& ctx) {
+void SceneIOPanel::Draw(EditorContext &ctx) {
   bool open = true;
-  if (!ImGui::Begin(Id(), &open)) { ImGui::End(); return; }
+  if (!ImGui::Begin(Id(), &open)) {
+    ImGui::End();
+    return;
+  }
 
   ImGui::TextUnformatted("Scene file");
   ImGui::InputText("##path", m_path.data(), m_path.size());
@@ -16,9 +19,11 @@ void SceneIOPanel::Draw(EditorContext& ctx) {
 
   // Кнопки Load / Save
   if (ImGui::Button("Load")) {
-    // Предполагаем, что в Scene добавлены методы: bool LoadScene(const char* path);
+    // Предполагаем, что в Scene добавлены методы: bool LoadScene(const char*
+    // path);
     try {
       ctx.m_app->LoadScene(std::string(m_path.data()));
+      ctx.m_sceneChanged = true;
       m_lastOk = true;
     } catch (...) {
       m_lastOk = false;
@@ -44,11 +49,13 @@ void SceneIOPanel::Draw(EditorContext& ctx) {
 
   // Быстрые пресеты (опционально)
   if (ImGui::CollapsingHeader("Quick slots", ImGuiTreeNodeFlags_DefaultOpen)) {
-    if (ImGui::Button("data/scene1.yml")) { strncpy(m_path.data(), "data/scene1.yml", m_path.size());
-}
+    if (ImGui::Button("data/scene1.yml")) {
+      strncpy(m_path.data(), "data/scene1.yml", m_path.size());
+    }
     ImGui::SameLine();
-    if (ImGui::Button("data/scene2.yml")) { strncpy(m_path.data(), "data/scene2.yml", m_path.size());
-}
+    if (ImGui::Button("data/scene2.yml")) {
+      strncpy(m_path.data(), "data/scene2.yml", m_path.size());
+    }
   }
 
   ImGui::End();

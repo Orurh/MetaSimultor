@@ -15,6 +15,13 @@ public:
   int m_width;
   int m_depth;
   float m_scale = 1.0f;
+  float m_maxHeight = 100.0f;
+  uint32_t m_seed = 0;
+  float m_frequency = 0.02f;
+  int m_octaves = 6;
+  float m_persistence = 0.5f;
+  float m_lacunarity = 2.0f;
+  glm::vec3 m_position = glm::vec3(0.0f);
   std::vector<std::vector<float>> m_heightMap;
   std::shared_ptr<VertexArrayObject> m_vao;
 
@@ -43,6 +50,12 @@ public:
     m_width = s.width;
     m_depth = s.depth;
     m_scale = s.scale;
+    m_maxHeight = s.maxHeight;
+    m_seed = s.seed;
+    m_frequency = s.frequency;
+    m_octaves = s.octaves;
+    m_persistence = s.persistence;
+    m_lacunarity = s.lacunarity;
     m_heightMap.assign(m_width, std::vector<float>(m_depth, 0.0f));
 
     for (int z = 0; z < m_depth; ++z) {
@@ -131,5 +144,14 @@ float Terrain::GetHeightAt(float worldX, float worldZ) const {
 std::shared_ptr<VertexArrayObject> Terrain::GetVAO() const {
   return m_impl->m_vao;
 }
+float Terrain::GetScale() const { return m_impl->m_scale; }
+float Terrain::GetMaxHeight() const { return m_impl->m_maxHeight; }
+uint32_t Terrain::GetSeed() const { return m_impl->m_seed; }
+float Terrain::GetFrequency() const { return m_impl->m_frequency; }
+int Terrain::GetOctaves() const { return m_impl->m_octaves; }
+float Terrain::GetPersistence() const { return m_impl->m_persistence; }
+float Terrain::GetLacunarity() const { return m_impl->m_lacunarity; }
+glm::vec3 Terrain::GetPosition() const { return m_impl->m_position; }
+void Terrain::SetPosition(const glm::vec3 &pos) { m_impl->m_position = pos; }
 
 } // namespace engine
