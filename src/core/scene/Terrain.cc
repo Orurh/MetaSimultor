@@ -71,7 +71,7 @@ public:
       }
     }
   }
-  // В PImpl::GenerateMesh()
+
   void GenerateMesh() {
     std::vector<float> vertices;
     std::vector<uint32_t> indices;

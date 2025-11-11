@@ -69,10 +69,10 @@ void Renderer::Init() {
 void Renderer::Shutdown() {}
 
 void Renderer::DrawCube(const glm::vec3 &position, const glm::vec3 &color,
-                        float scale) {
+                        const glm::vec3 &size) {
   glm::mat4 model = glm::mat4(1.0f);
   model = glm::translate(model, position);
-  model = glm::scale(model, glm::vec3(scale));
+  model = glm::scale(model, size);
   m_shader->Bind();
 
   m_shader->SetMat4("u_model", model);

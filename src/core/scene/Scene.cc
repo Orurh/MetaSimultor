@@ -16,7 +16,7 @@ Scene::Scene()
 void Scene::Init() {
   m_terrain = std::make_unique<Terrain>();
   GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
-  m_renderer.Init();
+  engine::Renderer::Instance().Init();
 }
 
 void Scene::GenerateTerrain(const TerrainGenerationSettings &s) {
@@ -108,7 +108,7 @@ void Scene::Render() {
   auto projection = glm::perspective(m_camera.GetZoom(), ASPECT, 0.1F, 2000.0F);
 
   auto view = m_camera.GetViewMatrix();
-  m_renderer.BeginScene(view, projection);
+  Renderer::Instance().BeginScene(view, projection);
 
   auto agents = LoadAgentsFromGPU();
 
@@ -124,11 +124,13 @@ void Scene::Render() {
     }
   }
 
-  m_renderer.UploadAgentsData(agents);
-  m_renderer.DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition());
-  m_renderer.RenderWithGeometryShader(m_windConfig.getCurrentWind(m_windTime));
+  Renderer::Instance().UploadAgentsData(agents);
+  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(),
+                                   m_terrain->GetPosition());
+  Renderer::Instance().RenderWithGeometryShader(
+      m_windConfig.getCurrentWind(m_windTime));
 
-  m_renderer.EndScene();
+  Renderer::Instance().EndScene();
 }
 
 void Scene::Generate() {
@@ -195,12 +197,12 @@ void Scene::RenderAgent(const Agent &agent, const SceneObject &scene_obj) {
   auto model = it->second.normal;
 
   if (model && material) {
-    m_renderer.DrawModelWithMaterial(*model, position, scene_obj.scale,
-                                     m_camera.GetPosition(), material);
+    Renderer::Instance().DrawModelWithMaterial(
+        *model, position, scene_obj.scale, m_camera.GetPosition(), material);
   } else {
     // Fallback
-    m_renderer.DrawModel(*model, position, scene_obj.scale,
-                         m_camera.GetPosition());
+    Renderer::Instance().DrawModel(*model, position, scene_obj.scale,
+                                   m_camera.GetPosition());
   }
 }
 

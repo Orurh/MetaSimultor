@@ -103,7 +103,6 @@ private:
                              const engine::data::AgentPrefab &prefab);
 
   AgentManager m_agentManager;
-  Renderer m_renderer;
   std::unordered_map<std::string, std::shared_ptr<Model>> m_loadedModels;
   std::vector<SceneObject> m_sceneObjects;
   std::unique_ptr<Terrain> m_terrain;

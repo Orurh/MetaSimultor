@@ -26,7 +26,7 @@ private:
 
 class Model {
 public:
-  Model(const std::string &path) {
+  Model(const std::string &path) : m_path(path) {
     m_modelData = data::AssimpLoader::LoadModel(path);
     SetupModel();
   }
@@ -37,10 +37,11 @@ public:
                      const std::vector<glm::mat4> &instanceMatrices);
   size_t GetMeshCount() const { return m_meshes.size(); }
   size_t GetTriangleCount() const;
+  auto GetPath() const { return m_path; }
 
 private:
   void SetupModel();
-
+  std::string m_path;
   data::ModelData m_modelData;
   std::vector<Mesh> m_meshes;
   std::vector<data::TextureData> m_texturesLoaded; // texture cache

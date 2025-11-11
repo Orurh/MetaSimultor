@@ -18,9 +18,17 @@ struct AgentRenderData {
 };
 class Renderer {
 public:
+  Renderer(const Renderer &) = delete;
+  Renderer &operator=(const Renderer &) = delete;
+
+  static Renderer &Instance() {
+    static Renderer instance;
+    return instance;
+  }
   void Init();
   void Shutdown();
-  void DrawCube(const glm::vec3 &position, const glm::vec3 &color, float scale);
+  void DrawCube(const glm::vec3 &position, const glm::vec3 &color,
+                const glm::vec3 &size);
   void DrawModel(Model &model, const glm::vec3 &position,
                  const glm::vec3 &scale, const glm::vec3 &camPos);
   void DrawModelInstanced(Model &model, const std::vector<glm::mat4> &instances,
@@ -36,6 +44,7 @@ public:
                    const glm::vec3 &terrainPos);
 
 private:
+  Renderer() = default;
   glm::vec4 m_clearColor;
   glm::mat4 m_projectionMat;
   glm::mat4 m_viewMat;

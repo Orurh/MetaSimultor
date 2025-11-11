@@ -10,7 +10,6 @@ struct TerrainGenerationSettings {
   int depth = 256;
   uint32_t seed = 12345;
   float maxHeight = 50.0f;
-
   float frequency = 0.02f;
   int octaves = 6;
   float persistence = 0.5f;

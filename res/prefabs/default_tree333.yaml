@@ -7,11 +7,11 @@ model_scale:
   - 1
 bounds_min:
   - -2
-  - 0
+  - -1
   - -2
 bounds_max:
   - 2
-  - 8
+  - 6
   - 2
 physics:
   intensity: 405808640
@@ -288,20 +288,23 @@ fire_points:
     initial_fuel: 20
 materials:
   normal:
-    diffuse_path: "res/textures/fire_texture3.png"
-    specular_path: "res/textures/fire_texture3.png"
-    normal_path: "res/textures/fire_texture3.png"
-    diffuse_color: [0.2, 0.8, 0.2]
-    shininess: 64.0
-    
+    diffuse_path: res/textures/fire_texture3.png
+    specular_path: res/textures/fire_texture3.png
+    normal_path: res/textures/fire_texture3.png
+    diffuse_color: [0.200000003, 0.800000012, 0.200000003]
+    specular_color: [0.5, 0.5, 0.5]
+    shininess: 64
   burning:
-    diffuse_path: "res/textures/fire_texture3.png"
-    specular_path: "res/textures/fire_texture3.png"
-    normal_path: "res/textures/fire_texture3.png"
-    diffuse_color: [1.0, 0.3, 0.1]
-    shininess: 64.0
-    
+    diffuse_path: res/textures/fire_texture3.png
+    specular_path: res/textures/fire_texture3.png
+    normal_path: res/textures/fire_texture3.png
+    diffuse_color: [1, 0.300000012, 0.100000001]
+    specular_color: [0.5, 0.5, 0.5]
+    shininess: 64
   burned:
-    diffuse_path: "res/textures/fire_texture3.png"
-    diffuse_color: [0.2, 0.2, 0.2]
-    shininess: 8.0
+    diffuse_path: res/textures/fire_texture3.png
+    specular_path: ""
+    normal_path: ""
+    diffuse_color: [0.200000003, 0.200000003, 0.200000003]
+    specular_color: [0.5, 0.5, 0.5]
+    shininess: 8
