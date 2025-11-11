@@ -6,7 +6,6 @@
 #include "ui/panels/PrefabPreviewRenderer.h"
 #include <filesystem>
 #include <imgui.h>
-#include <iostream>
 #include <memory>
 using engine::data::AgentPrefab;
 

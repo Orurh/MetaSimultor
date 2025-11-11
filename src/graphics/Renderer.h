@@ -8,6 +8,7 @@
 #include "Material.h"
 #include "Model.h"
 #include "Texture.h"
+#include "configs/FireParams.h"
 #include "graphics/VertexArrayObject.h"
 namespace engine {
 struct AgentRenderData {
@@ -42,9 +43,13 @@ public:
   void EndScene();
   void DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
                    const glm::vec3 &terrainPos);
+  void SetFireParams(const FireParams &params);
 
 private:
   Renderer() = default;
+
+  FireParams m_fireParams;
+
   glm::vec4 m_clearColor;
   glm::mat4 m_projectionMat;
   glm::mat4 m_viewMat;

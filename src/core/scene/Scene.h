@@ -4,9 +4,10 @@
 #include "configs/WindConfig.h"
 #include "core/AgentManager.h"
 #include "data/PrefabSystem.h"
-#include "graphics/Renderer.h"
+
 #include <memory>
 namespace engine {
+class Model;
 class Entity;
 struct ObjectModels {
   std::shared_ptr<Model> normal;  // Обычное состояние

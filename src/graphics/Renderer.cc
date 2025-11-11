@@ -1,8 +1,11 @@
 #include "Renderer.h"
+#include "graphics/Texture.h"
 #include "graphics/VertexArrayObject.h"
+#include <exception>
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <iostream>
 #include <memory>
 static float vertices[] = {
     // front face
@@ -64,6 +67,7 @@ void Renderer::Init() {
 
   // Создаем отдельный VAO для инстансинга
   m_instanceVAO = VertexArrayObject::Create();
+  SetFireParams({});
 }
 
 void Renderer::Shutdown() {}
@@ -247,5 +251,41 @@ void Renderer::DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
 
   vao->Bind();
   glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
+}
+
+void Renderer::SetFireParams(const FireParams &params) {
+  m_fireParams = params;
+  try {
+    m_fireTexture = Texture::Create(params.fireTexturePath);
+  } catch (const std::exception &e) {
+    m_fireTexture = Texture::Create("res/textures/fire_texture3.png");
+  }
+
+  if (m_fireGeometryShader) {
+    m_fireGeometryShader->Bind();
+
+    // Передаем все параметры в шейдер
+    m_fireGeometryShader->SetFloat("u_particleSize", params.particleSize);
+    m_fireGeometryShader->SetFloat("u_sizeVariation", params.sizeVariation);
+    m_fireGeometryShader->SetFloat("u_animationSpeed", params.animationSpeed);
+    m_fireGeometryShader->SetFloat("u_particleLifetime",
+                                   params.particleLifetime);
+    m_fireGeometryShader->SetFloat("u_spawnRate", params.spawnRate);
+    m_fireGeometryShader->SetFloat("u_riseSpeed", params.riseSpeed);
+    m_fireGeometryShader->SetFloat("u_turbulence", params.turbulence);
+    m_fireGeometryShader->SetFloat("u_windInfluence", params.windInfluence);
+    m_fireGeometryShader->SetFloat("u_horizontalSpread",
+                                   params.horizontalSpread);
+    m_fireGeometryShader->SetFloat("u_verticalSpread", params.verticalSpread);
+    m_fireGeometryShader->SetFloat("u_redIntensity", params.redIntensity);
+    m_fireGeometryShader->SetFloat("u_yellowReduction", params.yellowReduction);
+    m_fireGeometryShader->SetFloat("u_alphaMultiplier", params.alphaMultiplier);
+    m_fireGeometryShader->SetVec3("u_baseColor", params.baseColor);
+    m_fireGeometryShader->SetVec3("u_endColor", params.endColor);
+    m_fireGeometryShader->SetFloat("u_textureInfluence",
+                                   params.textureInfluence);
+
+    m_fireGeometryShader->Unbind();
+  }
 }
 } // namespace engine

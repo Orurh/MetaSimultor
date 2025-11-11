@@ -4,6 +4,7 @@
 #include "core/agent.h"
 #include "core/scene/Terrain.h"
 #include "core/simulation.cuh"
+#include "graphics/Renderer.h"
 #include <chrono>
 #include <cuda_runtime.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -35,13 +36,7 @@ void Scene::EnsureModelsForPrefab(const std::string &id,
     return;
   }
 
-  // Если у тебя нет отдельных путей для normal/burning/burned — грузим одну и
-  // ту же модель.
-  LoadObjectModels(id,
-                   path, // normal
-                   path, // burning
-                   path  // burned
-  );
+  LoadObjectModels(id, path, path, path);
 }
 
 void Scene::Update(float dt) {

@@ -38,22 +38,23 @@ private:
                      engine::data::AgentPrefab &P);
   void DrawModelPreview(EditorContext &ctx);
   void RenderPreview(engine::data::AgentPrefab &P);
-  int m_selectedIndex = -1;
-  std::optional<engine::data::AgentPrefab> m_edit;
 
+  std::optional<engine::data::AgentPrefab> m_edit;
+  std::unique_ptr<PrefabPreviewRenderer> m_preview;
+  std::string m_savePath;
+  ImVec2 m_lastMouse;
+
+  int m_selectedIndex = -1;
   char m_modelBuf[512]{};
   char m_matNormalBuf[256]{};
   char m_matBurningBuf[256]{};
   char m_matBurnedBuf[256]{};
 
   bool m_savePopupOpen = false;
-  std::string m_savePath;
   char m_saveBuf[512]{};
-  std::unique_ptr<PrefabPreviewRenderer> m_preview;
 
   float m_previewYaw = 0, m_previewPitch = 0;
   bool m_dragging = false;
-  ImVec2 m_lastMouse;
 };
 
 } // namespace ui
