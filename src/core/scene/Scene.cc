@@ -10,17 +10,18 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <memory>
+#include <print>
 namespace engine {
 Scene::Scene()
-    : m_agentManager(1000000), m_camera(glm::vec3(500.0f, 100.0f, 600.0f)) {}
+    : m_agentManager(1000000), m_camera(glm::vec3(500.0F, 100.0F, 600.0F)) {}
 
 void Scene::Init() {
   m_terrain = std::make_unique<Terrain>();
   TerrainGenerationSettings s;
   s.width = 256;
   s.depth = 256;
-  s.scale = 2.0f;
-  s.maxHeight = 40.0f;
+  s.scale = 2.0F;
+  s.maxHeight = 40.0F;
   s.seed = 200;
 
   m_terrain->GenerateRandom(s);
@@ -35,7 +36,7 @@ void Scene::GenerateTerrain(const TerrainGenerationSettings &s) {
 
 void Scene::EnsureModelsForPrefab(const std::string &id,
                                   const engine::data::AgentPrefab &prefab) {
-  if (m_objectModels.count(id)) {
+  if (m_objectModels.contains(id)) {
     return;
   }
 
@@ -158,7 +159,7 @@ std::vector<Agent> Scene::LoadAgentsFromGPU() {
 
   cudaError_t err = cudaGetLastError();
   if (err != cudaSuccess) {
-    printf("CUDA memcpy error: %s\n", cudaGetErrorString(err));
+    std::println("CUDA memcpy error: {}", cudaGetErrorString(err));
   }
 
   return agents;
@@ -175,7 +176,7 @@ void Scene::LoadObjectModels(const std::string &object_name,
     m_objectModels[object_name] = models;
   } catch (const std::exception &e) {
     std::cout << "Failed to load model '" << object_name << "': " << e.what()
-              << std::endl;
+              << '\n';
   }
 }
 
@@ -216,8 +217,8 @@ void Scene::RenderAgent(const Agent &agent, const SceneObject &scene_obj) {
 
 glm::mat4 Scene::GetProjMatrix(int w, int h) {
   return glm::perspective(m_camera.GetZoom(),
-                          static_cast<float>(w) / static_cast<float>(h), 0.1f,
-                          2000.0f);
+                          static_cast<float>(w) / static_cast<float>(h), 0.1F,
+                          2000.0F);
 }
 
 void Scene::Clear() {
@@ -296,5 +297,68 @@ float Scene::GetGroundHeight(float x, float z) const {
   return m_terrain ? m_terrain->GetHeightAt(x, z) : 0.0F;
 }
 
+void Scene::AddFire(float x, float z, float intensity) {
+  // теперь учитываем высоту земли и перенаправляем в 3D-вариант
+  const float y = GetGroundHeight(x, z);
+  AddFireAt(glm::vec3{x, y, z}, intensity);
+}
 
-} // namespace engine
+void Scene::AddFireAt(const glm::vec3& world, float intensity) {
+  // единая точка входа
+  m_agentManager.AddFireAt(Float3{world.x, world.y, world.z}, intensity);
+}
+
+int Scene::FindClosestObjectXZ(const glm::vec3& world, float maxXZDist) const {
+  int best = -1;
+  float bestD2 = maxXZDist * maxXZDist;
+  for (int i = 0; i < (int)m_sceneObjects.size(); ++i) {
+    const auto& o = m_sceneObjects[i];
+    if (!o.is_visible) continue;
+    const float dx = o.position.x - world.x;
+    const float dz = o.position.z - world.z;
+    const float d2 = dx*dx + dz*dz;
+    if (d2 <= bestD2) { bestD2 = d2; best = i; }
+  }
+  return best;
+}
+
+void Scene::RemoveSceneObjectByIndex(size_t idx) {
+  if (idx >= m_sceneObjects.size()) return;
+  // 1) удалить агента из симуляции с учётом swap-семантики
+  const int removed_agent = m_sceneObjects[idx].agent_id;
+  int swapped_from = -1;
+  int swapped_to = -1;
+  m_agentManager.RemoveAgentAt(removed_agent, &swapped_from, &swapped_to);
+
+  // 2) если в менеджере произошёл swap, поправим agent_id у соответствующего SceneObject
+  if (swapped_from >= 0 && swapped_to >= 0 && swapped_from != swapped_to) {
+    for (auto& so : m_sceneObjects) {
+      if (so.agent_id == swapped_from) {
+        so.agent_id = swapped_to;
+        break;
+      }
+    }
+  }
+
+  // 3) удалить объект сцены (swap pop_back для O(1))
+  if (idx != m_sceneObjects.size() - 1) {
+    std::swap(m_sceneObjects[idx], m_sceneObjects.back());
+  }
+  m_sceneObjects.pop_back();
+}
+
+bool Scene::RemoveNearestAt(const glm::vec3& world, float maxXZDist) {
+  const int idx = FindClosestObjectXZ(world, maxXZDist);
+  if (idx < 0) { return false;
+}
+  RemoveSceneObjectByIndex(static_cast<size_t>(idx));
+  return true;
+}
+
+
+
+
+
+
+
+}  // namespace engine

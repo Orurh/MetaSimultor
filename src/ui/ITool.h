@@ -9,6 +9,8 @@ struct ITool : public Interface {
 
   // стабильный тип инструмента (вместо строк)
   [[nodiscard]] virtual ToolType Type() const noexcept = 0;
+  [[nodiscard]] virtual const char* Name() const noexcept = 0;
+  [[nodiscard]] virtual const char* Id() const noexcept = 0;
 
   // жизненный цикл
   virtual void OnActivate(EditorContext &ctx) = 0;   // включение/захват фокуса

@@ -31,9 +31,10 @@ public:
 
   void Render();
   void AddTree(float x, float z, const std::string &tree_type = "default_tree");
-  void AddFire(float x, float z, float intensity = 1.0f) {
-    m_agentManager.AddFire(x, z, intensity);
-  }
+  void AddFire(float x, float z, float intensity = 1.0F);
+
+  void AddFireAt(const glm::vec3& world, float intensity = 1.0f);
+  
   void Generate();
   void Clear();
 
@@ -81,6 +82,10 @@ public:
   PlaceMode GetPlaceMode() const { return m_placeMode; }
 
   void AddPrefab(const std::string &prefab_id, float x, float z);
+  bool RemoveNearestAt(const glm::vec3& world, float maxXZDist);
+
+
+
   const std::vector<std::string> &ListPrefabIds() const;
 
   engine::data::PrefabSystem &GetPrefabSystem() { return m_prefabSystem; }
@@ -95,7 +100,9 @@ public:
                             const engine::data::AgentPrefab &prefab);
   void AddSceneObjectFromSerialized(const SceneObject &obj);
   void GenerateTerrain(const TerrainGenerationSettings &s);
-
+  
+  Terrain*       GetTerrain()       { return m_terrain.get(); }
+  const Terrain* GetTerrain() const { return m_terrain.get(); }
 
   float GetGroundHeight(float x, float z) const;
 
@@ -103,6 +110,10 @@ private:
   void RenderAgent(const Agent &agent, const SceneObject &scene_obj);
   void EnsureModelsForPrefab(const std::string &id,
                              const engine::data::AgentPrefab &prefab);
+
+  // для удаления префабов
+  int  FindClosestObjectXZ(const glm::vec3& world, float maxXZDist) const;
+  void RemoveSceneObjectByIndex(size_t idx);
 
   AgentManager m_agentManager;
   Renderer m_renderer;
