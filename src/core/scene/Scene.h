@@ -1,40 +1,30 @@
 #pragma once
+#include <memory>
 #include "Camera.h"
 #include "Terrain.h"
 #include "configs/WindConfig.h"
 #include "core/AgentManager.h"
 #include "data/PrefabSystem.h"
 #include "graphics/Renderer.h"
-#include <memory>
+#include "sceneObj/ObjectModelStore.h"
+#include "sceneObj/SceneObjectStore.h"
 namespace engine {
 class Entity;
-struct ObjectModels {
-  std::shared_ptr<Model> normal;  // Обычное состояние
-  std::shared_ptr<Model> burning; // Горит
-  std::shared_ptr<Model> burned;  // Сгоревшее
-};
-struct SceneObject {
-  int agent_id;            // ID агента в симуляции
-  std::string object_type; // Модель для рендеринга
-  glm::vec3 position;      // Позиция (дублируется с агентом)
-  glm::vec3 scale;
-  bool is_visible = true;
-};
 class Material;
 
 class Scene {
 
-public:
+ public:
   Scene();
   void Init();
   void Update(float dt);
 
   void Render();
-  void AddTree(float x, float z, const std::string &tree_type = "default_tree");
+  void AddTree(float x, float z, const std::string& tree_type = "default_tree");
   void AddFire(float x, float z, float intensity = 1.0F);
 
-  void AddFireAt(const glm::vec3& world, float intensity = 1.0f);
-  
+  void AddFireAt(const glm::vec3& world, float intensity = 1.0F);
+
   void Generate();
   void Clear();
 
@@ -43,30 +33,27 @@ public:
   void SetFireIntensity(float v) { m_fireIntensity = v; }
   std::vector<Agent> LoadAgentsFromGPU();
 
-  void LoadPrimaryModel(const std::string &path);
+  void LoadPrimaryModel(const std::string& path);
 
-  Camera &GetCamera() { return m_camera; }
-  const Camera &GetCamera() const { return m_camera; }
+  Camera& GetCamera() { return m_camera; }
+  const Camera& GetCamera() const { return m_camera; }
 
   glm::mat4 GetViewMatrix() { return m_camera.GetViewMatrix(); }
   glm::mat4 GetProjMatrix(int w, int h);
   int GetVpWidth() const { return m_vpW; }
   int GetVpHeight() const { return m_vpH; }
-  AgentManager &GetAgentManager() { return m_agentManager; }
+  AgentManager& GetAgentManager() { return m_agentManager; }
   void SetViewport(int w, int h) {
     m_vpW = w;
     m_vpH = h;
   }
-  void LoadObjectModels(const std::string &object_name,
-                        const std::string &normal_path,
-                        const std::string &burning_path,
-                        const std::string &burned_path);
-  const std::vector<SceneObject> &GetSceneObjects() const {
-    return m_sceneObjects;
-  }
+  void LoadObjectModels(const std::string& object_name, const std::string& normal_path,
+                        const std::string& burning_path, const std::string& burned_path);
+
+  const std::vector<SceneObject>& GetSceneObjects() const { return m_sceneObjects.All(); }
 
   // Метод для добавления SceneObject
-  void AddSceneObject(const SceneObject &obj) { m_sceneObjects.push_back(obj); }
+  void AddSceneObject(const SceneObject& obj) { m_sceneObjects.Add(obj); }
 
   void SetViewportRect(int x, int y, int w, int h) {
     m_vpX = x;
@@ -81,47 +68,43 @@ public:
 
   PlaceMode GetPlaceMode() const { return m_placeMode; }
 
-  void AddPrefab(const std::string &prefab_id, float x, float z);
+  void AddPrefab(const std::string& prefab_id, float x, float z);
   bool RemoveNearestAt(const glm::vec3& world, float maxXZDist);
 
+  const std::vector<std::string>& ListPrefabIds() const;
 
+  engine::data::PrefabSystem& GetPrefabSystem() { return m_prefabSystem; }
+  const engine::data::PrefabSystem& GetPrefabSystem() const { return m_prefabSystem; }
 
-  const std::vector<std::string> &ListPrefabIds() const;
-
-  engine::data::PrefabSystem &GetPrefabSystem() { return m_prefabSystem; }
-  const engine::data::PrefabSystem &GetPrefabSystem() const {
-    return m_prefabSystem;
-  }
-
-  WindConfig &GetWindConfig() { return m_windConfig; }
-  const WindConfig &GetWindConfig() const { return m_windConfig; }
+  WindConfig& GetWindConfig() { return m_windConfig; }
+  const WindConfig& GetWindConfig() const { return m_windConfig; }
   float GetWindTime() const { return m_windTime; }
-  void ReloadModelForPrefab(const std::string &prefab_id,
-                            const engine::data::AgentPrefab &prefab);
-  void AddSceneObjectFromSerialized(const SceneObject &obj);
-  void GenerateTerrain(const TerrainGenerationSettings &s);
-  
-  Terrain*       GetTerrain()       { return m_terrain.get(); }
+  void ReloadModelForPrefab(const std::string& prefab_id, const engine::data::AgentPrefab& prefab);
+  void AddSceneObjectFromSerialized(const SceneObject& obj);
+  void GenerateTerrain(const TerrainGenerationSettings& s);
+
+  Terrain* GetTerrain() { return m_terrain.get(); }
   const Terrain* GetTerrain() const { return m_terrain.get(); }
 
   float GetGroundHeight(float x, float z) const;
 
-private:
-  void RenderAgent(const Agent &agent, const SceneObject &scene_obj);
-  void EnsureModelsForPrefab(const std::string &id,
-                             const engine::data::AgentPrefab &prefab);
+ private:
+  void RenderAgent(const Agent& agent, const SceneObject& scene_obj);
+  void EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab);
 
   // для удаления префабов
-  int  FindClosestObjectXZ(const glm::vec3& world, float maxXZDist) const;
+  int FindClosestObjectXZ(const glm::vec3& world, float maxXZDist) const;
   void RemoveSceneObjectByIndex(size_t idx);
 
   AgentManager m_agentManager;
   Renderer m_renderer;
-  std::unordered_map<std::string, std::shared_ptr<Model>> m_loadedModels;
-  std::vector<SceneObject> m_sceneObjects;
+  // std::unordered_map<std::string, std::shared_ptr<Model>> m_loadedModels;
   std::unique_ptr<Terrain> m_terrain;
   data::PrefabSystem m_prefabSystem;
-  std::unordered_map<std::string, ObjectModels> m_objectModels;
+
+  SceneObjectStore m_sceneObjects;
+  ObjectModelStore m_objectModels;
+
   Camera m_camera;
   WindConfig m_windConfig;
   float m_windTime = 0.0F;
@@ -133,4 +116,4 @@ private:
   int m_vpW{1920}, m_vpH{1080};
   float m_vpScaleX{1.0F}, m_vpScaleY{1.0F};
 };
-} // namespace engine
+}  // namespace engine

@@ -119,17 +119,17 @@ YAML::Emitter& SceneSerializer::SerializeSceneObject(YAML::Emitter& out, const S
                                                      int id) {
   out << YAML::BeginMap;
   out << YAML::Key << "id" << YAML::Value << id;
-  out << YAML::Key << "agent_id" << YAML::Value << obj.agent_id;
-  out << YAML::Key << "object_type" << YAML::Value << obj.object_type;
-  out << YAML::Key << "is_visible" << YAML::Value << obj.is_visible;
+  out << YAML::Key << "agent_id" << YAML::Value << obj.m_agent_id;
+  out << YAML::Key << "object_type" << YAML::Value << obj.m_object_type;
+  out << YAML::Key << "is_visible" << YAML::Value << obj.m_is_visible;
 
   // Позиция и масштаб
   out << YAML::Key << "position" << YAML::Value;
-  out << YAML::Flow << YAML::BeginSeq << obj.position.x << obj.position.y << obj.position.z
+  out << YAML::Flow << YAML::BeginSeq << obj.m_position.x << obj.m_position.y << obj.m_position.z
       << YAML::EndSeq;
 
   out << YAML::Key << "scale" << YAML::Value;
-  out << YAML::Flow << YAML::BeginSeq << obj.scale.x << obj.scale.y << obj.scale.z << YAML::EndSeq;
+  out << YAML::Flow << YAML::BeginSeq << obj.m_scale.x << obj.m_scale.y << obj.m_scale.z << YAML::EndSeq;
 
   out << YAML::EndMap;
   return out;
@@ -169,18 +169,18 @@ void SceneSerializer::Deserialize(const std::string& filename) {
 SceneObject SceneSerializer::DeserializeSceneObject(const YAML::Node& obj_node) {
   SceneObject obj;
 
-  obj.agent_id = obj_node["agent_id"].as<int>();
-  obj.object_type = obj_node["object_type"].as<std::string>();
-  obj.is_visible = obj_node["is_visible"].as<bool>();
+  obj.m_agent_id = obj_node["agent_id"].as<int>();
+  obj.m_object_type = obj_node["object_type"].as<std::string>();
+  obj.m_is_visible = obj_node["is_visible"].as<bool>();
 
   // Позиция
   const YAML::Node& pos_node = obj_node["position"];
-  obj.position =
+  obj.m_position =
       glm::vec3(pos_node[0].as<float>(), pos_node[1].as<float>(), pos_node[2].as<float>());
 
   // Масштаб
   const YAML::Node& scale_node = obj_node["scale"];
-  obj.scale =
+  obj.m_scale =
       glm::vec3(scale_node[0].as<float>(), scale_node[1].as<float>(), scale_node[2].as<float>());
 
   return obj;
