@@ -1,0 +1,19 @@
+name: 3rd
+texturePath: res/textures/fire_texture2.png
+baseIntensity: 1
+particleSize: 2
+sizeVariation: 0.300000012
+animationSpeed: 1.5
+particleLifetime: 5.94899988
+spawnRate: 581.440979
+riseSpeed: 4.91200018
+turbulence: 0.800000012
+windInfluence: 2
+redIntensity: 0.800000012
+yellowReduction: 0.300000012
+alphaMultiplier: 1.5
+horizontalSpread: 0.800000012
+verticalSpread: 0.5
+baseColor: [0.26425913, 0.754901946, 0.159121439]
+endColor: [0.24036558, 0.0160034541, 0.362745106]
+textureInfluence: 0.699999988

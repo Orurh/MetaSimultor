@@ -6,7 +6,7 @@ public:
   OpenGLTexture(const std::string &path);
   OpenGLTexture(const TextureSpecification &spec);
   virtual ~OpenGLTexture();
-
+  virtual uint32_t GetId() const override { return m_rendererID; }
   virtual void Bind(uint32_t slot = 0) const override;
   virtual void Unbind() const override;
 

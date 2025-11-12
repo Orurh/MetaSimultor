@@ -76,12 +76,12 @@
         "unordered_set": "cpp",
         "__bit_reference": "cpp",
         "set": "cpp",
-       
-    
-    
-    // Полностью отключаем C/C++ расширение
-    "C_Cpp.intelliSenseEngine": "disabled",
-    "C_Cpp.autocomplete": "disabled", 
-    "C_Cpp.errorSquiggles": "disabled"
+        "C_Cpp.intelliSenseEngine": "disabled",
+        "C_Cpp.autocomplete": "disabled",
+        "C_Cpp.errorSquiggles": "disabled",
+        "any": "cpp",
+        "map": "cpp",
+        "ranges": "cpp",
+        "valarray": "cpp"
     }
 }
