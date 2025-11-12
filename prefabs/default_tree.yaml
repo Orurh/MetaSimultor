@@ -1,6 +1,6 @@
 name: default_tree
 type: 0
-model_path: res/models/LowPolytree/CartoonTree.obj
+model_path: res/models/TREE.obj
 bounds_min:
   - -2
   - 0

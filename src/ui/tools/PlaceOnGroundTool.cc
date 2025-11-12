@@ -160,8 +160,9 @@ void PlaceOnGroundTool::OnUpdate(EditorContext& ctx) {
 
   // 6b) фолбек: Y=0 (как у вас было)
   glm::vec3 hitPlane{};
-  if (!RaycastPlaneY0(ro, rd, hitPlane))
+  if (!RaycastPlaneY0(ro, rd, hitPlane)) {
     return;
+}
 
   if (ctx.State().m_placeKind == EditorState::PlaceKind::FIRE) {
     ctx.m_scene->AddFire(hitPlane.x, hitPlane.z, ctx.State().m_fireIntensity);
@@ -177,12 +178,12 @@ bool PlaceOnGroundTool::IsDeleteGesture() noexcept {
   using engine::InputState;
   using engine::KeyCode;
 
-  const bool rmbPressed =
+  const bool RMB_PRESSED =
       InputSystem::Instance().GetMouseButton(MouseButton::Right, InputState::Pressed);
   const bool SPACE_LMB_PRESSED =
       InputSystem::Instance().GetKey(KeyCode::Space) &&
       InputSystem::Instance().GetMouseButton(MouseButton::Left, InputState::Pressed);
-  return rmbPressed || SPACE_LMB_PRESSED;
+  return RMB_PRESSED || SPACE_LMB_PRESSED;
 }
 
 // ── Обработчик удаления ────────────────────────────

@@ -1,5 +1,7 @@
 // ui/panels/ToolbarPanel.cpp
 #include "ui/panels/ToolbarPanel.h"
+#include "ui/panels/FoliageBrushTool.h"
+#include "ui/tools/PlaceOnGroundTool.h"
 
 #include <algorithm>
 #include <iostream>
@@ -85,6 +87,8 @@ void ToolbarPanel::DrawModeSwitch(EditorContext& ctx) {
   bool isFire = (st.m_placeKind == EditorState::PlaceKind::FIRE);
   if (ImGui::RadioButton("Fire##mode", isFire)) {
     st.m_placeKind = EditorState::PlaceKind::FIRE;
+    if (ctx.m_editor != nullptr) { ctx.m_editor->SetActiveTool(ui::ToolType::PLACE_ON_GROUND, ctx);
+}
   }
 
   // огонь — его параметры сразу тут
@@ -99,7 +103,7 @@ void ToolbarPanel::DrawModeSwitch(EditorContext& ctx) {
     if (ctx.m_scene) {
       const auto& ids = ctx.m_scene->ListPrefabIds();
       if (!ids.empty()) {
-        if (std::find(ids.begin(), ids.end(), st.m_selectedPrefab) == ids.end()) {
+        if (std::ranges::find(ids, st.m_selectedPrefab) == ids.end()) {
           st.m_selectedPrefab = ids.front();
         }
         if (ImGui::BeginCombo("Prefab##combo", st.m_selectedPrefab.c_str())) {
@@ -130,16 +134,41 @@ void ToolbarPanel::DrawToolSelector(EditorContext& ctx) {
   }
 }
 
-void ToolbarPanel::DrawActiveToolUI(EditorContext& ctx) {
-  // если активна кисть — рисуем её настройки
-  if (auto* brush = ctx.m_editor ? ctx.m_editor->GetTool<ui::FoliageBrushTool>() : nullptr) {
-    brush->DrawUI(ctx);
-    return;
-  }
+// ui/panels/ToolbarPanel.cpp
 
-  // опционально: другие инструменты могут иметь свой UI
-  // if (auto* place = ctx.m_editor->GetTool<ui::PlaceOnGroundTool>()) { ... }
+
+void ToolbarPanel::DrawActiveToolUI(EditorContext& ctx) {
+  const auto active = ctx.GetActiveToolType();
+  constexpr ImGuiWindowFlags kWinFlags =
+      ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
+
+  switch (active) {
+    case ToolType::PLACE_ON_GROUND: {
+      bool open = true; // без крестика можно передать nullptr
+      if (ImGui::Begin("Place on ground", &open, kWinFlags)) {
+        if (auto* t = ctx.m_editor ? ctx.m_editor->GetTool<ui::PlaceOnGroundTool>() : nullptr) {
+          // если нет контролов — можно текст “no settings”
+          // t->DrawControls(ctx);
+          ImGui::TextDisabled("No settings.");
+        }
+      }
+      ImGui::End();
+      break;
+    }
+    case ToolType::OTHER_TOOL: { // Foliage Brush
+      bool open = true;
+      if (ImGui::Begin("Foliage Brush", &open, kWinFlags)) {
+        if (auto* t = ctx.m_editor ? ctx.m_editor->GetTool<FoliageBrushTool>() : nullptr) {
+          t->DrawControls(ctx); // ВАЖНО: без Begin/End внутри
+        }
+      }
+      ImGui::End();
+      break;
+    }
+    default: break;
+  }
 }
+
 
 
 

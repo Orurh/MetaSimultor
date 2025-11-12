@@ -44,8 +44,8 @@ public:
   void OnDeactivate(EditorContext& /*ctx*/) override { m_preview.clear(); m_dragging = false; }
   void OnUpdate(EditorContext& ctx) override;
 
-  // панель параметров (вызови из Panels/Toolbar или отдельной панели)
-  void DrawUI(EditorContext& ctx);
+  // Контролы инструмента (без Begin/End)
+  void DrawControls(EditorContext& ctx);
 
 private:
   // выбор области
