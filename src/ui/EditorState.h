@@ -10,5 +10,6 @@ struct EditorState {
   PlaceKind m_placeKind = PlaceKind::PREFAB;
   std::string m_selectedPrefab = "default_tree";
   float m_fireIntensity = 1.0F;
+
 };
 }  // namespace ui

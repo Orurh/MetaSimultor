@@ -22,17 +22,32 @@ Agent AgentManager::AddTree(int tree_id, float base_x, float base_z) {
   return tree;
 }
 
-void AgentManager::setupTreeFireCollider(Agent &tree, float base_x,
-                                         float base_z) {
-  tree.fire_collider.bounds_min.x = base_x - 2.0f;
-  tree.fire_collider.bounds_min.y = 0.0f;
-  tree.fire_collider.bounds_min.z = base_z - 2.0f;
+// void AgentManager::AddFire(float x, float y, float z, float intensity) {
+//   Agent a;
+//   a.position = Float3{x, y, z};
+//   a.type = AgentType::BURNING;             // или NORMAL, если у тебя огонь «разжигает» со временем
+//   a.intensity = intensity;                  // или твоя логика начального значения
 
-  tree.fire_collider.bounds_max.x = base_x + 2.0f;
-  tree.fire_collider.bounds_max.y = 8.0f;
-  tree.fire_collider.bounds_max.z = base_z + 2.0f;
+//   // если нужен коллайдер — инициализируй его локально:
+//   a.fire_collider.point_count = 1;
+//   a.fire_collider.heat_points[0] = Float3{0.f, 0.f, 0.f};
+//   a.fire_collider.fuels[0] = 100.f;
+//   a.fire_collider.intensities[0] = intensity;
 
-  generateTreeHeatPoints(tree.fire_collider, base_x, base_z);
+//   AddAgent(a); // как ты обычно пушишь в буфер + на GPU
+// }
+
+
+void AgentManager::setupTreeFireCollider(Agent& tree, float base_x, float base_z) {
+    tree.fire_collider.bounds_min.x = base_x - 2.0f;
+    tree.fire_collider.bounds_min.y = 0.0f;         
+    tree.fire_collider.bounds_min.z = base_z - 2.0f;
+    
+    tree.fire_collider.bounds_max.x = base_x + 2.0f;
+    tree.fire_collider.bounds_max.y = 8.0f;         
+    tree.fire_collider.bounds_max.z = base_z + 2.0f;
+    
+    generateTreeHeatPoints(tree.fire_collider, base_x, base_z);
 }
 
 void AgentManager::IgniteRandomPoint(int agent_index) {
@@ -106,19 +121,25 @@ void AgentManager::generateTreeHeatPoints(FireCollider &collider, float base_x,
   }
 }
 
-void AgentManager::AddFire(float x, float y, float intensity) {
-  if (m_count >= m_capacity)
-    return;
+void AgentManager::AddFire(float x, float z, float intensity) {
+  AddFireAt(Float3{x, 0.0f, z}, intensity);
+}
 
-  Agent fire;
+void AgentManager::AddFireAt(const Float3& world, float intensity) {
+  if (m_count >= m_capacity) return;
+
+  Agent fire{};
   fire.type = BURNING;
   fire.object_id = -1;
-  // fire.position = {x, y, 0.0f};
-  fire.position = {x, 0.0f, y};
+  fire.position = world;
 
-  setupFireSourceCollider(fire, x, y);
-
+  fire.fire_collider.point_count = 1;
+  fire.fire_collider.heat_points[0] = world;   // мировая точка источника
+  fire.fire_collider.fuels[0] = 100.0f;
   fire.fire_collider.intensities[0] = intensity;
+
+  fire.fire_collider.bounds_min = Float3(world.x - 0.25f, world.y - 0.25f, world.z - 0.25f);
+  fire.fire_collider.bounds_max = Float3(world.x + 0.25f, world.y + 0.25f, world.z + 0.25f);
 
   AddAgent(fire);
 }
@@ -159,11 +180,30 @@ Agent AgentManager::CreateAgent(AgentType type, Float3 position,
   agent.type = type;
   agent.position = position;
   agent.object_id = components.object_id;
-  agent.intencity = components.intencity;
+  agent.intensity = components.intencity;
 
   agent.fire_collider.bounds_min = components.collider_bounds_min;
   agent.fire_collider.bounds_max = components.collider_bounds_max;
   generateTreeHeatPoints(agent.fire_collider, position.x, position.z);
   AddAgent(agent);
   return agent;
+}
+
+bool AgentManager::RemoveAgentAt(int idx, int* outFrom, int* outTo) {
+  if (idx < 0 || (size_t)idx >= m_count) return false;
+  const int last = (int)m_count - 1;
+  if (outFrom) *outFrom = -1;
+  if (outTo)   *outTo   = -1;
+
+  if (idx != last) {
+    // копируем последнего агента на место удаляемого
+    cudaMemcpy(m_agents + idx, m_agents + last,
+               sizeof(Agent), cudaMemcpyDeviceToDevice);
+    if (outFrom) *outFrom = last;
+    if (outTo)   *outTo   = idx;
+  }
+  // просто уменьшаем "логическое" количество
+  --m_count;
+  // (опционально) cudaGetLastError проверка
+  return true;
 }

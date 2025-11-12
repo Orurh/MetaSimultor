@@ -2,6 +2,7 @@
 #pragma once
 #include "ui/IPanel.h"
 #include <imgui.h>
+#include "FoliageBrushTool.h"
 
 namespace ui {
 class ToolbarPanel final : public IPanel {
@@ -13,6 +14,10 @@ public:
   void OnHide(EditorContext& /*ctx*/) override { m_wasVisible = false; }
 
 private:
+  void DrawModeSwitch(EditorContext& ctx);     // Prefab / Fire
+  void DrawToolSelector(EditorContext& ctx);   // Place on ground / Foliage Brush
+  void DrawActiveToolUI(EditorContext& ctx);   // UI активного инструмента (в т.ч. кисти)
+
   bool  m_wasVisible = false;
   float m_fireIntensity = 1.0F;
   float m_fireX = 510.0f;   // мировая X

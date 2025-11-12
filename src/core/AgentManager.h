@@ -21,7 +21,9 @@ public:
     
     Agent AddTree(int tree_id, float base_x, float base_z);
     void AddFire(float x, float y, float intensity);  
+    void AddFireAt(const Float3& world, float intensity);
     void AddAgent(const Agent& angent);
+    bool RemoveAgentAt(int idx, int* outSwappedFrom, int* outSwappedTo);
     Agent* getDeviceAgents() { return m_agents; }
     int getAgentCount() const { return m_count; }
     void IgniteRandomPoint(int agent_index);

@@ -11,6 +11,7 @@ CompileFlags:
     # --- твои инклюды проекта ---
     "-Iinclude",
     "-Isrc",
+    "-Isrc/ui",
 
     # --- системные, как у тебя ---
     "-I/usr/include/x86_64-linux-gnu/qt6",

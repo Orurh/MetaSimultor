@@ -101,7 +101,7 @@ Agent PrefabSystem::CreateAgentFromPrefab(const AgentPrefab& prefab, const glm::
     agent.fire_collider.intensities[i] = 0.0F;
   }
 
-  agent.intencity = prefab.m_physics.m_intencity;
+  agent.intensity = prefab.m_physics.m_intencity;
   agent.type = prefab.m_type;
 
   return agent;
@@ -126,7 +126,7 @@ void PrefabSystem::CreatePrefabFromAgent(const std::string& name, const Agent& a
     prefab.m_firePoints.push_back(fp);
   }
 
-  prefab.m_physics.m_intencity = agent.intencity;
+  prefab.m_physics.m_intencity = agent.intensity;
 
   m_prefabs[name] = prefab;
   PushUnique(m_idsInLoadOrder, name);
