@@ -203,6 +203,7 @@ glm::mat4 Scene::GetProjMatrix(int w, int h) {
 void Scene::Clear() {
   m_sceneObjects.Clear();
   m_agentManager.Clear();
+  Renderer::Instance().Shutdown();
 }
 
 void Scene::AddPrefab(const std::string& prefab_id, float x, float z) {

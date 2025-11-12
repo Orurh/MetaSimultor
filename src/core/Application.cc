@@ -35,7 +35,9 @@ Application::Application(int width, int height, const char *title)
   m_scene->Init();
 }
 
-engine::Application::~Application() = default; 
+engine::Application::~Application() {
+  m_scene->Clear();
+}
 
 void Application::AddExtension(std::unique_ptr<IAppExtension> ext) {
   m_extensions.push_back(std::move(ext));

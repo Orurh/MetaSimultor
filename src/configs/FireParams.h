@@ -25,7 +25,6 @@ struct FireParams {
         glm::vec3 baseColor = {1.0f, 0.3f, 0.1f};
         glm::vec3 endColor = {1.0f, 0.8f, 0.2f};
 
-        // УНИВЕРСАЛЬНЫЕ ЦВЕТОВЫЕ ПАРАМЕТРЫ ДЛЯ ВСЕХ ЭФФЕКТОВ
         float redIntensity = 1.0f;
         float yellowReduction = 0.3f;
         float alphaMultiplier = 1.0f;

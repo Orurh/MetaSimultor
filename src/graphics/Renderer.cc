@@ -82,7 +82,30 @@ void Renderer::Init() {
   SetFireParams({});
 }
 
-void Renderer::Shutdown() {}
+void Renderer::Shutdown() {
+  m_vao.reset();
+  m_vbo.reset(); 
+  m_ebo.reset();
+  m_agentVAO.reset();
+  m_agentVBO.reset();
+  m_instanceBuffer.reset();
+  m_instanceVAO.reset();
+  m_particleVAO.reset();
+  m_particleVBO.reset();
+  
+  m_shader.reset();
+  m_modelShader.reset();
+  m_fireGeometryShader.reset();
+  m_instanceModelShader.reset();
+  m_terrainShader.reset();
+  m_universalParticleShader.reset();
+  
+  m_fireTexture.reset();
+  m_smokeTexture.reset();
+  m_sparksTexture.reset();
+  m_ashTexture.reset();
+  m_heatTexture.reset();
+}
 
 void Renderer::DrawCube(const glm::vec3 &position, const glm::vec3 &color,
                         const glm::vec3 &size) {
