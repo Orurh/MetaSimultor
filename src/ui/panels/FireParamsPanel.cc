@@ -18,167 +18,318 @@ void FireParamsPanel::Draw(EditorContext &ctx) {
   
   ImGui::Separator();
 
+  // Кнопки управления
   if (ImGui::Button("Reset to Default")) {
     m_params = FireParams();
+    ApplyParamsToShader();
   }
   ImGui::SameLine();
-  if (ImGui::Button("Apply to Shader")) {
-    auto &renderer = engine::Renderer::Instance();
-    renderer.SetFireParams(m_params);
+  if (ImGui::Button("Enable All")) {
+    m_params.fire.enabled = true;
+    m_params.smoke.enabled = true;
+    m_params.sparks.enabled = true;
+    m_params.ash.enabled = true;
+    m_params.heat.enabled = true;
+    ApplyParamsToShader();
   }
+  ImGui::SameLine();
+  if (ImGui::Button("Disable All")) {
+    m_params.fire.enabled = false;
+    m_params.smoke.enabled = false;
+    m_params.sparks.enabled = false;
+    m_params.ash.enabled = false;
+    m_params.heat.enabled = false;
+    ApplyParamsToShader();
+  }
+
+  ImGui::Separator();
+
+  // ВКЛАДКИ
+  if (ImGui::BeginTabBar("EffectsTabs")) {
+    // Глобальные настройки
+    if (ImGui::BeginTabItem("Global")) {
+      m_currentTab = 0;
+      DrawGlobalTab();
+      ImGui::EndTabItem();
+    }
+    
+    // Настройки эффектов
+    if (ImGui::BeginTabItem("Fire")) {
+      m_currentTab = 1;
+      DrawFireTab();
+      ImGui::EndTabItem();
+    }
+    
+    if (ImGui::BeginTabItem("Smoke")) {
+      m_currentTab = 2;
+      DrawSmokeTab();
+      ImGui::EndTabItem();
+    }
+    
+    if (ImGui::BeginTabItem("Sparks")) {
+      m_currentTab = 3;
+      DrawSparksTab();
+      ImGui::EndTabItem();
+    }
+    
+    if (ImGui::BeginTabItem("Ash")) {
+      m_currentTab = 4;
+      DrawAshTab();
+      ImGui::EndTabItem();
+    }
+    
+    if (ImGui::BeginTabItem("Heat")) {
+      m_currentTab = 5;
+      DrawHeatTab();
+      ImGui::EndTabItem();
+    }
+    
+    if (ImGui::BeginTabItem("Textures")) {
+      m_currentTab = 6;
+      DrawTexturesTab();
+      ImGui::EndTabItem();
+    }
+    
+    ImGui::EndTabBar();
+  }
+
+  // Дебаунсинг обновлений
+  auto now = std::chrono::steady_clock::now();
+  if (m_needsUpdate && (now - m_lastUpdateTime) > UPDATE_DELAY) {
+    ApplyParamsToShader();
+    m_needsUpdate = false;
+  }
+
+  ImGui::End();
+}
+
+void FireParamsPanel::DrawGlobalTab() {
+  ImGui::SeparatorText("Global Settings");
+  
   bool changed = false;
-  ImGui::SeparatorText("Main Parameters");
-
-  changed |= ImGui::SliderFloat("Base Intensity", &m_params.baseIntensity, 0.1f, 5.0f);
-  changed |=ImGui::SliderFloat("Particle Size", &m_params.particleSize, 0.5f, 10.0f);
-  changed |=ImGui::SliderFloat("Size Variation", &m_params.sizeVariation, 0.0f, 2.0f);
-  ImGui::SeparatorText("Animation");
-  changed |=ImGui::SliderFloat("Animation Speed", &m_params.animationSpeed, 0.1f, 5.0f);
-  changed |=ImGui::SliderFloat("Particle Lifetime", &m_params.particleLifetime, 0.5f,
-                      10.0f);
-  changed |=ImGui::SliderFloat("Spawn Rate", &m_params.spawnRate, 10.0f, 1000.0f);
-  ImGui::SeparatorText("Movement");
-  changed |=ImGui::SliderFloat("Rise Speed", &m_params.riseSpeed, 0.1f, 10.0f);
-  changed |=ImGui::SliderFloat("Turbulence", &m_params.turbulence, 0.0f, 2.0f);
-  changed |=ImGui::SliderFloat("Wind Influence", &m_params.windInfluence, 0.0f, 5.0f);
-  ImGui::SeparatorText("Visual Effects");
-  changed |=ImGui::SliderFloat("Red Intensity", &m_params.redIntensity, 0.0f, 2.0f);
-  changed |=ImGui::SliderFloat("Yellow Reduction", &m_params.yellowReduction, 0.0f, 1.0f);
-  changed |=ImGui::SliderFloat("Alpha Multiplier", &m_params.alphaMultiplier, 0.1f, 3.0f);
-  ImGui::SeparatorText("Particle Distribution");
-  changed |=ImGui::SliderFloat("Horizontal Spread", &m_params.horizontalSpread, 0.1f,
-                     2.0f);
-  changed |=ImGui::SliderFloat("Vertical Spread", &m_params.verticalSpread, 0.1f, 2.0f);
-
-  ImGui::SeparatorText("Colors");
-  changed |=ImGui::ColorEdit3("Base Color", &m_params.baseColor[0]);
-  changed |=ImGui::ColorEdit3("End Color", &m_params.endColor[0]);
-  ImGui::SeparatorText("Fire Texture");
-
-  if (ImGui::InputText("Texture Path", texturePath, sizeof(texturePath))) {
-      m_params.fireTexturePath = texturePath;
-      LoadAndPreviewTexture(texturePath);
-      changed = true;
-  }
-
-  if (ImGui::Button("Load Texture")) {
-      m_params.fireTexturePath = texturePath;
-      LoadAndPreviewTexture(texturePath);
-      changed = true;
-      std::cout << "Texture loaded: " << texturePath << std::endl;
-  }
   
-  ImGui::SameLine();
+  ImGui::SeparatorText("Quick Toggles");
   
-  if (ImGui::Button("Preview")) {
-      LoadAndPreviewTexture(texturePath);
-  }
-
-  // Preview текстуры
-  DrawTexturePreview();
-
-  changed |= ImGui::SliderFloat("Texture Influence", &m_params.textureInfluence, 0.0f, 1.0f, "%.2f");
-  ImGui::TextDisabled("0.0 = only params color, 1.0 = only texture color");
+  ImGui::BeginTable("QuickToggles", 5, ImGuiTableFlags_SizingFixedFit);
+  ImGui::TableNextRow();
+  
+  ImGui::TableSetColumnIndex(0);
+  changed |= ImGui::Checkbox("Fire", &m_params.fire.enabled);
+  
+  ImGui::TableSetColumnIndex(1);
+  changed |= ImGui::Checkbox("Smoke", &m_params.smoke.enabled);
+  
+  ImGui::TableSetColumnIndex(2);
+  changed |= ImGui::Checkbox("Sparks", &m_params.sparks.enabled);
+  
+  ImGui::TableSetColumnIndex(3);
+  changed |= ImGui::Checkbox("Ash", &m_params.ash.enabled);
+  
+  ImGui::TableSetColumnIndex(4);
+  changed |= ImGui::Checkbox("Heat", &m_params.heat.enabled);
+  
+  ImGui::EndTable();
   
   if (changed) {
     m_needsUpdate = true;
     m_lastUpdateTime = std::chrono::steady_clock::now();
   }
+}
+
+void FireParamsPanel::DrawEffectParams(const char* name, FireParams::EffectParams& params, int effectType, bool showColor) {
+  ImGui::SeparatorText(name);
+  
+  bool changed = false;
+  
+  changed |= ImGui::Checkbox("Enabled", &params.enabled);
+  
+  if (params.enabled) {
+    ImGui::Indent();
     
-    // Применяем изменения с задержкой
-  auto now = std::chrono::steady_clock::now();
-  if (m_needsUpdate && (now - m_lastUpdateTime) > UPDATE_DELAY) {
-    auto &renderer = engine::Renderer::Instance();
-    renderer.SetFireParams(m_params);
-    m_needsUpdate = false;
+    ImGui::Text("Size & Animation");
+    changed |= ImGui::SliderFloat("Particle Size", &params.particleSize, 0.1f, 10.0f);
+    changed |= ImGui::SliderFloat("Size Variation", &params.sizeVariation, 0.0f, 3.0f);
+    changed |= ImGui::SliderFloat("Animation Speed", &params.animationSpeed, 0.1f, 5.0f);
+    changed |= ImGui::SliderFloat("Lifetime", &params.lifetime, 0.5f, 15.0f);
+    changed |= ImGui::SliderFloat("Spawn Rate", &params.spawnRate, 1.0f, 500.0f);
+    
+    ImGui::Text("Movement");
+    changed |= ImGui::SliderFloat("Rise Speed", &params.riseSpeed, 0.0f, 10.0f);
+    changed |= ImGui::SliderFloat("Turbulence", &params.turbulence, 0.0f, 3.0f);
+    changed |= ImGui::SliderFloat("Wind Influence", &params.windInfluence, 0.0f, 3.0f);
+    changed |= ImGui::SliderFloat("Spread", &params.spread, 0.1f, 5.0f);
+    
+    if (showColor) {
+      ImGui::Text("Colors");
+      changed |= ImGui::ColorEdit3("Base Color", &params.baseColor[0]);
+      changed |= ImGui::ColorEdit3("End Color", &params.endColor[0]);
+      changed |= ImGui::SliderFloat("Color Variation", &params.colorVariation, 0.0f, 1.0f);
+    }
+    ImGui::Text("Color Effects");
+    changed |= ImGui::SliderFloat("Red Intensity", &params.redIntensity, 0.0f, 2.0f);
+    changed |= ImGui::SliderFloat("Yellow Reduction", &params.yellowReduction, 0.0f, 1.0f);
+    changed |= ImGui::SliderFloat("Alpha Multiplier", &params.alphaMultiplier, 0.1f, 3.0f);
+    changed |= ImGui::SliderFloat("Texture Influence", &params.textureInfluence, 0.0f, 1.0f);
+    
+    // Информация о эффекте
+    ImGui::TextDisabled("Effect appears at: ");
+    if (effectType == 0) ImGui::TextDisabled("Always when burning");
+    else if (effectType == 1) ImGui::TextDisabled("Medium fire intensity");
+    else if (effectType == 2) ImGui::TextDisabled("High fire intensity"); 
+    else if (effectType == 3) ImGui::TextDisabled("Any fire intensity");
+    else if (effectType == 4) ImGui::TextDisabled("Creates heat distortion");
+    
+    ImGui::Unindent();
   }
-  ImGui::End();
-}
-void FireParamsPanel::LoadAndPreviewTexture(const std::string& path) {
-    try {
-        if (std::filesystem::exists(path)) {
-            m_currentTexture = engine::Texture::Create(path);
-            m_textureLoaded = true;
-            m_lastTexturePath = path;
-            std::cout << "Texture preview loaded: " << path << std::endl;
-        } else {
-            m_textureLoaded = false;
-            std::cout << "Texture file not found: " << path << std::endl;
-        }
-    }
-    catch (const std::exception& e) {
-        m_textureLoaded = false;
-        std::cerr << "Failed to load texture: " << e.what() << std::endl;
-    }
-
+  
+  if (changed) {
+    m_needsUpdate = true;
+    m_lastUpdateTime = std::chrono::steady_clock::now();
+  }
 }
 
-void FireParamsPanel::DrawTexturePreview() {
-    if (!m_textureLoaded || !m_currentTexture) {
-        ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "Texture not loaded");
-        
-        // Placeholder
-        ImGui::BeginChild("TexturePlaceholder", ImVec2(200, 200), true, ImGuiWindowFlags_NoScrollbar);
-        ImVec2 size = ImGui::GetContentRegionAvail();
-        ImDrawList* draw_list = ImGui::GetWindowDrawList();
-        ImVec2 p0 = ImGui::GetCursorScreenPos();
-        ImVec2 p1 = ImVec2(p0.x + size.x, p0.y + size.y);
-        
-        // Рисуем серый квадрат
-        draw_list->AddRectFilled(p0, p1, IM_COL32(50, 50, 50, 255));
-        draw_list->AddRect(p0, p1, IM_COL32(100, 100, 100, 255));
-        
-        // Текст по центру
-        ImVec2 text_size = ImGui::CalcTextSize("No Texture");
-        ImVec2 text_pos = ImVec2(p0.x + (size.x - text_size.x) * 0.5f, 
-                                p0.y + (size.y - text_size.y) * 0.5f);
-        draw_list->AddText(text_pos, IM_COL32(150, 150, 150, 255), "No Texture");
-        
-        ImGui::EndChild();
-        return;
-    }
-    
-    ImGui::Text("Texture Preview:");
-    
-    auto texture_id = m_currentTexture->GetId();
-    
-    if (texture_id) {
-        float preview_size = 200.0f;
-        
-        ImGui::BeginChild("TexturePreview", ImVec2(preview_size + 10, preview_size + 50), true);
-        {
-            // ИСПРАВЛЕННЫЙ ВЫЗОВ - для новой версии ImGui
-            ImGui::Image(texture_id, ImVec2(preview_size, preview_size));
-            
-            // Информация под preview
-            ImGui::Text("Size: %dx%d", m_currentTexture->GetWidth(), m_currentTexture->GetHeight());
-            ImGui::Text("File: %s", std::filesystem::path(texturePath).filename().string().c_str());
-        }
-        ImGui::EndChild();
+void FireParamsPanel::DrawFireTab() {
+  DrawEffectParams("Fire Parameters", m_params.fire, 0, true);
+}
+
+void FireParamsPanel::DrawSmokeTab() {
+  DrawEffectParams("Smoke Parameters", m_params.smoke, 1, true);
+}
+
+void FireParamsPanel::DrawSparksTab() {
+  DrawEffectParams("Sparks Parameters", m_params.sparks, 2, true);
+}
+
+void FireParamsPanel::DrawAshTab() {
+  DrawEffectParams("Ash Parameters", m_params.ash, 3, false);
+}
+
+void FireParamsPanel::DrawHeatTab() {
+  DrawEffectParams("Heat Parameters", m_params.heat, 4, false);
+}
+
+void FireParamsPanel::DrawTexturesTab() {
+  ImGui::SeparatorText("Effect Textures");
+  
+  bool changed = false;
+  
+  // Огонь
+  ImGui::Text("Fire Texture:");
+  if (ImGui::InputText("##FireTex", m_texturePaths[0], sizeof(m_texturePaths[0]))) {
+    m_params.fireTexturePath = m_texturePaths[0];
+    LoadAndPreviewTexture(m_params.fireTexturePath, 0);
+    changed = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Load##Fire")) {
+    LoadAndPreviewTexture(m_params.fireTexturePath, 0);
+    changed = true;
+  }
+  DrawTexturePreview(0, "Fire");
+  
+  // Дым
+  ImGui::Text("Smoke Texture:");
+  if (ImGui::InputText("##SmokeTex", m_texturePaths[1], sizeof(m_texturePaths[1]))) {
+    m_params.smokeTexturePath = m_texturePaths[1];
+    LoadAndPreviewTexture(m_params.smokeTexturePath, 1);
+    changed = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Load##Smoke")) {
+    LoadAndPreviewTexture(m_params.smokeTexturePath, 1);
+    changed = true;
+  }
+  DrawTexturePreview(1, "Smoke");
+  
+  // Искры
+  ImGui::Text("Sparks Texture:");
+  if (ImGui::InputText("##SparksTex", m_texturePaths[2], sizeof(m_texturePaths[2]))) {
+    m_params.sparksTexturePath = m_texturePaths[2];
+    LoadAndPreviewTexture(m_params.sparksTexturePath, 2);
+    changed = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Load##Sparks")) {
+    LoadAndPreviewTexture(m_params.sparksTexturePath, 2);
+    changed = true;
+  }
+  DrawTexturePreview(2, "Sparks");
+  
+  // Пепел
+  ImGui::Text("Ash Texture:");
+  if (ImGui::InputText("##AshTex", m_texturePaths[3], sizeof(m_texturePaths[3]))) {
+    m_params.ashTexturePath = m_texturePaths[3];
+    LoadAndPreviewTexture(m_params.ashTexturePath, 3);
+    changed = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Load##Ash")) {
+    LoadAndPreviewTexture(m_params.ashTexturePath, 3);
+    changed = true;
+  }
+  DrawTexturePreview(3, "Ash");
+  
+  // Тепло
+  ImGui::Text("Heat Texture:");
+  if (ImGui::InputText("##HeatTex", m_texturePaths[4], sizeof(m_texturePaths[4]))) {
+    m_params.heatTexturePath = m_texturePaths[4];
+    LoadAndPreviewTexture(m_params.heatTexturePath, 4);
+    changed = true;
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Load##Heat")) {
+    LoadAndPreviewTexture(m_params.heatTexturePath, 4);
+    changed = true;
+  }
+  DrawTexturePreview(4, "Heat");
+  
+  if (changed) {
+    m_needsUpdate = true;
+    m_lastUpdateTime = std::chrono::steady_clock::now();
+  }
+}
+
+void FireParamsPanel::LoadAndPreviewTexture(const std::string& path, int textureIndex) {
+  try {
+    if (std::filesystem::exists(path)) {
+      m_texturePreviews[textureIndex] = engine::Texture::Create(path);
+      m_textureLoaded[textureIndex] = true;
+      strncpy(m_texturePaths[textureIndex], path.c_str(), sizeof(m_texturePaths[textureIndex])-1);
+      std::cout << "Texture preview loaded: " << path << std::endl;
     } else {
-        // Если не получили ID - показываем информацию о текстуре
-        ImGui::BeginChild("TextureInfo", ImVec2(200, 100), true);
-        {
-            ImGui::Text("Texture Info:");
-            ImGui::Text("Size: %dx%d", m_currentTexture->GetWidth(), m_currentTexture->GetHeight());
-            ImGui::Text("File: %s", std::filesystem::path(texturePath).filename().string().c_str());
-            ImGui::Text("Status: Loaded");
-        }
-        ImGui::EndChild();
+      m_textureLoaded[textureIndex] = false;
+      std::cout << "Texture file not found: " << path << std::endl;
     }
-    
-    // Кнопки управления
-    ImGui::BeginGroup();
-    if (ImGui::Button("Reload Texture")) {
-        LoadAndPreviewTexture(texturePath);
-    }
-    ImGui::SameLine();
-    if (ImGui::Button("Clear Preview")) {
-        m_textureLoaded = false;
-        m_currentTexture.reset();
-    }
-    ImGui::EndGroup();
+  }
+  catch (const std::exception& e) {
+    m_textureLoaded[textureIndex] = false;
+    std::cerr << "Failed to load texture: " << e.what() << std::endl;
+  }
 }
+
+void FireParamsPanel::DrawTexturePreview(int textureIndex, const char* name) {
+  if (!m_textureLoaded[textureIndex] || !m_texturePreviews[textureIndex]) {
+    ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.4f, 1.0f), "%s texture not loaded", name);
+    return;
+  }
+  
+  auto texture_id = m_texturePreviews[textureIndex]->GetId();
+  
+  if (texture_id) {
+    float preview_size = 100.0f;
+    
+    ImGui::BeginChild((std::string("TexturePreview") + name).c_str(), 
+                     ImVec2(preview_size + 10, preview_size + 30), true);
+    {
+      ImGui::Image((ImTextureID)(intptr_t)texture_id, ImVec2(preview_size, preview_size));
+      ImGui::Text("Size: %dx%d", m_texturePreviews[textureIndex]->GetWidth(), 
+                  m_texturePreviews[textureIndex]->GetHeight());
+    }
+    ImGui::EndChild();
+  }
+}
+
+
 void FireParamsPanel::DrawPresetsSection() {
   ImGui::SeparatorText("Presets");
   
@@ -242,7 +393,6 @@ void FireParamsPanel::SavePreset(const std::string& name) {
   Preset preset;
   preset.name = name;
   preset.params = m_params;
-  preset.texturePath = m_params.fireTexturePath;
   
   SavePresetToYAML(preset);
   m_currentPresetName = name;
@@ -258,12 +408,21 @@ void FireParamsPanel::LoadPreset(const std::string& name) {
     m_params = preset.params;
     m_currentPresetName = name;
     
-    strncpy(texturePath, preset.texturePath.c_str(), sizeof(texturePath)-1);
-    texturePath[sizeof(texturePath)-1] = '\0';
-
-    m_params.fireTexturePath = texturePath;
-    auto &renderer = engine::Renderer::Instance();
-    renderer.SetFireParams(m_params);
+    // Обновляем пути текстур в UI
+    strncpy(m_texturePaths[0], m_params.fireTexturePath.c_str(), sizeof(m_texturePaths[0])-1);
+    strncpy(m_texturePaths[1], m_params.smokeTexturePath.c_str(), sizeof(m_texturePaths[1])-1);
+    strncpy(m_texturePaths[2], m_params.sparksTexturePath.c_str(), sizeof(m_texturePaths[2])-1);
+    strncpy(m_texturePaths[3], m_params.ashTexturePath.c_str(), sizeof(m_texturePaths[3])-1);
+    strncpy(m_texturePaths[4], m_params.heatTexturePath.c_str(), sizeof(m_texturePaths[4])-1);
+    
+    // Перезагружаем preview текстур
+    for (int i = 0; i < 5; i++) {
+      LoadAndPreviewTexture(m_texturePaths[i], i);
+    }
+    
+    ApplyParamsToShader();
+    
+    std::cout << "Preset loaded: " << name << std::endl;
   }
 }
 
@@ -305,42 +464,45 @@ void FireParamsPanel::SavePresetToYAML(const Preset& preset) {
   
   out << YAML::BeginMap;
   out << YAML::Key << "name" << YAML::Value << preset.name;
-  out << YAML::Key << "texturePath" << YAML::Value << preset.texturePath;
   
-  // Main Parameters
-  out << YAML::Key << "baseIntensity" << YAML::Value << preset.params.baseIntensity;
-  out << YAML::Key << "particleSize" << YAML::Value << preset.params.particleSize;
-  out << YAML::Key << "sizeVariation" << YAML::Value << preset.params.sizeVariation;
+  // Global settings
+  // Texture paths
+  out << YAML::Key << "fireTexturePath" << YAML::Value << preset.params.fireTexturePath;
+  out << YAML::Key << "smokeTexturePath" << YAML::Value << preset.params.smokeTexturePath;
+  out << YAML::Key << "sparksTexturePath" << YAML::Value << preset.params.sparksTexturePath;
+  out << YAML::Key << "ashTexturePath" << YAML::Value << preset.params.ashTexturePath;
+  out << YAML::Key << "heatTexturePath" << YAML::Value << preset.params.heatTexturePath;
   
-  // Animation
-  out << YAML::Key << "animationSpeed" << YAML::Value << preset.params.animationSpeed;
-  out << YAML::Key << "particleLifetime" << YAML::Value << preset.params.particleLifetime;
-  out << YAML::Key << "spawnRate" << YAML::Value << preset.params.spawnRate;
+  // Effect parameters
+  auto saveEffectParams = [&](const std::string& effectName, const FireParams::EffectParams& params) {
+    out << YAML::Key << effectName + "_enabled" << YAML::Value << params.enabled;
+    out << YAML::Key << effectName + "_particleSize" << YAML::Value << params.particleSize;
+    out << YAML::Key << effectName + "_sizeVariation" << YAML::Value << params.sizeVariation;
+    out << YAML::Key << effectName + "_animationSpeed" << YAML::Value << params.animationSpeed;
+    out << YAML::Key << effectName + "_lifetime" << YAML::Value << params.lifetime;
+    out << YAML::Key << effectName + "_spawnRate" << YAML::Value << params.spawnRate;
+    out << YAML::Key << effectName + "_riseSpeed" << YAML::Value << params.riseSpeed;
+    out << YAML::Key << effectName + "_turbulence" << YAML::Value << params.turbulence;
+    out << YAML::Key << effectName + "_windInfluence" << YAML::Value << params.windInfluence;
+    out << YAML::Key << effectName + "_spread" << YAML::Value << params.spread;
+    out << YAML::Key << effectName + "_colorVariation" << YAML::Value << params.colorVariation;
+
+    out << YAML::Key << effectName + "_redIntensity" << YAML::Value << params.redIntensity;
+    out << YAML::Key << effectName + "_yellowReduction" << YAML::Value << params.yellowReduction;
+    out << YAML::Key << effectName + "_alphaMultiplier" << YAML::Value << params.alphaMultiplier;
+    out << YAML::Key << effectName + "_textureInfluence" << YAML::Value << params.textureInfluence;
+    
+    out << YAML::Key << effectName + "_baseColor" << YAML::Value << YAML::Flow << YAML::BeginSeq
+        << params.baseColor[0] << params.baseColor[1] << params.baseColor[2] << YAML::EndSeq;
+    out << YAML::Key << effectName + "_endColor" << YAML::Value << YAML::Flow << YAML::BeginSeq
+        << params.endColor[0] << params.endColor[1] << params.endColor[2] << YAML::EndSeq;
+  };
   
-  // Movement
-  out << YAML::Key << "riseSpeed" << YAML::Value << preset.params.riseSpeed;
-  out << YAML::Key << "turbulence" << YAML::Value << preset.params.turbulence;
-  out << YAML::Key << "windInfluence" << YAML::Value << preset.params.windInfluence;
-  
-  // Visual Effects
-  out << YAML::Key << "redIntensity" << YAML::Value << preset.params.redIntensity;
-  out << YAML::Key << "yellowReduction" << YAML::Value << preset.params.yellowReduction;
-  out << YAML::Key << "alphaMultiplier" << YAML::Value << preset.params.alphaMultiplier;
-  
-  // Particle Distribution
-  out << YAML::Key << "horizontalSpread" << YAML::Value << preset.params.horizontalSpread;
-  out << YAML::Key << "verticalSpread" << YAML::Value << preset.params.verticalSpread;
-  
-  // Colors
-  out << YAML::Key << "baseColor" << YAML::Value << YAML::Flow << YAML::BeginSeq
-      << preset.params.baseColor[0] << preset.params.baseColor[1] << preset.params.baseColor[2]
-      << YAML::EndSeq;
-  out << YAML::Key << "endColor" << YAML::Value << YAML::Flow << YAML::BeginSeq
-      << preset.params.endColor[0] << preset.params.endColor[1] << preset.params.endColor[2]
-      << YAML::EndSeq;
-  
-  // Texture
-  out << YAML::Key << "textureInfluence" << YAML::Value << preset.params.textureInfluence;
+  saveEffectParams("fire", preset.params.fire);
+  saveEffectParams("smoke", preset.params.smoke);
+  saveEffectParams("sparks", preset.params.sparks);
+  saveEffectParams("ash", preset.params.ash);
+  saveEffectParams("heat", preset.params.heat);
   
   out << YAML::EndMap;
   
@@ -354,43 +516,54 @@ bool FireParamsPanel::LoadPresetFromYAML(const std::string& filename, Preset& pr
     YAML::Node config = YAML::LoadFile(filename);
     
     preset.name = config["name"].as<std::string>();
-    preset.texturePath = config["texturePath"].as<std::string>();
     
-    // Main Parameters
-    preset.params.baseIntensity = config["baseIntensity"].as<float>();
-    preset.params.particleSize = config["particleSize"].as<float>();
-    preset.params.sizeVariation = config["sizeVariation"].as<float>();
+    // Global settings
     
-    // Animation
-    preset.params.animationSpeed = config["animationSpeed"].as<float>();
-    preset.params.particleLifetime = config["particleLifetime"].as<float>();
-    preset.params.spawnRate = config["spawnRate"].as<float>();
+    // Texture paths
+    if (config["fireTexturePath"]) preset.params.fireTexturePath = config["fireTexturePath"].as<std::string>();
+    if (config["smokeTexturePath"]) preset.params.smokeTexturePath = config["smokeTexturePath"].as<std::string>();
+    if (config["sparksTexturePath"]) preset.params.sparksTexturePath = config["sparksTexturePath"].as<std::string>();
+    if (config["ashTexturePath"]) preset.params.ashTexturePath = config["ashTexturePath"].as<std::string>();
+    if (config["heatTexturePath"]) preset.params.heatTexturePath = config["heatTexturePath"].as<std::string>();
     
-    // Movement
-    preset.params.riseSpeed = config["riseSpeed"].as<float>();
-    preset.params.turbulence = config["turbulence"].as<float>();
-    preset.params.windInfluence = config["windInfluence"].as<float>();
+    // Effect parameters loader
+    auto loadEffectParams = [&](const std::string& effectName, FireParams::EffectParams& params) {
+      if (config[effectName + "_enabled"]) params.enabled = config[effectName + "_enabled"].as<bool>();
+      if (config[effectName + "_particleSize"]) params.particleSize = config[effectName + "_particleSize"].as<float>();
+      if (config[effectName + "_sizeVariation"]) params.sizeVariation = config[effectName + "_sizeVariation"].as<float>();
+      if (config[effectName + "_animationSpeed"]) params.animationSpeed = config[effectName + "_animationSpeed"].as<float>();
+      if (config[effectName + "_lifetime"]) params.lifetime = config[effectName + "_lifetime"].as<float>();
+      if (config[effectName + "_spawnRate"]) params.spawnRate = config[effectName + "_spawnRate"].as<float>();
+      if (config[effectName + "_riseSpeed"]) params.riseSpeed = config[effectName + "_riseSpeed"].as<float>();
+      if (config[effectName + "_turbulence"]) params.turbulence = config[effectName + "_turbulence"].as<float>();
+      if (config[effectName + "_windInfluence"]) params.windInfluence = config[effectName + "_windInfluence"].as<float>();
+      if (config[effectName + "_spread"]) params.spread = config[effectName + "_spread"].as<float>();
+      if (config[effectName + "_colorVariation"]) params.colorVariation = config[effectName + "_colorVariation"].as<float>();
+           
+      if (config[effectName + "_redIntensity"]) params.redIntensity = config[effectName + "_redIntensity"].as<float>();
+      if (config[effectName + "_yellowReduction"]) params.yellowReduction = config[effectName + "_yellowReduction"].as<float>();
+      if (config[effectName + "_alphaMultiplier"]) params.alphaMultiplier = config[effectName + "_alphaMultiplier"].as<float>();
+      if (config[effectName + "_textureInfluence"]) params.textureInfluence = config[effectName + "_textureInfluence"].as<float>();
+      if (config[effectName + "_baseColor"]) {
+        auto baseColor = config[effectName + "_baseColor"].as<std::vector<float>>();
+        for (int i = 0; i < 3 && i < baseColor.size(); i++) {
+          params.baseColor[i] = baseColor[i];
+        }
+      }
+      
+      if (config[effectName + "_endColor"]) {
+        auto endColor = config[effectName + "_endColor"].as<std::vector<float>>();
+        for (int i = 0; i < 3 && i < endColor.size(); i++) {
+          params.endColor[i] = endColor[i];
+        }
+      }
+    };
     
-    // Visual Effects
-    preset.params.redIntensity = config["redIntensity"].as<float>();
-    preset.params.yellowReduction = config["yellowReduction"].as<float>();
-    preset.params.alphaMultiplier = config["alphaMultiplier"].as<float>();
-    
-    // Particle Distribution
-    preset.params.horizontalSpread = config["horizontalSpread"].as<float>();
-    preset.params.verticalSpread = config["verticalSpread"].as<float>();
-    
-    // Colors
-    auto baseColor = config["baseColor"].as<std::vector<float>>();
-    auto endColor = config["endColor"].as<std::vector<float>>();
-    for (int i = 0; i < 3; i++) {
-      preset.params.baseColor[i] = baseColor[i];
-      preset.params.endColor[i] = endColor[i];
-    }
-    
-    // Texture
-    preset.params.textureInfluence = config["textureInfluence"].as<float>();
-    preset.params.fireTexturePath = preset.texturePath;
+    loadEffectParams("fire", preset.params.fire);
+    loadEffectParams("smoke", preset.params.smoke);
+    loadEffectParams("sparks", preset.params.sparks);
+    loadEffectParams("ash", preset.params.ash);
+    loadEffectParams("heat", preset.params.heat);
     
     return true;
   }
@@ -399,5 +572,22 @@ bool FireParamsPanel::LoadPresetFromYAML(const std::string& filename, Preset& pr
     return false;
   }
 }
+
+void FireParamsPanel::ApplyParamsToShader() {
+  auto &renderer = engine::Renderer::Instance();
+  
+  // Обновляем пути текстур из UI в параметры
+  m_params.fireTexturePath = m_texturePaths[0];
+  m_params.smokeTexturePath = m_texturePaths[1];
+  m_params.sparksTexturePath = m_texturePaths[2];
+  m_params.ashTexturePath = m_texturePaths[3];
+  m_params.heatTexturePath = m_texturePaths[4];
+  
+  renderer.SetFireParams(m_params);
+}
+
+// Остальные методы (DrawPresetsSection, SavePreset, LoadPreset, DeletePreset, 
+// RefreshPresetsList, SavePresetToYAML, LoadPresetFromYAML) 
+// нужно адаптировать под новую структуру FireParams
 
 } // namespace ui

@@ -1,19 +1,91 @@
 name: default
-texturePath: res/textures/fire_texture3.png
-baseIntensity: 1
-particleSize: 2
-sizeVariation: 0.300000012
-animationSpeed: 1.5
-particleLifetime: 3
-spawnRate: 200
-riseSpeed: 2
-turbulence: 0.800000012
-windInfluence: 2
-redIntensity: 0.800000012
-yellowReduction: 0.300000012
-alphaMultiplier: 1.5
-horizontalSpread: 0.800000012
-verticalSpread: 0.5
-baseColor: [1, 0.800000012, 0.300000012]
-endColor: [1, 0.300000012, 0.100000001]
-textureInfluence: 0.699999988
+fireTexturePath: res/textures/fire_texture3.png
+smokeTexturePath: res/textures/smoke_texture.png
+sparksTexturePath: res/textures/sparks_texture.png
+ashTexturePath: res/textures/ash_texture.png
+heatTexturePath: res/textures/heat_texture.png
+fire_enabled: true
+fire_particleSize: 2
+fire_sizeVariation: 0.5
+fire_animationSpeed: 1
+fire_lifetime: 3
+fire_spawnRate: 100
+fire_riseSpeed: 2
+fire_turbulence: 0.5
+fire_windInfluence: 1
+fire_spread: 1
+fire_colorVariation: 0
+fire_redIntensity: 1
+fire_yellowReduction: 0.300000012
+fire_alphaMultiplier: 1
+fire_textureInfluence: 0.699999988
+fire_baseColor: [0.0434929095, 0.316474766, 0.887254894]
+fire_endColor: [0.125144184, 0.210326463, 0.607843161]
+smoke_enabled: true
+smoke_particleSize: 2
+smoke_sizeVariation: 0.5
+smoke_animationSpeed: 1
+smoke_lifetime: 3
+smoke_spawnRate: 100
+smoke_riseSpeed: 2
+smoke_turbulence: 0.5
+smoke_windInfluence: 1
+smoke_spread: 1
+smoke_colorVariation: 0
+smoke_redIntensity: 1
+smoke_yellowReduction: 0.300000012
+smoke_alphaMultiplier: 1
+smoke_textureInfluence: 0.156000003
+smoke_baseColor: [0.0588235259, 0.050525438, 0.0481545553]
+smoke_endColor: [0.147058845, 0.147058845, 0.147058845]
+sparks_enabled: true
+sparks_particleSize: 2
+sparks_sizeVariation: 0.5
+sparks_animationSpeed: 1
+sparks_lifetime: 3
+sparks_spawnRate: 100
+sparks_riseSpeed: 2
+sparks_turbulence: 0.5
+sparks_windInfluence: 1
+sparks_spread: 1
+sparks_colorVariation: 0
+sparks_redIntensity: 1
+sparks_yellowReduction: 0.300000012
+sparks_alphaMultiplier: 1
+sparks_textureInfluence: 0.699999988
+sparks_baseColor: [1, 0.300000012, 0.100000001]
+sparks_endColor: [1, 0.800000012, 0.200000003]
+ash_enabled: false
+ash_particleSize: 2
+ash_sizeVariation: 0.5
+ash_animationSpeed: 1
+ash_lifetime: 3
+ash_spawnRate: 100
+ash_riseSpeed: 2
+ash_turbulence: 0.5
+ash_windInfluence: 1
+ash_spread: 1
+ash_colorVariation: 0
+ash_redIntensity: 1
+ash_yellowReduction: 0.300000012
+ash_alphaMultiplier: 1
+ash_textureInfluence: 0.699999988
+ash_baseColor: [1, 0.300000012, 0.100000001]
+ash_endColor: [1, 0.800000012, 0.200000003]
+heat_enabled: false
+heat_particleSize: 2
+heat_sizeVariation: 0.5
+heat_animationSpeed: 1
+heat_lifetime: 3
+heat_spawnRate: 100
+heat_riseSpeed: 2
+heat_turbulence: 0.5
+heat_windInfluence: 1
+heat_spread: 1
+heat_colorVariation: 0
+heat_redIntensity: 1
+heat_yellowReduction: 0.300000012
+heat_alphaMultiplier: 1
+heat_textureInfluence: 0.699999988
+heat_baseColor: [1, 0.300000012, 0.100000001]
+heat_endColor: [1, 0.800000012, 0.200000003]

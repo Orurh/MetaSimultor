@@ -2,33 +2,40 @@
 #include <glm/glm.hpp>
 #include <string>
 struct FireParams {
-  float baseIntensity = 1.0f;
-  float particleSize = 2.0f;
-  float sizeVariation = 0.3f;
+    // ТЕКСТУРЫ ДЛЯ КАЖДОГО ЭФФЕКТА
+    std::string fireTexturePath = "res/textures/fire_texture3.png";
+    std::string smokeTexturePath = "res/textures/smoke_texture.png";
+    std::string sparksTexturePath = "res/textures/sparks_texture.png";
+    std::string ashTexturePath = "res/textures/ash_texture.png";
+    std::string heatTexturePath = "res/textures/heat_texture.png";
+    
+    struct EffectParams {
+        bool enabled = true;
+        float particleSize = 2.0f;
+        float sizeVariation = 0.5f;
+        float animationSpeed = 1.0f;
+        float lifetime = 3.0f;
+        float spawnRate = 100.0f;
+        float riseSpeed = 2.0f;
+        float turbulence = 0.5f;
+        float windInfluence = 1.0f;
+        float spread = 1.0f;
 
-  // Время и анимаци
-  float animationSpeed = 1.5f;
-  float particleLifetime = 3.0f;
-  float spawnRate = 200.0f; // базовое количество частиц
+        // ЦВЕТА
+        glm::vec3 baseColor = {1.0f, 0.3f, 0.1f};
+        glm::vec3 endColor = {1.0f, 0.8f, 0.2f};
 
-  // Движение
-  float riseSpeed = 2.0f;
-  float turbulence = 0.8f;
-  float windInfluence = 2.0f;
-
-  // Визуальные эффекты
-  float redIntensity = 0.8f;
-  float yellowReduction = 0.3f;
-  float alphaMultiplier = 1.5f;
-
-  // Распределение частиц
-  float horizontalSpread = 0.8f;
-  float verticalSpread = 0.5f;
-
-  // Цветовые корректировки
-  glm::vec3 baseColor = glm::vec3(1.0f, 0.8f, 0.3f);
-  glm::vec3 endColor = glm::vec3(1.0f, 0.3f, 0.1f);
-
-  float textureInfluence = 0.7f;
-  std::string fireTexturePath = "res/textures/fire_texture3.png";
+        // УНИВЕРСАЛЬНЫЕ ЦВЕТОВЫЕ ПАРАМЕТРЫ ДЛЯ ВСЕХ ЭФФЕКТОВ
+        float redIntensity = 1.0f;
+        float yellowReduction = 0.3f;
+        float alphaMultiplier = 1.0f;
+        float textureInfluence = 0.7f;
+        float colorVariation = 0.0f;
+    };
+    
+    EffectParams fire;
+    EffectParams smoke;
+    EffectParams sparks;
+    EffectParams ash;
+    EffectParams heat;
 };
