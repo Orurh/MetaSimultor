@@ -11,5 +11,9 @@ struct EditorState {
   std::string m_selectedPrefab = "default_tree";
   float m_fireIntensity = 1.0F;
 
+  bool  placeScaleRandom = true;
+  float placeScaleMin = 1.0f;
+  float placeScaleMax = 1.0f;
+
 };
 }  // namespace ui

@@ -9,6 +9,7 @@
 #include "math/ScreenRay.h"
 #include "ui/EditorContext.h"
 #include "ui/ui_utils/SpatialGrid.h"
+#include <random>
 
 using engine::InputState;
 using engine::MouseButton;
@@ -156,7 +157,7 @@ void FoliageBrushTool::OnUpdate(EditorContext& ctx) {
 
     // хоткеи
     if (engine::InputSystem::Instance().GetKey(engine::KeyCode::Enter, InputState::Pressed)) {
-      ApplyPlacement(*ctx.m_scene);
+      ApplyPlacement(ctx);
     }
     if (engine::InputSystem::Instance().GetKey(engine::KeyCode::Escape, InputState::Pressed)) {
       m_preview.clear();
@@ -206,7 +207,7 @@ void FoliageBrushTool::DrawControls(EditorContext& ctx) {
   }
   ImGui::SameLine();
   if (ImGui::Button("Apply")) {
-    ApplyPlacement(*ctx.m_scene);
+    ApplyPlacement(ctx);
   }
   ImGui::SameLine();
   if (ImGui::Button("Clear")) {
@@ -311,36 +312,31 @@ static bool IsFireName(std::string_view id) {
 }
 // ——— размещение ———
 
-void FoliageBrushTool::ApplyPlacement(engine::Scene& scene) {
-  if (m_preview.empty())
-    return;
-  if (IsFireName(m_settings.prefab)) {
-    m_preview.clear();
-    return;  // тихо выходим (можно логнуть/мигнуть тултипом)
+void FoliageBrushTool::ApplyPlacement(EditorContext& ctx) {
+  if (!ctx.m_scene) { m_preview.clear(); return; }
+  if (m_preview.empty()) return;
+  if (IsFireName(m_settings.prefab)) { m_preview.clear(); return; }
+
+  auto pickScale = [&]() -> float {
+    // если min == max — просто фиксированный масштаб
+    float lo = std::min(m_settings.scaleMin, m_settings.scaleMax);
+    float hi = std::max(m_settings.scaleMin, m_settings.scaleMax);
+    if (std::abs(hi - lo) < 1e-6f) return lo;
+
+    std::uniform_real_distribution<float> unif(lo, hi);
+    return unif(m_rng);
+  };
+
+  for (const auto& p : m_preview) {
+    const float s = pickScale();
+    ctx.m_scene->AddPrefabScaled(m_settings.prefab, p.x, p.z, s);
   }
-
-  std::uniform_real_distribution<float> unif01(0.f, 1.f);
-  const float smin = m_settings.scaleMin, smax = m_settings.scaleMax;
-  const float yawMin = glm::radians(m_settings.yawMinDeg);
-  const float yawMax = glm::radians(m_settings.yawMaxDeg);
-
-  for (auto& p : m_preview) {
-    // scale (для «разной высоты» используешь масштаб по Y, но я даю униформ по всем осям)
-    const float t = unif01(m_rng);
-    const float s = smin + (smax - smin) * t;
-
-    // поворот по Y (если модели поддерживают, можно хранить как часть SceneObject при расширении)
-    (void)yawMin;
-    (void)yawMax;  // пока не сохраняем углы — при надобности расширь SceneObject
-
-    // вызываем твой пайплайн:
-    // сейчас Scene::AddTree(name=default_tree) создаёт Agent и SceneObject, скейл берётся из префаба
-    // если хочешь именно свой s — либо расширь AddTree/SceneObject, либо применяй prefab.model_scale*s
-    scene.AddTree(p.x, p.z, m_settings.prefab);
-  }
-
   m_preview.clear();
 }
+
+
+
+
 
 // FoliageBrushTool.cc
 bool FoliageBrushTool::ProjectToScreen(const EditorContext& ctx, const glm::vec3& p,

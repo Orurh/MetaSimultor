@@ -60,7 +60,7 @@ private:
   // генераторы
   void RebuildPreviewCircle();
   void RebuildPreviewRect();
-  void ApplyPlacement(engine::Scene& scene);
+  void ApplyPlacement(EditorContext& ctx);
 
   // хелперы
   static bool ScreenToGround(EditorContext& ctx, float mx, float my, glm::vec3& outHit);

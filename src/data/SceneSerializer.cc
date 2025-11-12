@@ -1,14 +1,13 @@
 #include "SceneSerializer.h"
-#include "core/scene/Scene.h"
 #include <fstream>
+#include "core/scene/Scene.h"
 
 #include <iostream>
 #include <string>
 namespace engine::data {
-SceneSerializer::SceneSerializer(std::shared_ptr<Scene> scene)
-    : m_scene(scene) {}
+SceneSerializer::SceneSerializer(std::shared_ptr<Scene> scene) : m_scene(scene) {}
 
-bool SceneSerializer::Serialize(const std::string &filepath) {
+bool SceneSerializer::Serialize(const std::string& filepath) {
   try {
     YAML::Emitter out;
     out << YAML::BeginMap;
@@ -49,14 +48,11 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
       out << YAML::Key << "seed" << YAML::Value << terrain->GetSeed();
       out << YAML::Key << "frequency" << YAML::Value << terrain->GetFrequency();
       out << YAML::Key << "octaves" << YAML::Value << terrain->GetOctaves();
-      out << YAML::Key << "persistence" << YAML::Value
-          << terrain->GetPersistence();
-      out << YAML::Key << "lacunarity" << YAML::Value
-          << terrain->GetLacunarity();
+      out << YAML::Key << "persistence" << YAML::Value << terrain->GetPersistence();
+      out << YAML::Key << "lacunarity" << YAML::Value << terrain->GetLacunarity();
       out << YAML::Key << "position" << YAML::Value;
-      out << YAML::Flow << YAML::BeginSeq << terrain->GetPosition().x
-          << terrain->GetPosition().y << terrain->GetPosition().z
-          << YAML::EndSeq;
+      out << YAML::Flow << YAML::BeginSeq << terrain->GetPosition().x << terrain->GetPosition().y
+          << terrain->GetPosition().z << YAML::EndSeq;
     }
     out << YAML::EndMap;
     out << YAML::EndMap;
@@ -66,26 +62,25 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
     std::cout << "Scene saved to: " << filepath << std::endl;
     return true;
 
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     std::cerr << "Failed to serialize scene: " << e.what() << std::endl;
     return false;
   }
 }
 
-YAML::Emitter &
-SceneSerializer::SerializeFireCollider(YAML::Emitter &out,
-                                       const FireCollider &collider) {
+YAML::Emitter& SceneSerializer::SerializeFireCollider(YAML::Emitter& out,
+                                                      const FireCollider& collider) {
   {
     out << YAML::BeginMap;
 
     // Bounds
     out << YAML::Key << "bounds_min" << YAML::Value;
-    out << YAML::Flow << YAML::BeginSeq << collider.bounds_min.x
-        << collider.bounds_min.y << collider.bounds_min.z << YAML::EndSeq;
+    out << YAML::Flow << YAML::BeginSeq << collider.bounds_min.x << collider.bounds_min.y
+        << collider.bounds_min.z << YAML::EndSeq;
 
     out << YAML::Key << "bounds_max" << YAML::Value;
-    out << YAML::Flow << YAML::BeginSeq << collider.bounds_max.x
-        << collider.bounds_max.y << collider.bounds_max.z << YAML::EndSeq;
+    out << YAML::Flow << YAML::BeginSeq << collider.bounds_max.x << collider.bounds_max.y
+        << collider.bounds_max.z << YAML::EndSeq;
 
     out << YAML::Key << "point_count" << YAML::Value << collider.point_count;
 
@@ -93,9 +88,8 @@ SceneSerializer::SerializeFireCollider(YAML::Emitter &out,
     out << YAML::Key << "heat_points" << YAML::Value;
     out << YAML::BeginSeq;
     for (int i = 0; i < collider.point_count; i++) {
-      out << YAML::Flow << YAML::BeginSeq << collider.heat_points[i].x
-          << collider.heat_points[i].y << collider.heat_points[i].z
-          << YAML::EndSeq;
+      out << YAML::Flow << YAML::BeginSeq << collider.heat_points[i].x << collider.heat_points[i].y
+          << collider.heat_points[i].z << YAML::EndSeq;
     }
     out << YAML::EndSeq;
 
@@ -121,8 +115,7 @@ SceneSerializer::SerializeFireCollider(YAML::Emitter &out,
   }
 }
 
-YAML::Emitter &SceneSerializer::SerializeAgent(YAML::Emitter &out,
-                                               const Agent &agent, int id) {
+YAML::Emitter& SceneSerializer::SerializeAgent(YAML::Emitter& out, const Agent& agent, int id) {
   out << YAML::BeginMap;
   out << YAML::Key << "id" << YAML::Value << id;
   out << YAML::Key << "type" << YAML::Value << static_cast<int>(agent.type);
@@ -130,8 +123,8 @@ YAML::Emitter &SceneSerializer::SerializeAgent(YAML::Emitter &out,
   out << YAML::Key << "intensity" << YAML::Value << agent.intensity;
 
   out << YAML::Key << "position" << YAML::Value;
-  out << YAML::Flow << YAML::BeginSeq << agent.position.x << agent.position.y
-      << agent.position.z << YAML::EndSeq;
+  out << YAML::Flow << YAML::BeginSeq << agent.position.x << agent.position.y << agent.position.z
+      << YAML::EndSeq;
 
   // FireCollider
   out << YAML::Key << "fire_collider" << YAML::Value;
@@ -141,28 +134,22 @@ YAML::Emitter &SceneSerializer::SerializeAgent(YAML::Emitter &out,
   return out;
 }
 
-YAML::Emitter &SceneSerializer::SerializeSceneObject(YAML::Emitter &out,
-                                                     const SceneObject &obj,
+YAML::Emitter& SceneSerializer::SerializeSceneObject(YAML::Emitter& out, const SceneObject& obj,
                                                      int id) {
   out << YAML::BeginMap;
   out << YAML::Key << "id" << YAML::Value << id;
   out << YAML::Key << "agent_id" << YAML::Value << obj.m_agent_id;
   out << YAML::Key << "object_type" << YAML::Value << obj.m_object_type;
   out << YAML::Key << "is_visible" << YAML::Value << obj.m_is_visible;
-
-  // Позиция и масштаб
-  out << YAML::Key << "position" << YAML::Value;
-  out << YAML::Flow << YAML::BeginSeq << obj.m_position.x << obj.m_position.y << obj.m_position.z
-      << YAML::EndSeq;
-
-  out << YAML::Key << "scale" << YAML::Value;
-  out << YAML::Flow << YAML::BeginSeq << obj.m_scale.x << obj.m_scale.y << obj.m_scale.z << YAML::EndSeq;
-
+  out << YAML::Key << "position" << YAML::Value << YAML::Flow << YAML::BeginSeq << obj.m_position.x
+      << obj.m_position.y << obj.m_position.z << YAML::EndSeq;
+  out << YAML::Key << "uniform_scale" << YAML::Value << obj.m_uniform_scale;
+  out << YAML::Key << "seed" << YAML::Value << static_cast<uint32_t>(obj.m_seedForCollider);
   out << YAML::EndMap;
   return out;
 }
 
-void SceneSerializer::Deserialize(const std::string &filename) {
+void SceneSerializer::Deserialize(const std::string& filename) {
   try {
     YAML::Node scene_data = YAML::LoadFile(filename);
 
@@ -170,23 +157,23 @@ void SceneSerializer::Deserialize(const std::string &filename) {
     m_scene->Clear();
 
     // 1. Загружаем агентов
-    const YAML::Node &agents_node = scene_data["agents"];
+    const YAML::Node& agents_node = scene_data["agents"];
     std::vector<Agent> agents;
 
-    for (const YAML::Node &agent_node : agents_node) {
+    for (const YAML::Node& agent_node : agents_node) {
       agents.push_back(DeserializeAgent(agent_node));
     }
 
     // Загружаем агентов в GPU
     m_scene->GetAgentManager().SetAgents(agents);
 
-    const YAML::Node &objects_node = scene_data["scene_objects"];
-    for (const YAML::Node &obj_node : objects_node) {
+    const YAML::Node& objects_node = scene_data["scene_objects"];
+    for (const YAML::Node& obj_node : objects_node) {
       SceneObject obj = DeserializeSceneObject(obj_node);
       m_scene->AddSceneObjectFromSerialized(obj);
     }
 
-    const YAML::Node &terrain_node = scene_data["terrain"];
+    const YAML::Node& terrain_node = scene_data["terrain"];
     if (terrain_node) {
       TerrainGenerationSettings s;
       s.width = terrain_node["width"].as<int>();
@@ -198,76 +185,95 @@ void SceneSerializer::Deserialize(const std::string &filename) {
       s.octaves = terrain_node["octaves"].as<int>();
       s.persistence = terrain_node["persistence"].as<float>();
       s.lacunarity = terrain_node["lacunarity"].as<float>();
-      const YAML::Node &pos_node = terrain_node["position"];
+      const YAML::Node& pos_node = terrain_node["position"];
       if (pos_node) {
-        glm::vec3 pos(pos_node[0].as<float>(), pos_node[1].as<float>(),
-                      pos_node[2].as<float>());
+        glm::vec3 pos(pos_node[0].as<float>(), pos_node[1].as<float>(), pos_node[2].as<float>());
         m_scene->GetTerrain()->SetPosition(pos);
       }
       m_scene->GenerateTerrain(s);
     }
 
-    std::cout << "Scene loaded: " << agents.size() << " agents, "
-              << objects_node.size() << " objects" << std::endl;
+    std::cout << "Scene loaded: " << agents.size() << " agents, " << objects_node.size()
+              << " objects" << std::endl;
 
-  } catch (const std::exception &e) {
+  } catch (const std::exception& e) {
     std::cerr << "Failed to deserialize scene: " << e.what() << std::endl;
   }
 }
-SceneObject
-SceneSerializer::DeserializeSceneObject(const YAML::Node &obj_node) {
+SceneObject SceneSerializer::DeserializeSceneObject(const YAML::Node& obj_node) {
   SceneObject obj;
 
-  obj.m_agent_id = obj_node["agent_id"].as<int>();
+  // agent_id можно читать, но дальше мы его перезапишем при создании агента
+  obj.m_agent_id = obj_node["agent_id"] ? obj_node["agent_id"].as<int>() : -1;
   obj.m_object_type = obj_node["object_type"].as<std::string>();
-  obj.m_is_visible = obj_node["is_visible"].as<bool>();
+  obj.m_is_visible = obj_node["is_visible"] ? obj_node["is_visible"].as<bool>() : true;
 
-  // Позиция
+  // позиция
   const YAML::Node& pos_node = obj_node["position"];
   obj.m_position =
       glm::vec3(pos_node[0].as<float>(), pos_node[1].as<float>(), pos_node[2].as<float>());
 
-  // Масштаб
-  const YAML::Node& scale_node = obj_node["scale"];
-  obj.m_scale =
-      glm::vec3(scale_node[0].as<float>(), scale_node[1].as<float>(), scale_node[2].as<float>());
+  // читаем uniform_scale (главное поле)
+  obj.m_uniform_scale = obj_node["uniform_scale"] ? obj_node["uniform_scale"].as<float>() : 1.0f;
+
+  // читаем сид, если был сохранён (для детерминизма ресэмплинга)
+  obj.m_seedForCollider = obj_node["seed"] ? obj_node["seed"].as<uint32_t>() : 0u;
+
+  // ВАЖНО: m_scale здесь НЕ выставляем — он будет посчитан в AddSceneObjectFromSerialized
+  // на основе prefab.m_modelScale * obj.m_uniform_scale
+
+  // МИГРАЦИЯ старых сцен: если uniform_scale нет, но есть legacy "scale" — восстановим uniform
+  if (!obj_node["uniform_scale"] && obj_node["scale"]) {
+    // у нас есть доступ к сцене → к PrefabSystem
+    const auto& prefab = m_scene->GetPrefabSystem().GetPrefab(obj.m_object_type);
+    const YAML::Node& scale_node = obj_node["scale"];
+    glm::vec3 saved(scale_node[0].as<float>(), scale_node[1].as<float>(),
+                    scale_node[2].as<float>());
+    glm::vec3 base = prefab.m_modelScale;
+
+    auto safe_div = [](float a, float b) {
+      return (b != 0.f) ? (a / b) : 1.f;
+    };
+    glm::vec3 ratio(safe_div(saved.x, base.x), safe_div(saved.y, base.y),
+                    safe_div(saved.z, base.z));
+    float u = (ratio.x + ratio.y + ratio.z) / 3.0f;  // можно взять max(ratio)
+    if (std::isfinite(u) && u > 0.f)
+      obj.m_uniform_scale = u;
+  }
 
   return obj;
 }
 
-FireCollider
-SceneSerializer::DeserializeFireCollider(const YAML::Node &collider_node) {
+FireCollider SceneSerializer::DeserializeFireCollider(const YAML::Node& collider_node) {
   FireCollider collider;
 
-  const YAML::Node &min_node = collider_node["bounds_min"];
-  collider.bounds_min = Float3(min_node[0].as<float>(), min_node[1].as<float>(),
-                               min_node[2].as<float>());
+  const YAML::Node& min_node = collider_node["bounds_min"];
+  collider.bounds_min =
+      Float3(min_node[0].as<float>(), min_node[1].as<float>(), min_node[2].as<float>());
 
-  const YAML::Node &max_node = collider_node["bounds_max"];
-  collider.bounds_max = Float3(max_node[0].as<float>(), max_node[1].as<float>(),
-                               max_node[2].as<float>());
+  const YAML::Node& max_node = collider_node["bounds_max"];
+  collider.bounds_max =
+      Float3(max_node[0].as<float>(), max_node[1].as<float>(), max_node[2].as<float>());
 
   // Point count
   collider.point_count = collider_node["point_count"].as<int>();
 
   // Heat points
-  const YAML::Node &points_node = collider_node["heat_points"];
+  const YAML::Node& points_node = collider_node["heat_points"];
   for (int i = 0; i < collider.point_count && i < points_node.size(); i++) {
-    const YAML::Node &point_node = points_node[i];
+    const YAML::Node& point_node = points_node[i];
     collider.heat_points[i] =
-        Float3(point_node[0].as<float>(), point_node[1].as<float>(),
-               point_node[2].as<float>());
+        Float3(point_node[0].as<float>(), point_node[1].as<float>(), point_node[2].as<float>());
   }
 
   // Intensities
-  const YAML::Node &intensities_node = collider_node["intensities"];
-  for (int i = 0; i < collider.point_count && i < intensities_node.size();
-       i++) {
+  const YAML::Node& intensities_node = collider_node["intensities"];
+  for (int i = 0; i < collider.point_count && i < intensities_node.size(); i++) {
     collider.intensities[i] = intensities_node[i].as<float>();
   }
 
   // Fuels
-  const YAML::Node &fuels_node = collider_node["fuels"];
+  const YAML::Node& fuels_node = collider_node["fuels"];
   for (int i = 0; i < collider.point_count && i < fuels_node.size(); i++) {
     collider.fuels[i] = fuels_node[i].as<float>();
   }
@@ -275,16 +281,16 @@ SceneSerializer::DeserializeFireCollider(const YAML::Node &collider_node) {
   return collider;
 }
 
-Agent SceneSerializer::DeserializeAgent(const YAML::Node &agent_node) {
+Agent SceneSerializer::DeserializeAgent(const YAML::Node& agent_node) {
   Agent agent;
 
   agent.type = static_cast<AgentType>(agent_node["type"].as<int>());
   agent.object_id = agent_node["object_id"].as<int>();
   agent.intensity = agent_node["intensity"].as<float>();
 
-  const YAML::Node &pos_node = agent_node["position"];
-  agent.position = Float3(pos_node[0].as<float>(), pos_node[1].as<float>(),
-                          pos_node[2].as<float>());
+  const YAML::Node& pos_node = agent_node["position"];
+  agent.position =
+      Float3(pos_node[0].as<float>(), pos_node[1].as<float>(), pos_node[2].as<float>());
 
   if (agent_node["fire_collider"]) {
     agent.fire_collider = DeserializeFireCollider(agent_node["fire_collider"]);
@@ -292,4 +298,4 @@ Agent SceneSerializer::DeserializeAgent(const YAML::Node &agent_node) {
 
   return agent;
 }
-} // namespace engine::data
+}  // namespace engine::data

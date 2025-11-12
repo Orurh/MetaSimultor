@@ -70,6 +70,8 @@ class Scene {
   PlaceMode GetPlaceMode() const { return m_placeMode; }
 
   void AddPrefab(const std::string& prefab_id, float x, float z);
+  void AddPrefabScaled(const std::string& prefab_id, float x, float z,
+                     float uniformScale, float yawDeg = 0.0f); // изменение размера
   bool RemoveNearestAt(const glm::vec3& world, float maxXZDist);
 
   const std::vector<std::string>& ListPrefabIds() const;
