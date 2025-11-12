@@ -203,6 +203,10 @@ glm::mat4 Scene::GetProjMatrix(int w, int h) {
 void Scene::Clear() {
   m_sceneObjects.Clear();
   m_agentManager.Clear();
+}
+
+void Scene::Shutdown()
+{
   Renderer::Instance().Shutdown();
 }
 

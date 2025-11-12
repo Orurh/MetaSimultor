@@ -26,7 +26,6 @@ namespace engine {
 Application::Application(int width, int height, const char *title)
     : m_last_frame_time(static_cast<float>(glfwGetTime())), m_width(width),
       m_height(height) {
-  // Создание окна/GL
   m_window = std::make_unique<Window>(width, height, std::string(title));
   InitGL(); 
 
@@ -36,7 +35,7 @@ Application::Application(int width, int height, const char *title)
 }
 
 engine::Application::~Application() {
-  m_scene->Clear();
+  m_scene->Shutdown();
 }
 
 void Application::AddExtension(std::unique_ptr<IAppExtension> ext) {

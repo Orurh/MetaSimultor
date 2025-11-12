@@ -28,7 +28,7 @@ class Scene {
 
   void Generate();
   void Clear();
-
+  void Shutdown();
   enum class PlaceMode { Tree, Fire };
   void SetPlaceMode(PlaceMode m) { m_placeMode = m; }
   void SetFireIntensity(float v) { m_fireIntensity = v; }
