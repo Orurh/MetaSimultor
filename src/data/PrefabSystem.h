@@ -1,11 +1,11 @@
 #pragma once
-#include <yaml-cpp/yaml.h>
+#include "core/agent.h"
+#include "graphics/Material.h"
 #include <glm/glm.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include "core/agent.h"
-#include "graphics/Material.h"
+#include <yaml-cpp/yaml.h>
 namespace engine::data {
 
 struct AgentPrefab {
@@ -39,8 +39,8 @@ struct AgentPrefab {
 
     // Создает материал из этих путей
     std::shared_ptr<Material> CreateMaterial() const {
-      return Material::Create(diffuse_path, specular_path, normal_path, diffuse_color,
-                              specular_color, shininess);
+      return Material::Create(diffuse_path, specular_path, normal_path,
+                              diffuse_color, specular_color, shininess);
     }
   };
 
@@ -59,47 +59,58 @@ struct AgentPrefab {
   }
   std::shared_ptr<Material> GetMaterialForState(AgentType state) const {
     switch (state) {
-      case AgentType::BURNED:
-        return burnedMaterial;
-      case AgentType::BURNING:
-        return burningMaterial;
-      default:
-        return normalMaterial;
+    case AgentType::BURNED:
+      return burnedMaterial;
+    case AgentType::BURNING:
+      return burningMaterial;
+    default:
+      return normalMaterial;
     }
   }
 };
 
-
 class PrefabSystem {
- public:
-  void SavePrefab(const std::string& name, const AgentPrefab& prefab);
-  void SavePrefabToFile(const std::string& prefab_name, const std::string& file_path);
-  void LoadPrefabFromFile(const std::string& file_path);
-  const AgentPrefab& GetPrefab(const std::string& name) const;
-  bool PrefabExists(const std::string& name) const;
+public:
+  void SavePrefab(const std::string &name, const AgentPrefab &prefab);
+  void SavePrefabToFile(const std::string &prefab_name,
+                        const std::string &file_path);
+  void LoadPrefabFromFile(const std::string &file_path);
+  const AgentPrefab &GetPrefab(const std::string &name) const;
+  bool PrefabExists(const std::string &name) const;
 
-  Agent CreateAgentFromPrefab(const std::string& prefab_name, const glm::vec3& position);
-  Agent CreateAgentFromPrefab(const AgentPrefab& prefab, const glm::vec3& position);
-  void CreatePrefabFromAgent(const std::string& name, const Agent& agent,
-                             const std::string& model_path,
-                             const glm::vec3& scale = glm::vec3(1.0F));
+  Agent CreateAgentFromPrefab(const std::string &prefab_name,
+                              const glm::vec3 &position);
+  Agent CreateAgentFromPrefab(const AgentPrefab &prefab,
+                              const glm::vec3 &position);
+  void CreatePrefabFromAgent(const std::string &name, const Agent &agent,
+                             const std::string &model_path,
+                             const glm::vec3 &scale = glm::vec3(1.0F));
 
   std::vector<std::string> GetPrefabNames() const;
   std::vector<std::string> GetPrefabsByType(AgentType type) const;
-  const std::vector<std::string>& ListIds() const { return m_idsInLoadOrder; }
+  const std::vector<std::string> &ListIds() const { return m_idsInLoadOrder; }
 
-  void LoadAllFromDirectory(const std::string& dir);
+  void LoadAllFromDirectory(const std::string &dir);
   void Clear();
-  
-  AgentPrefab& GetPrefabMutable(const std::string& name) {
+  void ReleaseAllMaterials() {
+    for (auto &[name, prefab] : m_prefabs) {
+      // ЯВНО обнуляем материалы
+      prefab.normalMaterial.reset();
+      prefab.burningMaterial.reset();
+      prefab.burnedMaterial.reset();
+    }
+    // И очищаем кэш если есть
+    m_prefabs.clear();
+  }
+  AgentPrefab &GetPrefabMutable(const std::string &name) {
     auto it = m_prefabs.find(name);
     if (it == m_prefabs.end())
-        throw std::runtime_error("Prefab not found: " + name);
+      throw std::runtime_error("Prefab not found: " + name);
     return it->second;
-}
+  }
 
- private:
-  AgentPrefab::MaterialInfo ParseMaterialInfo(const YAML::Node& node) const {
+private:
+  AgentPrefab::MaterialInfo ParseMaterialInfo(const YAML::Node &node) const {
     AgentPrefab::MaterialInfo info;
 
     if (node["diffuse_path"]) {
@@ -124,10 +135,11 @@ class PrefabSystem {
     return info;
   }
 
-void SerializeMaterialInfo(const AgentPrefab::MaterialInfo& info, YAML::Node& node) const {
-    node["diffuse_path"]  = info.diffuse_path;
+  void SerializeMaterialInfo(const AgentPrefab::MaterialInfo &info,
+                             YAML::Node &node) const {
+    node["diffuse_path"] = info.diffuse_path;
     node["specular_path"] = info.specular_path;
-    node["normal_path"]   = info.normal_path;
+    node["normal_path"] = info.normal_path;
 
     // inline массив для цвета
     YAML::Node diffuseNode(YAML::NodeType::Sequence);
@@ -145,43 +157,44 @@ void SerializeMaterialInfo(const AgentPrefab::MaterialInfo& info, YAML::Node& no
     node["specular_color"] = specularNode;
 
     node["shininess"] = info.shininess;
-}
+  }
 
+  //   void SerializeMaterialInfo(const AgentPrefab::MaterialInfo& info,
+  //   YAML::Node& node) const {
+  //     node["diffuse_path"] = info.diffuse_path;
+  //     node["specular_path"] = info.specular_path;
+  //     node["normal_path"] = info.normal_path;
 
-//   void SerializeMaterialInfo(const AgentPrefab::MaterialInfo& info, YAML::Node& node) const {
-//     node["diffuse_path"] = info.diffuse_path;
-//     node["specular_path"] = info.specular_path;
-//     node["normal_path"] = info.normal_path;
+  //     node["diffuse_color"] = YAML::Node(YAML::NodeType::Sequence);
+  //     node["diffuse_color"].push_back(info.diffuse_color.x);
+  //     node["diffuse_color"].push_back(info.diffuse_color.y);
+  //     node["diffuse_color"].push_back(info.diffuse_color.z);
 
-//     node["diffuse_color"] = YAML::Node(YAML::NodeType::Sequence);
-//     node["diffuse_color"].push_back(info.diffuse_color.x);
-//     node["diffuse_color"].push_back(info.diffuse_color.y);
-//     node["diffuse_color"].push_back(info.diffuse_color.z);
+  //     node["specular_color"] = YAML::Node(YAML::NodeType::Sequence);
+  //     node["specular_color"].push_back(info.specular_color.x);
+  //     node["specular_color"].push_back(info.specular_color.y);
+  //     node["specular_color"].push_back(info.specular_color.z);
 
-//     node["specular_color"] = YAML::Node(YAML::NodeType::Sequence);
-//     node["specular_color"].push_back(info.specular_color.x);
-//     node["specular_color"].push_back(info.specular_color.y);
-//     node["specular_color"].push_back(info.specular_color.z);
-
-//     node["shininess"] = info.shininess;
-//   }
-  static glm::vec3 ParseVec3(const YAML::Node& node,
-                             const glm::vec3& default_value = glm::vec3(0.0f)) {
+  //     node["shininess"] = info.shininess;
+  //   }
+  static glm::vec3 ParseVec3(const YAML::Node &node,
+                             const glm::vec3 &default_value = glm::vec3(0.0f)) {
     if (!node || !node.IsSequence() || node.size() != 3) {
       return default_value;
     }
 
     try {
-      return glm::vec3(node[0].as<float>(), node[1].as<float>(), node[2].as<float>());
+      return glm::vec3(node[0].as<float>(), node[1].as<float>(),
+                       node[2].as<float>());
     } catch (...) {
       return default_value;
     }
   }
-  void SerializePrefab(const AgentPrefab& prefab, YAML::Node& node) const;
+  void SerializePrefab(const AgentPrefab &prefab, YAML::Node &node) const;
 
-  AgentPrefab DeserializePrefab(const YAML::Node& node) const;
+  AgentPrefab DeserializePrefab(const YAML::Node &node) const;
   std::unordered_map<std::string, AgentPrefab> m_prefabs;
 
   std::vector<std::string> m_idsInLoadOrder;
 };
-}  // namespace engine::data
+} // namespace engine::data

@@ -15,9 +15,10 @@
 
 // ImGui core + backends
 
+#include "data/SceneSerializer.h"
+#include "graphics/TextureCache.h"
 #include <core/Window.h>
 #include <core/scene/Scene.h>
-#include "data/SceneSerializer.h"
 #include <iostream>
 #include <stdexcept>
 #include <thread>
@@ -27,15 +28,27 @@ Application::Application(int width, int height, const char *title)
     : m_last_frame_time(static_cast<float>(glfwGetTime())), m_width(width),
       m_height(height) {
   m_window = std::make_unique<Window>(width, height, std::string(title));
-  InitGL(); 
+  InitGL();
 
   // Сцена
   m_scene = std::make_unique<Scene>();
   m_scene->Init();
 }
 
-engine::Application::~Application() {
-  m_scene->Shutdown();
+engine::Application::~Application() { m_scene->Shutdown(); }
+
+void engine::Application::Shutdown() {
+  if (m_scene) {
+    m_scene->Shutdown(); // Должен очищать ВСЕ материалы, текстуры, VAO, VBO
+  }
+
+  // 2. Очищаем кэш текстур (после очистки сцены)
+  TextureCache::Instance().Clear();
+
+  // 3. Очищаем рендерер (шейдеры, etc.)
+
+  // 4. ТОЛЬКО ПОТОМ уничтожаем окно и OpenGL контекст
+  m_window.reset();
 }
 
 void Application::AddExtension(std::unique_ptr<IAppExtension> ext) {
@@ -43,37 +56,40 @@ void Application::AddExtension(std::unique_ptr<IAppExtension> ext) {
 }
 
 void Application::Run() {
-  for (auto& e : m_extensions) e->OnInit(*this);
+  for (auto &e : m_extensions)
+    e->OnInit(*this);
 
   while (!ShouldClose()) {
     TickCore();
 
     // Собираем контекст на кадр (размеры, матрицы и т.п.)
     ui::EditorContext ctx{};
-    ctx.m_editor    = &m_editor; 
-    ctx.m_app      = this;  
-    ctx.m_window    = GetNativeWindow();
-    ctx.m_scene     = m_scene.get();
+    ctx.m_editor = &m_editor;
+    ctx.m_app = this;
+    ctx.m_window = GetNativeWindow();
+    ctx.m_scene = m_scene.get();
     ctx.m_viewportW = GetViewportWidth();
     ctx.m_viewportH = GetViewportHeight();
-    ctx.m_view      = m_scene->GetViewMatrix();
-    ctx.m_proj      = m_scene->GetProjMatrix(ctx.m_viewportW, ctx.m_viewportH);
+    ctx.m_view = m_scene->GetViewMatrix();
+    ctx.m_proj = m_scene->GetProjMatrix(ctx.m_viewportW, ctx.m_viewportH);
 
     // === ВАЖНО: сначала начинаем UI-кадр (NewFrame + построение окон) ===
-    for (auto& e : m_extensions) e->OnBeginUI(*this, ctx);
+    for (auto &e : m_extensions)
+      e->OnBeginUI(*this, ctx);
     // Теперь ImGui::GetIO().WantCaptureMouse/Keyboard — АКТУАЛЬНЫЕ
     UpdateScene();
     RenderScene();
 
     // Завершаем UI (Render + RenderDrawData)
-    for (auto& e : m_extensions) e->OnEndUI(*this, ctx);
+    for (auto &e : m_extensions)
+      e->OnEndUI(*this, ctx);
 
     SwapBuffers();
   }
 
-  for (auto& e : m_extensions) e->OnShutdown(*this);
+  for (auto &e : m_extensions)
+    e->OnShutdown(*this);
 }
-
 
 void Application::InitGL() {
   // активировать GL-контекст окна (если нужно), инициализировать glad
@@ -104,7 +120,7 @@ void Application::SwapBuffers() { m_window->SwapBuffers(); }
 
 bool Application::ShouldClose() const { return m_window->ShouldClose(); }
 
-GLFWwindow* engine::Application::GetNativeWindow() const {
+GLFWwindow *engine::Application::GetNativeWindow() const {
   return m_window->GetWindow();
 }
 
@@ -113,18 +129,17 @@ int Application::GetViewportHeight() const { return m_height; }
 float Application::GetDeltaTime() const { return m_dt; }
 Scene &Application::GetScene() { return *m_scene; }
 
-bool Application::SaveScene(const std::string& path) {
-    if (!m_serializer) {
-        m_serializer = std::make_unique<data::SceneSerializer>(m_scene);
-    }
-    return m_serializer->Serialize(path);
+bool Application::SaveScene(const std::string &path) {
+  if (!m_serializer) {
+    m_serializer = std::make_unique<data::SceneSerializer>(m_scene);
+  }
+  return m_serializer->Serialize(path);
 }
 
-void Application::LoadScene(const std::string& path) {
-    if (!m_serializer) {
-        m_serializer = std::make_unique<data::SceneSerializer>(
-           m_scene);
-    }
-    m_serializer->Deserialize(path);
+void Application::LoadScene(const std::string &path) {
+  if (!m_serializer) {
+    m_serializer = std::make_unique<data::SceneSerializer>(m_scene);
+  }
+  m_serializer->Deserialize(path);
 }
 } // namespace engine

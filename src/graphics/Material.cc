@@ -1,54 +1,40 @@
 #include "Material.h"
-#include "graphics/Texture.h"
-#include <exception>
-#include <iostream>
-
+#include "TextureCache.h"
 namespace engine {
-std::shared_ptr<Material> Material::Create(const std::string& diffusePath,
-        const std::string& specularPath, 
-        const std::string& normalPath,
-        const glm::vec3& diffuseColor,
-        const glm::vec3& specularColor,
-        float shininess) {
-            auto  material = std::make_shared<Material>();
-            if(!diffusePath.empty()) {
-                try {
-                    material->m_diffuseTexture = Texture::Create(diffusePath);
-                } catch(const std::exception& e) {
-                    std::cout << "Failed to load diffuse texture: " << e.what() << std::endl;
-                }
-            }
+std::shared_ptr<Material> Material::Create(const std::string &diffusePath,
+                                           const std::string &specularPath,
+                                           const std::string &normalPath,
+                                           const glm::vec3 &diffuseColor,
+                                           const glm::vec3 &specularColor,
+                                           float shininess) {
+  auto material = std::make_shared<Material>();
+  material->m_diffuseColor = diffuseColor;
+  material->m_specularColor = specularColor;
+  material->m_shininess = shininess;
 
-            if(!specularPath.empty()) {
-                try {
-                    material->m_specularTexture = Texture::Create(specularPath);
-                } catch(const std::exception& e) {
-                    std::cout << "Failed to load specular texture: " << e.what() << std::endl;
-                }
-            }
+  auto &textureCache = TextureCache::Instance();
 
-            if(!normalPath.empty()) {
-                try {
-                    material->m_normalTexture = Texture::Create(normalPath);
-                } catch (const std::exception& e) {
-                    std::cout << "Failed to load normal texture" << e.what() << std::endl;
-                }
-            }
-            std::cout << "Diffuse color create: " << diffuseColor.r << ", " << diffuseColor.g << ", " << diffuseColor.b << std::endl;
+  if (!diffusePath.empty()) {
+    material->m_diffuseTexture = textureCache.GetOrLoad(diffusePath);
+  }
+  if (!specularPath.empty()) {
+    material->m_specularTexture = textureCache.GetOrLoad(specularPath);
+  }
+  if (!normalPath.empty()) {
+    material->m_normalTexture = textureCache.GetOrLoad(normalPath);
+  }
 
-            material->m_diffuseColor = diffuseColor;
-            material->m_specularColor = specularColor;
-            return material;
-        }
+  return material;
+}
 
-void Material::Bind(Shader& shader) const {
-    shader.SetVec3("material.diffuse", m_diffuseColor);
-    shader.SetVec3("material.specular", m_specularColor);
-    shader.SetBool("material.use_diffuse_map", false);
-    shader.SetBool("material.use_normal_map", false);
-    shader.SetBool("material.use_specular_map", false);
+void Material::Bind(Shader &shader) const {
+  shader.SetVec3("material.diffuse", m_diffuseColor);
+  shader.SetVec3("material.specular", m_specularColor);
+  shader.SetBool("material.use_diffuse_map", false);
+  shader.SetBool("material.use_normal_map", false);
+  shader.SetBool("material.use_specular_map", false);
 
-    shader.SetFloat("material.shininess", m_shininess);
+  shader.SetFloat("material.shininess", m_shininess);
 }
 
 } // namespace engine

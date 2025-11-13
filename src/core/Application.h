@@ -1,8 +1,8 @@
 #pragma once
+#include "ui/Editor.h"
 #include <memory>
 #include <string>
 #include <vector>
-#include "ui/Editor.h"
 
 namespace ui {
 struct EditorContext;
@@ -16,34 +16,35 @@ namespace engine {
 class Window;
 class Scene;
 namespace data {
-    class SceneSerializer;
+class SceneSerializer;
 } // namespace data
 
 class Application {
 public:
   Application(int width, int height, const char *title);
-  ~Application(); 
+  ~Application();
 
   void Run();
-
+  void Shutdown();
   // Расширения (плагины)
   void AddExtension(std::unique_ptr<IAppExtension> ext);
 
   // Геттеры для редакторского контекста
-  [[nodiscard]] GLFWwindow* GetNativeWindow() const;
+  [[nodiscard]] GLFWwindow *GetNativeWindow() const;
   [[nodiscard]] int GetViewportWidth() const;
   [[nodiscard]] int GetViewportHeight() const;
   [[nodiscard]] float GetDeltaTime() const;
   Scene &GetScene();
 
-  bool SaveScene(const std::string& path);
-  void LoadScene(const std::string& path);
+  bool SaveScene(const std::string &path);
+  void LoadScene(const std::string &path);
+
 private:
   void InitGL();      // создать окно, контекст, glad, viewport и т.п.
   void TickCore();    // обновить dt, инпут
   void UpdateScene(); // m_scene.Update(dt)
   void RenderScene(); // m_scene.Render()
-  void SwapBuffers();        // swap buffers
+  void SwapBuffers(); // swap buffers
   [[nodiscard]] bool ShouldClose() const;
 
   std::unique_ptr<Window> m_window;

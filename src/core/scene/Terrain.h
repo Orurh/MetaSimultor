@@ -40,6 +40,7 @@ public:
   float GetLacunarity() const;
   glm::vec3 GetPosition() const;
   void SetPosition(const glm::vec3 &pos);
+  void Cleanup();
 
 private:
   class PImpl;

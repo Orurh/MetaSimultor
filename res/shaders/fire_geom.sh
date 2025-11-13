@@ -21,7 +21,7 @@ void main() {
 #shader geometry
 #version 330 core
 layout (points) in;
-layout (triangle_strip, max_vertices = 96) out;
+layout (triangle_strip, max_vertices = 64) out;
 
 in float v_intensity[];
 in vec3 v_bounds_min[];

@@ -44,16 +44,17 @@ public:
   void DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
                    const glm::vec3 &terrainPos);
   void SetFireParams(const FireParams &params);
-  void SetEffectParams(const std::string& uniformName, const FireParams::EffectParams& params);
+  void SetEffectParams(const std::string &uniformName,
+                       const FireParams::EffectParams &params);
 
 private:
   Renderer() = default;
   struct UniversalParticleData {
-      glm::vec3 position;
-      float intensity;
-      glm::vec3 bounds_min;
-      glm::vec3 bounds_max;
-      float effect_type; // 0=fire, 1=smoke, 2=sparks, 3=ash, 4=heat
+    glm::vec3 position;
+    float intensity;
+    glm::vec3 bounds_min;
+    glm::vec3 bounds_max;
+    float effect_type; // 0=fire, 1=smoke, 2=sparks, 3=ash, 4=heat
   };
   std::shared_ptr<Shader> m_universalParticleShader;
   std::vector<UniversalParticleData> m_particleData;
@@ -78,7 +79,7 @@ private:
   std::shared_ptr<Texture> m_sparksTexture;
   std::shared_ptr<Texture> m_ashTexture;
   std::shared_ptr<Texture> m_heatTexture;
-  
+
   std::vector<AgentRenderData> m_agentRenderData;
   std::shared_ptr<VertexBuffer> m_agentVBO;
   std::shared_ptr<VertexArrayObject> m_agentVAO;

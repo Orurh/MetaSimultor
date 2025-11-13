@@ -152,11 +152,12 @@ YAML::Emitter &SceneSerializer::SerializeSceneObject(YAML::Emitter &out,
 
   // Позиция и масштаб
   out << YAML::Key << "position" << YAML::Value;
-  out << YAML::Flow << YAML::BeginSeq << obj.m_position.x << obj.m_position.y << obj.m_position.z
-      << YAML::EndSeq;
+  out << YAML::Flow << YAML::BeginSeq << obj.m_position.x << obj.m_position.y
+      << obj.m_position.z << YAML::EndSeq;
 
   out << YAML::Key << "scale" << YAML::Value;
-  out << YAML::Flow << YAML::BeginSeq << obj.m_scale.x << obj.m_scale.y << obj.m_scale.z << YAML::EndSeq;
+  out << YAML::Flow << YAML::BeginSeq << obj.m_scale.x << obj.m_scale.y
+      << obj.m_scale.z << YAML::EndSeq;
 
   out << YAML::EndMap;
   return out;
@@ -223,14 +224,14 @@ SceneSerializer::DeserializeSceneObject(const YAML::Node &obj_node) {
   obj.m_is_visible = obj_node["is_visible"].as<bool>();
 
   // Позиция
-  const YAML::Node& pos_node = obj_node["position"];
-  obj.m_position =
-      glm::vec3(pos_node[0].as<float>(), pos_node[1].as<float>(), pos_node[2].as<float>());
+  const YAML::Node &pos_node = obj_node["position"];
+  obj.m_position = glm::vec3(pos_node[0].as<float>(), pos_node[1].as<float>(),
+                             pos_node[2].as<float>());
 
   // Масштаб
-  const YAML::Node& scale_node = obj_node["scale"];
-  obj.m_scale =
-      glm::vec3(scale_node[0].as<float>(), scale_node[1].as<float>(), scale_node[2].as<float>());
+  const YAML::Node &scale_node = obj_node["scale"];
+  obj.m_scale = glm::vec3(scale_node[0].as<float>(), scale_node[1].as<float>(),
+                          scale_node[2].as<float>());
 
   return obj;
 }

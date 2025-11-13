@@ -119,6 +119,7 @@ public:
     m_vao->AddVertexBuffer(vbo);
     m_vao->SetIndexBuffer(ibo);
   }
+  void Cleanup() { m_vao.reset(); }
 };
 
 Terrain::Terrain() : m_impl(std::make_unique<PImpl>()) {}
@@ -153,5 +154,6 @@ float Terrain::GetPersistence() const { return m_impl->m_persistence; }
 float Terrain::GetLacunarity() const { return m_impl->m_lacunarity; }
 glm::vec3 Terrain::GetPosition() const { return m_impl->m_position; }
 void Terrain::SetPosition(const glm::vec3 &pos) { m_impl->m_position = pos; }
+void Terrain::Cleanup() { m_impl->Cleanup(); }
 
 } // namespace engine

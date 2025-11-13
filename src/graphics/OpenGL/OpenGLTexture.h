@@ -1,6 +1,7 @@
+#pragma once
 #include "graphics/Texture.h"
 #include <glad/glad.h>
-namespace engine  {
+namespace engine {
 class OpenGLTexture final : public Texture {
 public:
   OpenGLTexture(const std::string &path);
@@ -23,4 +24,4 @@ private:
   uint32_t m_rendererID;
   TextureSpecification m_specification;
 };
-} // namespace nova
+} // namespace engine
