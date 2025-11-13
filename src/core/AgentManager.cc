@@ -112,18 +112,19 @@ void AgentManager::AddFireAt(const Float3& world, float intensity) {
   Agent fire{};
   fire.type = BURNING;
   fire.object_id = -1;
-  fire.position = world; // мировое положение источника
+  fire.position = world;
 
-  fire.fire_collider.point_count = 1;
-  fire.fire_collider.heat_points[0] = Float3(0.f, 0.f, 0.f); // ЛОКАЛЬНО!
-  fire.fire_collider.fuels[0] = 100.f;
+  fire.fire_collider.point_count   = 1;
+  fire.fire_collider.heat_points[0] = world;  
+  fire.fire_collider.fuels[0]       = 100.0f;
   fire.fire_collider.intensities[0] = intensity;
 
-  fire.fire_collider.bounds_min = Float3(-0.25f, -0.25f, -0.25f);
-  fire.fire_collider.bounds_max = Float3(+0.25f, +0.25f, +0.25f);
+  fire.fire_collider.bounds_min = Float3(world.x - 0.25f, world.y - 0.25f, world.z - 0.25f);
+  fire.fire_collider.bounds_max = Float3(world.x + 0.25f, world.y + 0.25f, world.z + 0.25f);
 
   AddAgent(fire);
 }
+
 
 
 void AgentManager::setupFireSourceCollider(Agent& fire, float x, float y) {
@@ -166,88 +167,31 @@ Agent AgentManager::CreateAgent(AgentType type, Float3 position,
 
   a.fire_collider.bounds_min = c.collider_bounds_min; // локально
   a.fire_collider.bounds_max = c.collider_bounds_max;
-  // НЕ генерим здесь точки из головы
-  // generateTreeHeatPoints(a.fire_collider, ...); // удалить
 
   AddAgent(a);
   return a;
 }
 
 
-bool AgentManager::RemoveAgentAt(int idx, int* outFrom, int* outTo) {
-  if (idx < 0 || (size_t)idx >= m_count)
+bool AgentManager::RemoveAgentAt(int idx, int* outSwappedFrom, int* outSwappedTo) {
+  if (idx < 0 || static_cast<size_t>(idx) >= m_count) {
     return false;
-  const int last = (int)m_count - 1;
-  if (outFrom)
-    *outFrom = -1;
-  if (outTo)
-    *outTo = -1;
+}
+  const int LAST = m_count - 1;
+  if (outSwappedFrom != nullptr)
+    *outSwappedFrom = -1;
+  if (outSwappedFrom != nullptr)
+    *outSwappedFrom = -1;
 
-  if (idx != last) {
-    // копируем последнего агента на место удаляемого
-    cudaMemcpy(m_agents + idx, m_agents + last, sizeof(Agent), cudaMemcpyDeviceToDevice);
-    if (outFrom)
-      *outFrom = last;
-    if (outTo)
-      *outTo = idx;
+  if (idx != LAST) {
+    cudaMemcpy(m_agents + idx, m_agents + LAST, sizeof(Agent), cudaMemcpyDeviceToDevice);
+    if (outSwappedFrom != nullptr) {
+      *outSwappedFrom = LAST;
+}
+    if (outSwappedFrom != nullptr) {
+      *outSwappedFrom = idx;
+}
   }
-  // просто уменьшаем "логическое" количество
   --m_count;
-  // (опционально) cudaGetLastError проверка
   return true;
-}
-
-
-
-Agent AgentManager::GetAgentCPU(int idx) const {
-  Agent a{};
-  if (idx < 0 || static_cast<size_t>(idx) >= m_count) {
-    std::cerr << "GetAgentCPU: idx out of range: " << idx << "\n";
-    return a;
-  }
-  cudaError_t err = cudaMemcpy(&a, m_agents + idx, sizeof(Agent), cudaMemcpyDeviceToHost);
-  if (err != cudaSuccess) {
-    std::cerr << "GetAgentCPU: cudaMemcpy D2H failed: " << cudaGetErrorString(err) << "\n";
-  }
-  return a;
-}
-
-void AgentManager::UpdateAgentCPU(int idx, const Agent& a) {
-  if (idx < 0 || static_cast<size_t>(idx) >= m_count) {
-    std::cerr << "UpdateAgentCPU: idx out of range: " << idx << "\n";
-    return;
-  }
-  cudaError_t err = cudaMemcpy(m_agents + idx, &a, sizeof(Agent), cudaMemcpyHostToDevice);
-  if (err != cudaSuccess) {
-    std::cerr << "UpdateAgentCPU: cudaMemcpy H2D failed: " << cudaGetErrorString(err) << "\n";
-  }
-}
-
-std::vector<Agent> AgentManager::DownloadAllAgentsCPU() const {
-  std::vector<Agent> v(m_count);
-  if (m_count == 0) return v;
-  cudaError_t err = cudaMemcpy(v.data(), m_agents, m_count * sizeof(Agent), cudaMemcpyDeviceToHost);
-  if (err != cudaSuccess) {
-    std::cerr << "DownloadAllAgentsCPU: cudaMemcpy D2H failed: " << cudaGetErrorString(err) << "\n";
-    v.clear();
-  }
-  return v;
-}
-
-void AgentManager::UploadAllAgentsCPU(const std::vector<Agent>& v) {
-  const size_t n = v.size();
-  if (n > m_capacity) {
-    std::cerr << "UploadAllAgentsCPU: too many agents (" << n << " > " << m_capacity << ")\n";
-    return;
-  }
-  if (n == 0) {
-    m_count = 0;
-    return;
-  }
-  cudaError_t err = cudaMemcpy(m_agents, v.data(), n * sizeof(Agent), cudaMemcpyHostToDevice);
-  if (err != cudaSuccess) {
-    std::cerr << "UploadAllAgentsCPU: cudaMemcpy H2D failed: " << cudaGetErrorString(err) << "\n";
-    return;
-  }
-  m_count = n;
 }

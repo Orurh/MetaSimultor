@@ -7,93 +7,14 @@
 #include <memory>
 #include <print>
 #include <random>
+#include <algorithm> 
+#include <cmath> 
 #include "core/Input.h"
 #include "core/Window.h"
 #include "core/agent.h"
 #include "core/scene/Terrain.h"
 #include "core/simulation.cuh"
 #include "graphics/Renderer.h"
-
-namespace {
-inline Float3 mul(const Float3& a, const glm::vec3& s) {
-  return Float3(a.x * s.x, a.y * s.y, a.z * s.z);
-}
-
-// равномерная «средняя» шкала (можно заменить на max(s.x,s.y,s.z))
-inline float uniform_of(const glm::vec3& s) {
-  return (s.x + s.y + s.z) / 3.0f;
-}
-
-void ScaleCollider(FireCollider& col, const glm::vec3& finalScale) {
-  col.bounds_min = mul(col.bounds_min, finalScale);
-  col.bounds_max = mul(col.bounds_max, finalScale);
-  for (int i = 0; i < col.point_count; ++i) {
-    col.heat_points[i] = mul(col.heat_points[i], finalScale);
-  }
-}
-
-// простая ресэмплинг-сеточка внутри AABB, чтобы точек стало больше на крупных объектах
-void ResampleHeatPoints(FireCollider& col, int desiredCount, unsigned seed = 0xC0FFEEu) {
-  desiredCount = std::max(1, std::min(desiredCount, 64));
-  const Float3 mn = col.bounds_min;
-  const Float3 mx = col.bounds_max;
-  const float sx = std::max(1e-5f, mx.x - mn.x);
-  const float sy = std::max(1e-5f, mx.y - mn.y);
-  const float sz = std::max(1e-5f, mx.z - mn.z);
-
-  // решётка ~ кубический корень
-  const int n = static_cast<int>(std::ceil(std::cbrt(static_cast<float>(desiredCount))));
-  const int total = std::min(64, n * n * n);
-
-  std::mt19937 rng(seed);
-  std::uniform_real_distribution<float> j(-0.15f, 0.15f); // чуть «дышим»
-
-  int k = 0;
-  for (int iz = 0; iz < n && k < total; ++iz) {
-    for (int iy = 0; iy < n && k < total; ++iy) {
-      for (int ix = 0; ix < n && k < total; ++ix) {
-        const float fx = (ix + 0.5f) / n + j(rng);
-        const float fy = (iy + 0.5f) / n + j(rng);
-        const float fz = (iz + 0.5f) / n + j(rng);
-        const float px = mn.x + std::clamp(fx, 0.f, 1.f) * sx;
-        const float py = mn.y + std::clamp(fy, 0.f, 1.f) * sy;
-        const float pz = mn.z + std::clamp(fz, 0.f, 1.f) * sz;
-
-        col.heat_points[k] = Float3(px, py, pz);
-        // базовые значения: пусть топлива больше у больших
-        col.fuels[k]       = 1.0f;
-        col.intensities[k] = 0.0f;
-        ++k;
-      }
-    }
-  }
-  col.point_count = k;
-}
-
-// масштабирующий апдейт коллайдера + плотности точек
-void ScaleAndAdaptCollider(FireCollider& col,
-                           const glm::vec3& prefabModelScale, // базовая шкала из префаба
-                           float uniformScale,                 // множитель из инструмента
-                           unsigned seedForSampling) {
-  const glm::vec3 finalScale = prefabModelScale * uniformScale;
-
-  // 1) масштаб геометрии коллайдера
-  ScaleCollider(col, finalScale);
-
-  // 2) подберём целевое кол-во точек ~ площади XZ (часто логичнее, чем по объёму)
-  //    N_target = clamp(round(N_base * (uniformScale^alpha)), 1..64)
-  //    где alpha ~ 1.5 даёт компромисс между площадью(2) и линейной(1)
-  const float alpha = 1.5f;
-  const int   baseN = std::max(1, col.point_count); // то, что пришло из префаба
-  const int   targetN = std::max(1, std::min(64,
-                           static_cast<int>(std::lround(baseN * std::pow(uniformScale, alpha)))) );
-
-  // 3) ресэмплинг (равномерно по AABB; если нужно, можно учесть «крону» и т.п.)
-  ResampleHeatPoints(col, targetN, seedForSampling);
-}
-} // anonymous
-
-
 
 
 namespace engine {
@@ -110,7 +31,7 @@ void Scene::GenerateTerrain(const TerrainGenerationSettings& s) {
 }
 
 void Scene::EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab) {
-  if (m_objectModels.Find(id)) {
+  if (m_objectModels.Find(id) != nullptr) {
     return;
   }
 
@@ -134,9 +55,6 @@ void Scene::Update(float dt) {
                    m_windConfig.getCurrentWind(m_windTime));
   }
   auto simTime = std::chrono::high_resolution_clock::now();
-  //  std::cout << "sim time" <<
-  //  std::chrono::duration_cast<std::chrono::milliseconds>(simTime -
-  //  startTime).count() << std::endl;
 
   const bool UI_MOUSE = engine::InputSystem::Instance().UIMouseCaptured();
   const bool UI_KBD = engine::InputSystem::Instance().UIKeyboardCaptured();
@@ -306,43 +224,28 @@ const std::vector<std::string>& Scene::ListPrefabIds() const {
 
 void Scene::ReloadModelForPrefab(const std::string& prefab_id,
                                  const engine::data::AgentPrefab& prefab) {
-  // (1) Перезагрузка моделей в хранилище
+  // Перезагрузка модели
   ObjectModels models;
-  models.m_normal  = std::make_shared<Model>(prefab.m_modelPath);
+  models.m_normal = std::make_shared<Model>(prefab.m_modelPath);
   models.m_burning = std::make_shared<Model>(prefab.m_modelPath);
-  models.m_burned  = std::make_shared<Model>(prefab.m_modelPath);
+  models.m_burned = std::make_shared<Model>(prefab.m_modelPath);
   m_objectModels.Put(prefab_id, std::move(models));
 
-  // (2) Обновляем материалы/параметры префаба в системе префабов
+  // Обновляем префаб в системе (чтобы GetMaterialForState возвращал свежий материал)
   auto& system_prefab = m_prefabSystem.GetPrefabMutable(prefab_id);
-  system_prefab.normalMaterial  = prefab.normalMaterial;
+  system_prefab.normalMaterial = prefab.normalMaterial;
   system_prefab.burningMaterial = prefab.burningMaterial;
-  system_prefab.burnedMaterial  = prefab.burnedMaterial;
-  system_prefab.m_modelScale    = prefab.m_modelScale;  // не забыть обновить и базовый scale
+  system_prefab.burnedMaterial = prefab.burnedMaterial;
 
-  // (3) Обновляем объекты сцены и их коллайдеры у соответствующих агентов
+  // Обновляем  m_scale для объектов сцены
   for (auto& obj : m_sceneObjects.All()) {
-    if (obj.m_object_type != prefab_id) { continue;
-}
-
-    // 3.1 визуальный масштаб
-    obj.m_scale = prefab.m_modelScale * obj.m_uniform_scale;
-
-    // 3.2 обновить коллайдер агента под новый базовый scale
-    if (obj.m_agent_id >= 0 && obj.m_agent_id < m_agentManager.getAgentCount()) {
-      // Вариант A: через методы доступа к CPU-буферу одного агента:
-      Agent ag = m_agentManager.GetAgentCPU(obj.m_agent_id); // ← добавь метод
-      const unsigned seed = (obj.m_seedForCollider != 0)
-                            ? obj.m_seedForCollider
-                            : (std::hash<int>{}(obj.m_position.x*31) ^
-                               (std::hash<int>{}(obj.m_position.z*57) << 1) ^ 0x9e3779b9U);
-      ScaleAndAdaptCollider(ag.fire_collider, prefab.m_modelScale, obj.m_uniform_scale, seed);
-      m_agentManager.UpdateAgentCPU(obj.m_agent_id, ag);     // ← добавь метод
+    if (obj.m_object_type == prefab_id) {
+      obj.m_scale = prefab.m_modelScale;
     }
   }
-
   std::cout << "[Scene] Reloaded model for prefab '" << prefab_id << "'\n";
 }
+
 
 // привязываем модель к префабу (если нужно или не нужно)
 void Scene::AddSceneObjectFromSerialized(const SceneObject& obj) {
@@ -419,7 +322,7 @@ void Scene::AddPrefabScaled(const std::string& prefab_id,
   const unsigned seed = std::hash<int>{}(static_cast<int>(x*31)) ^
                         (std::hash<int>{}(static_cast<int>(z*57)) << 1) ^
                         0x9e3779b9U;
-  ScaleAndAdaptCollider(agent.fire_collider, prefab.m_modelScale, uniformScale, seed);
+  // ScaleAndAdaptCollider(agent.fire_collider, prefab.m_modelScale, uniformScale, seed);
 
   // 3) добавляем агента в симуляцию
   m_agentManager.AddAgent(agent);
@@ -430,7 +333,7 @@ void Scene::AddPrefabScaled(const std::string& prefab_id,
   obj.m_object_type    = prefab_id;
   obj.m_position       = glm::vec3(x, y, z);
   obj.m_uniform_scale  = uniformScale;                       // <<< НОВОЕ
-  obj.m_scale          = prefab.m_modelScale * uniformScale; // визуальный итог
+  obj.m_scale          = prefab.m_modelScale;
   obj.m_is_visible     = true;
   obj.m_seedForCollider= seed;                               // (опц.) сохраняем
 

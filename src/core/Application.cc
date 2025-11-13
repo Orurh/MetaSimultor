@@ -49,7 +49,7 @@ void Application::Run() {
 
     // Собираем контекст на кадр (размеры, матрицы и т.п.)
     ui::EditorContext ctx{};
-    ctx.m_editor    = &m_editor; 
+    // ctx.m_editor    = &m_editor; 
     ctx.m_app      = this;  
     ctx.m_window    = GetNativeWindow();
     ctx.m_scene     = m_scene.get();

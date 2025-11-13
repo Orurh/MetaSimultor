@@ -71,7 +71,7 @@ class Scene {
 
   void AddPrefab(const std::string& prefab_id, float x, float z);
   void AddPrefabScaled(const std::string& prefab_id, float x, float z,
-                     float uniformScale, float yawDeg = 0.0f); // изменение размера
+                     float uniformScale, float yawDeg = 0.0F); 
   bool RemoveNearestAt(const glm::vec3& world, float maxXZDist);
 
   const std::vector<std::string>& ListPrefabIds() const;
@@ -100,8 +100,7 @@ class Scene {
   void RemoveSceneObjectByIndex(size_t idx);
 
   AgentManager m_agentManager;
-  // Renderer m_renderer;
-  // std::unordered_map<std::string, std::shared_ptr<Model>> m_loadedModels;
+
   std::unique_ptr<Terrain> m_terrain;
   data::PrefabSystem m_prefabSystem;
 

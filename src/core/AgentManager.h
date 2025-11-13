@@ -29,16 +29,6 @@ class AgentManager {
   int getAgentCount() const { return m_count; }
 
 
-Agent GetAgentCPU(int idx) const;
-
-  // Копирует переданного агента с хоста на устройство по индексу
-  void  UpdateAgentCPU(int idx, const Agent& a);
-
-  // --- Массовые операции (если удобнее заливать пакетно) ---
-  std::vector<Agent> DownloadAllAgentsCPU() const;
-  void UploadAllAgentsCPU(const std::vector<Agent>& v);
-
-  
   void IgniteRandomPoint(int agent_index);
   void Clear();
   void SetAgents(const std::vector<Agent>& agents) {
