@@ -188,22 +188,6 @@ void SceneSerializer::Deserialize(const std::string &filename) {
     // Загружаем агентов в GPU
     m_scene->GetAgentManager().SetAgents(agents);
 
-    for (const auto &node : scene_data["scene_objects"]) {
-      SceneObject obj;
-      obj.m_object_type = node["object_type"].as<std::string>();
-      obj.m_agent_id = node["agent_id"].as<int>();
-      obj.m_position = glm::vec3(node["position"][0].as<float>(),
-                                 node["position"][1].as<float>(),
-                                 node["position"][2].as<float>());
-      obj.m_scale =
-          glm::vec3(node["scale"][0].as<float>(), node["scale"][1].as<float>(),
-                    node["scale"][2].as<float>());
-      obj.m_is_visible = node["is_visible"].as<bool>(true);
-
-      // Восстанавливаем через AddPrefab
-      m_scene->AddPrefab(obj.m_object_type, obj.m_position.x, obj.m_position.z);
-    }
-
     const YAML::Node &terrain_node = scene_data["terrain"];
     if (terrain_node) {
       TerrainGenerationSettings s;
@@ -223,6 +207,21 @@ void SceneSerializer::Deserialize(const std::string &filename) {
         m_scene->GetTerrain()->SetPosition(pos);
       }
       m_scene->GenerateTerrain(s);
+    }
+    for (const auto &node : scene_data["scene_objects"]) {
+      SceneObject obj;
+      obj.m_object_type = node["object_type"].as<std::string>();
+      obj.m_agent_id = node["agent_id"].as<int>();
+      obj.m_position = glm::vec3(node["position"][0].as<float>(),
+                                 node["position"][1].as<float>(),
+                                 node["position"][2].as<float>());
+      obj.m_scale =
+          glm::vec3(node["scale"][0].as<float>(), node["scale"][1].as<float>(),
+                    node["scale"][2].as<float>());
+      obj.m_is_visible = node["is_visible"].as<bool>(true);
+
+      // Восстанавливаем через AddPrefab
+      m_scene->AddPrefab(obj.m_object_type, obj.m_position.x, obj.m_position.z);
     }
 
   } catch (const std::exception &e) {
