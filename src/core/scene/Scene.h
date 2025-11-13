@@ -6,8 +6,9 @@
 #include "data/PrefabSystem.h"
 #include <memory>
 
+#include "Components.h"
+#include "entt.hpp"
 #include "sceneObj/ObjectModelStore.h"
-#include "sceneObj/SceneObjectStore.h"
 namespace engine {
 class Model;
 class Entity;
@@ -19,7 +20,7 @@ public:
   Scene();
   void Init();
   void Update(float dt);
-
+  auto CreateEntity(const std::string &id) -> Entity;
   void Render();
   void AddTree(float x, float z, const std::string &tree_type = "default_tree");
   void AddFire(float x, float z, float intensity = 1.0F);
@@ -30,10 +31,12 @@ public:
   void Clear();
   void Shutdown();
   enum class PlaceMode { Tree, Fire };
-  void SetPlaceMode(PlaceMode m) { m_placeMode = m; }
   void SetFireIntensity(float v) { m_fireIntensity = v; }
   std::vector<Agent> LoadAgentsFromGPU();
-
+  auto GetSceneObjectsView() const {
+    return m_Registry
+        .view<TransformComponent, RenderComponent, AgentLinkComponent>();
+  }
   void LoadPrimaryModel(const std::string &path);
 
   Camera &GetCamera() { return m_camera; }
@@ -53,13 +56,6 @@ public:
                         const std::string &burning_path,
                         const std::string &burned_path);
 
-  const std::vector<SceneObject> &GetSceneObjects() const {
-    return m_sceneObjects.All();
-  }
-
-  // Метод для добавления SceneObject
-  void AddSceneObject(const SceneObject &obj) { m_sceneObjects.Add(obj); }
-
   void SetViewportRect(int x, int y, int w, int h) {
     m_vpX = x;
     m_vpY = y;
@@ -70,8 +66,6 @@ public:
     m_vpScaleX = sx;
     m_vpScaleY = sy;
   }
-
-  PlaceMode GetPlaceMode() const { return m_placeMode; }
 
   void AddPrefab(const std::string &prefab_id, float x, float z);
   bool RemoveNearestAt(const glm::vec3 &world, float maxXZDist);
@@ -88,7 +82,6 @@ public:
   float GetWindTime() const { return m_windTime; }
   void ReloadModelForPrefab(const std::string &prefab_id,
                             const engine::data::AgentPrefab &prefab);
-  void AddSceneObjectFromSerialized(const SceneObject &obj);
   void GenerateTerrain(const TerrainGenerationSettings &s);
 
   Terrain *GetTerrain() { return m_terrain.get(); }
@@ -102,25 +95,24 @@ private:
                              const engine::data::AgentPrefab &prefab);
 
   // для удаления префабов
-  int FindClosestObjectXZ(const glm::vec3 &world, float maxXZDist) const;
-  void RemoveSceneObjectByIndex(size_t idx);
+  entt::registry m_Registry;
+  std::unordered_map<EntityID, entt::entity> m_EntityMap;
 
   AgentManager m_agentManager;
   std::unique_ptr<Terrain> m_terrain;
   data::PrefabSystem m_prefabSystem;
 
-  SceneObjectStore m_sceneObjects;
   ObjectModelStore m_objectModels;
 
   Camera m_camera;
   WindConfig m_windConfig;
   float m_windTime = 0.0F;
   // --- интерактив ---
-  PlaceMode m_placeMode{PlaceMode::Tree};
   float m_fireIntensity{1.0F};
 
   int m_vpX{0}, m_vpY{0};
   int m_vpW{1920}, m_vpH{1080};
   float m_vpScaleX{1.0F}, m_vpScaleY{1.0F};
+  friend class Entity;
 };
 } // namespace engine

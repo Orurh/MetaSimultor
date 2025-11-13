@@ -84,6 +84,7 @@ target_include_directories(disaster_sim PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     libs/glad/include/
     libs/stbi/
+    libs/entt/
     ${CUDA_INCLUDE_DIRS}
 )
 
@@ -115,6 +116,7 @@ target_include_directories(core_for_tests PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     libs/glad/include/    # ← ДОБАВИЛ ЭТО
+    libs/entt/ 
 )
 
 # ДОБАВИЛ GLAD В ЛИНКОВКУ ДЛЯ CORE_FOR_TESTS

@@ -25,8 +25,9 @@ Agent AgentManager::AddTree(int tree_id, float base_x, float base_z) {
 // void AgentManager::AddFire(float x, float y, float z, float intensity) {
 //   Agent a;
 //   a.position = Float3{x, y, z};
-//   a.type = AgentType::BURNING;             // или NORMAL, если у тебя огонь «разжигает» со временем
-//   a.intensity = intensity;                  // или твоя логика начального значения
+//   a.type = AgentType::BURNING;             // или NORMAL, если у тебя огонь
+//   «разжигает» со временем a.intensity = intensity;                  // или
+//   твоя логика начального значения
 
 //   // если нужен коллайдер — инициализируй его локально:
 //   a.fire_collider.point_count = 1;
@@ -37,17 +38,17 @@ Agent AgentManager::AddTree(int tree_id, float base_x, float base_z) {
 //   AddAgent(a); // как ты обычно пушишь в буфер + на GPU
 // }
 
+void AgentManager::setupTreeFireCollider(Agent &tree, float base_x,
+                                         float base_z) {
+  tree.fire_collider.bounds_min.x = base_x - 2.0f;
+  tree.fire_collider.bounds_min.y = 0.0f;
+  tree.fire_collider.bounds_min.z = base_z - 2.0f;
 
-void AgentManager::setupTreeFireCollider(Agent& tree, float base_x, float base_z) {
-    tree.fire_collider.bounds_min.x = base_x - 2.0f;
-    tree.fire_collider.bounds_min.y = 0.0f;         
-    tree.fire_collider.bounds_min.z = base_z - 2.0f;
-    
-    tree.fire_collider.bounds_max.x = base_x + 2.0f;
-    tree.fire_collider.bounds_max.y = 8.0f;         
-    tree.fire_collider.bounds_max.z = base_z + 2.0f;
-    
-    generateTreeHeatPoints(tree.fire_collider, base_x, base_z);
+  tree.fire_collider.bounds_max.x = base_x + 2.0f;
+  tree.fire_collider.bounds_max.y = 8.0f;
+  tree.fire_collider.bounds_max.z = base_z + 2.0f;
+
+  generateTreeHeatPoints(tree.fire_collider, base_x, base_z);
 }
 
 void AgentManager::IgniteRandomPoint(int agent_index) {
@@ -125,8 +126,9 @@ void AgentManager::AddFire(float x, float z, float intensity) {
   AddFireAt(Float3{x, 0.0f, z}, intensity);
 }
 
-void AgentManager::AddFireAt(const Float3& world, float intensity) {
-  if (m_count >= m_capacity) return;
+void AgentManager::AddFireAt(const Float3 &world, float intensity) {
+  if (m_count >= m_capacity)
+    return;
 
   Agent fire{};
   fire.type = BURNING;
@@ -134,12 +136,14 @@ void AgentManager::AddFireAt(const Float3& world, float intensity) {
   fire.position = world;
 
   fire.fire_collider.point_count = 1;
-  fire.fire_collider.heat_points[0] = world;   // мировая точка источника
+  fire.fire_collider.heat_points[0] = world; // мировая точка источника
   fire.fire_collider.fuels[0] = 100.0f;
   fire.fire_collider.intensities[0] = intensity;
 
-  fire.fire_collider.bounds_min = Float3(world.x - 0.25f, world.y - 0.25f, world.z - 0.25f);
-  fire.fire_collider.bounds_max = Float3(world.x + 0.25f, world.y + 0.25f, world.z + 0.25f);
+  fire.fire_collider.bounds_min =
+      Float3(world.x - 0.25f, world.y - 0.25f, world.z - 0.25f);
+  fire.fire_collider.bounds_max =
+      Float3(world.x + 0.25f, world.y + 0.25f, world.z + 0.25f);
 
   AddAgent(fire);
 }
@@ -161,14 +165,14 @@ void AgentManager::setupFireSourceCollider(Agent &fire, float x, float y) {
   fire.fire_collider.intensities[0] = 0.0f;
 }
 
-void AgentManager::AddAgent(const Agent &agent) {
+int AgentManager::AddAgent(const Agent &agent) {
   if (m_count >= m_capacity) {
     std::cerr << "AgentManager: capacity exceeded!" << std::endl;
-    return;
+    return -1;
   }
 
   cudaMemcpy(m_agents + m_count, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
-  m_count++;
+  return m_count++;
 }
 void AgentManager::Clear() {
   m_count = 0;
@@ -189,18 +193,23 @@ Agent AgentManager::CreateAgent(AgentType type, Float3 position,
   return agent;
 }
 
-bool AgentManager::RemoveAgentAt(int idx, int* outFrom, int* outTo) {
-  if (idx < 0 || (size_t)idx >= m_count) return false;
+bool AgentManager::RemoveAgentAt(int idx, int *outFrom, int *outTo) {
+  if (idx < 0 || (size_t)idx >= m_count)
+    return false;
   const int last = (int)m_count - 1;
-  if (outFrom) *outFrom = -1;
-  if (outTo)   *outTo   = -1;
+  if (outFrom)
+    *outFrom = -1;
+  if (outTo)
+    *outTo = -1;
 
   if (idx != last) {
     // копируем последнего агента на место удаляемого
-    cudaMemcpy(m_agents + idx, m_agents + last,
-               sizeof(Agent), cudaMemcpyDeviceToDevice);
-    if (outFrom) *outFrom = last;
-    if (outTo)   *outTo   = idx;
+    cudaMemcpy(m_agents + idx, m_agents + last, sizeof(Agent),
+               cudaMemcpyDeviceToDevice);
+    if (outFrom)
+      *outFrom = last;
+    if (outTo)
+      *outTo = idx;
   }
   // просто уменьшаем "логическое" количество
   --m_count;

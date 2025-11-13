@@ -1,4 +1,5 @@
 #include "Scene.h"
+#include "Entity.h"
 #include "core/Input.h"
 #include "core/Window.h"
 #include "core/agent.h"
@@ -20,6 +21,13 @@ void Scene::Init() {
   m_terrain = std::make_unique<Terrain>();
   GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
   engine::Renderer::Instance().Init();
+}
+
+auto Scene::CreateEntity(const std::string &id) -> Entity {
+  Entity entity = {m_Registry.create(), this};
+  entity.AddComponent<IDComponent>(id);
+  m_EntityMap[id] = entity;
+  return entity;
 }
 
 void Scene::GenerateTerrain(const TerrainGenerationSettings &s) {
@@ -47,7 +55,7 @@ void Scene::Update(float dt) {
   m_windTime += dt;
 
   auto simStart = std::chrono::high_resolution_clock::now();
-  if (!m_sceneObjects.Empty()) {
+  if (m_agentManager.getAgentCount() > 0) {
     SimulationStep(m_agentManager.getDeviceAgents(),
                    m_agentManager.getAgentCount(), dt,
                    m_windConfig.getCurrentWind(m_windTime));
@@ -97,35 +105,60 @@ void Scene::Update(float dt) {
 
 void Scene::Render() {
   const int FB_W = static_cast<int>(m_vpW * m_vpScaleX);
-  const int FB_H = static_cast<int>(m_vpH * m_vpScaleX);
-  glViewport(0, 0, FB_W, FB_H);
+  const int FB_H = static_cast<int>(m_vpH * m_vpScaleY);
+  glViewport(m_vpX, m_vpY, FB_W, FB_H);
 
-  const float ASPECT =
-      FB_H > 0 ? static_cast<float>(FB_W) / static_cast<float>(FB_H) : 1.0F;
-  auto projection = glm::perspective(m_camera.GetZoom(), ASPECT, 0.1F, 2000.0F);
-
+  const float aspect = FB_H > 0 ? FB_W / (float)FB_H : 1.0f;
+  auto projection = glm::perspective(m_camera.GetZoom(), aspect, 0.1f, 2000.0f);
   auto view = m_camera.GetViewMatrix();
+
   Renderer::Instance().BeginScene(view, projection);
 
-  auto agents = LoadAgentsFromGPU();
+  // 1. Синхронизация GPU → CPU
+  auto agents = LoadAgentsFromGPU(); // ← m_agentManager
 
-  // Рендеринг объектов
-  for (const auto &obj : m_sceneObjects.All()) {
-    if (!obj.m_is_visible) {
+  // 2. Рендер через ECS
+  auto render_view =
+      m_Registry
+          .view<TransformComponent, RenderComponent, AgentLinkComponent>();
+  for (auto [entity, transform, render, link] : render_view.each()) {
+    if (!render.is_visible)
       continue;
-    }
 
-    if (obj.m_agent_id < agents.size()) {
-      const Agent &agent = agents[obj.m_agent_id];
-      RenderAgent(agent, obj);
+    const Agent &agent = agents[link.gpu_index];
+    const auto &prefab = m_prefabSystem.GetPrefab(link.prefab_id);
+
+    // Определяем состояние
+    AgentType state = AgentType::NORMAL;
+    if (agent.type == AgentType::BURNED)
+      state = AgentType::BURNED;
+    else if (agent.isBurning() || agent.type == AgentType::BURNING)
+      state = AgentType::BURNING;
+
+    auto material = prefab.GetMaterialForState(state);
+    auto model = m_objectModels.Find(link.prefab_id);
+    if (!model || !model->m_normal)
+      continue;
+
+    auto *draw_model = model->m_normal.get();
+    if (state == AgentType::BURNING && model->m_burning)
+      draw_model = model->m_burning.get();
+    if (state == AgentType::BURNED && model->m_burned)
+      draw_model = model->m_burned.get();
+
+    if (draw_model && material) {
+      Renderer::Instance().DrawModelWithMaterial(
+          *draw_model, transform.position, render.scale, m_camera.GetPosition(),
+          material);
     }
   }
 
+  // 3. Частицы + Terrain
   Renderer::Instance().UploadAgentsData(agents);
-  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(),
-                                   m_terrain->GetPosition());
   Renderer::Instance().RenderWithGeometryShader(
       m_windConfig.getCurrentWind(m_windTime));
+  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(),
+                                   m_terrain->GetPosition());
 
   Renderer::Instance().EndScene();
 }
@@ -210,8 +243,9 @@ glm::mat4 Scene::GetProjMatrix(int w, int h) {
 }
 
 void Scene::Clear() {
-  m_sceneObjects.Clear();
   m_agentManager.Clear();
+  m_Registry.clear();
+  m_EntityMap.clear();
 }
 
 void Scene::Shutdown() {
@@ -219,7 +253,6 @@ void Scene::Shutdown() {
 
   m_prefabSystem.ReleaseAllMaterials();
 
-  m_sceneObjects.Clear();
   m_agentManager.Clear();
   m_terrain->Cleanup();
   Renderer::Instance().Shutdown();
@@ -227,24 +260,23 @@ void Scene::Shutdown() {
 
 void Scene::AddPrefab(const std::string &prefab_id, float x, float z) {
   const auto &prefab = m_prefabSystem.GetPrefab(prefab_id);
-
-  // 1) гарантируем, что модели для этого prefab загружены
   EnsureModelsForPrefab(prefab_id, prefab);
-
   const float y = GetGroundHeight(x, z);
 
-  // 2) создаём агента
+  // 1. GPU агент
   Agent agent = m_prefabSystem.CreateAgentFromPrefab(prefab, {x, y, z});
-  m_agentManager.AddAgent(agent);
+  int gpu_index = m_agentManager.AddAgent(agent);
 
-  // 3) объект сцены
-  SceneObject obj;
-  obj.m_agent_id = m_agentManager.getAgentCount() - 1;
-  obj.m_object_type = prefab_id; // ключ в m_objectModels
-  obj.m_position = glm::vec3(x, y, z);
-  obj.m_scale = prefab.m_modelScale;
-  obj.m_is_visible = true;
-  m_sceneObjects.Add(std::move(obj));
+  // 2. ECS Entity
+  Entity entity = CreateEntity(prefab_id);
+  entity.AddComponent<TransformComponent>(glm::vec3{x, y, z});
+  entity.AddComponent<RenderComponent>(prefab_id, prefab.m_modelScale, true);
+  entity.AddComponent<AgentLinkComponent>(gpu_index, prefab_id);
+
+  // 3. FireEmitter
+  if (prefab_id.find("fire") != std::string::npos) {
+    entity.AddComponent<FireEmitterComponent>();
+  }
 }
 
 // Если нужно, оставь AddTree как шорткат:
@@ -266,30 +298,21 @@ void Scene::ReloadModelForPrefab(const std::string &prefab_id,
   models.m_burned = std::make_shared<Model>(prefab.m_modelPath);
   m_objectModels.Put(prefab_id, std::move(models));
 
-  // Обновляем префаб в системе (чтобы GetMaterialForState возвращал свежий
-  // материал)
+  // 2. Обновляем префаб (материалы)
   auto &system_prefab = m_prefabSystem.GetPrefabMutable(prefab_id);
   system_prefab.normalMaterial = prefab.normalMaterial;
   system_prefab.burningMaterial = prefab.burningMaterial;
   system_prefab.burnedMaterial = prefab.burnedMaterial;
 
-  // Обновляем  m_scale для объектов сцены
-  for (auto &obj : m_sceneObjects.All()) {
-    if (obj.m_object_type == prefab_id) {
-      obj.m_scale = prefab.m_modelScale;
+  // 3. Обновляем scale у всех Entity с этим prefab_id
+  auto view = m_Registry.view<RenderComponent>();
+  for (auto [entity, render] : view.each()) {
+    if (render.prefab_id == prefab_id) {
+      render.scale = prefab.m_modelScale;
     }
   }
 
   std::cout << "[Scene] Reloaded model for prefab '" << prefab_id << "'\n";
-}
-
-// привязываем модель к префабу (если нужно или не нужно)
-void Scene::AddSceneObjectFromSerialized(const SceneObject &obj) {
-  const auto &prefab = m_prefabSystem.GetPrefab(obj.m_object_type);
-  EnsureModelsForPrefab(obj.m_object_type, prefab);
-  SceneObject o = obj;
-  o.m_scale = prefab.m_modelScale;
-  m_sceneObjects.Add(std::move(o));
 }
 
 float Scene::GetGroundHeight(float x, float z) const {
@@ -303,44 +326,53 @@ void Scene::AddFire(float x, float z, float intensity) {
 }
 
 void Scene::AddFireAt(const glm::vec3 &world, float intensity) {
-  // единая точка входа
   m_agentManager.AddFireAt(Float3{world.x, world.y, world.z}, intensity);
 }
+bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
+  float bestDist2 = maxXZDist * maxXZDist;
+  entt::entity best = entt::null;
 
-int Scene::FindClosestObjectXZ(const glm::vec3 &world, float maxXZDist) const {
-  return m_sceneObjects.FindClosestXZ(world, maxXZDist);
-}
+  auto view = m_Registry.view<TransformComponent, AgentLinkComponent>();
+  view.each([&](entt::entity entity, const TransformComponent &transform,
+                const AgentLinkComponent &link) {
+    float dx = transform.position.x - world.x;
+    float dz = transform.position.z - world.z;
+    float dist2 = dx * dx + dz * dz;
+    if (dist2 < bestDist2) {
+      bestDist2 = dist2;
+      best = entity;
+    }
+  });
 
-void Scene::RemoveSceneObjectByIndex(size_t idx) {
-  const SceneObject *victim = m_sceneObjects.Get(idx);
-  if (!victim)
-    return;
+  if (best == entt::null)
+    return false;
 
-  const int removed_agent = victim->m_agent_id;
+  auto &link = m_Registry.get<AgentLinkComponent>(best);
+  int gpu_idx = link.gpu_index;
 
-  int swapped_from = -1;
-  int swapped_to = -1;
-  m_agentManager.RemoveAgentAt(removed_agent, &swapped_from, &swapped_to);
+  int swapped_from = -1, swapped_to = -1;
+  if (!m_agentManager.RemoveAgentAt(gpu_idx, &swapped_from, &swapped_to)) {
+    return false;
+  }
 
-  m_sceneObjects.RemoveByIndex(idx);
-
-  if (swapped_from >= 0 && swapped_to >= 0 && swapped_from != swapped_to) {
-    for (auto &so : m_sceneObjects.All()) {
-      if (so.m_agent_id == swapped_from) {
-        so.m_agent_id = swapped_to;
+  if (swapped_from != -1 && swapped_to != -1 && swapped_from != swapped_to) {
+    auto update_view = m_Registry.view<AgentLinkComponent>();
+    for (auto [entity, link_comp] : update_view.each()) {
+      if (link_comp.gpu_index == swapped_from) {
+        link_comp.gpu_index = swapped_to;
         break;
       }
     }
   }
-}
 
-bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
-  const int idx = FindClosestObjectXZ(world, maxXZDist);
-  if (idx < 0) {
-    return false;
+  m_Registry.destroy(best);
+
+  // Удаляем из мапы по ID
+  if (m_Registry.all_of<IDComponent>(best)) {
+    auto &id = m_Registry.get<IDComponent>(best);
+    m_EntityMap.erase(id.ID);
   }
-  RemoveSceneObjectByIndex(static_cast<size_t>(idx));
+
   return true;
 }
-
 } // namespace engine

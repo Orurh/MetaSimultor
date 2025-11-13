@@ -30,10 +30,17 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
     out << YAML::EndSeq;
 
     // SceneObject'ы
-    out << YAML::Key << "scene_objects" << YAML::Value;
-    out << YAML::BeginSeq;
-    for (int i = 0; i < m_scene->GetSceneObjects().size(); i++) {
-      SerializeSceneObject(out, m_scene->GetSceneObjects()[i], i);
+    out << YAML::Key << "scene_objects" << YAML::Value << YAML::BeginSeq;
+    auto view = m_scene->GetSceneObjectsView();
+    for (auto [entity, transform, render, link] : view.each()) {
+      SceneObject obj;
+      obj.m_agent_id = link.gpu_index;
+      obj.m_object_type = render.prefab_id;
+      obj.m_position = transform.position;
+      obj.m_scale = render.scale;
+      obj.m_is_visible = render.is_visible;
+
+      SerializeSceneObject(out, obj, link.gpu_index);
     }
     out << YAML::EndSeq;
     out << YAML::Key << "terrain" << YAML::Value;
@@ -181,10 +188,20 @@ void SceneSerializer::Deserialize(const std::string &filename) {
     // Загружаем агентов в GPU
     m_scene->GetAgentManager().SetAgents(agents);
 
-    const YAML::Node &objects_node = scene_data["scene_objects"];
-    for (const YAML::Node &obj_node : objects_node) {
-      SceneObject obj = DeserializeSceneObject(obj_node);
-      m_scene->AddSceneObjectFromSerialized(obj);
+    for (const auto &node : scene_data["scene_objects"]) {
+      SceneObject obj;
+      obj.m_object_type = node["object_type"].as<std::string>();
+      obj.m_agent_id = node["agent_id"].as<int>();
+      obj.m_position = glm::vec3(node["position"][0].as<float>(),
+                                 node["position"][1].as<float>(),
+                                 node["position"][2].as<float>());
+      obj.m_scale =
+          glm::vec3(node["scale"][0].as<float>(), node["scale"][1].as<float>(),
+                    node["scale"][2].as<float>());
+      obj.m_is_visible = node["is_visible"].as<bool>(true);
+
+      // Восстанавливаем через AddPrefab
+      m_scene->AddPrefab(obj.m_object_type, obj.m_position.x, obj.m_position.z);
     }
 
     const YAML::Node &terrain_node = scene_data["terrain"];
@@ -207,9 +224,6 @@ void SceneSerializer::Deserialize(const std::string &filename) {
       }
       m_scene->GenerateTerrain(s);
     }
-
-    std::cout << "Scene loaded: " << agents.size() << " agents, "
-              << objects_node.size() << " objects" << std::endl;
 
   } catch (const std::exception &e) {
     std::cerr << "Failed to deserialize scene: " << e.what() << std::endl;
