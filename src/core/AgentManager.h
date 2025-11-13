@@ -1,3 +1,4 @@
+#pragma once
 #include "agent.h"
 #include <glm/glm.hpp>
 #include <vector>
@@ -35,6 +36,8 @@ public:
       AddAgent(agent);
     }
   }
+
+  std::vector<Agent> LoadAgentsFromGPU();
 
 private:
   void generateTreeHeatPoints(FireCollider &collider, float base_x,

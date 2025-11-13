@@ -1,7 +1,9 @@
 // src/ui/panels/TerrainConfigPanel.h
 #pragma once
+#include "core/scene/Terrain.h"
 #include "ui/IPanel.h"
 #include <glm/glm.hpp>
+
 namespace ui {
 
 class TerrainConfigPanel final : public IPanel {
@@ -11,20 +13,16 @@ public:
   void Draw(EditorContext &ctx) override;
 
 private:
-  struct Settings {
-    glm::vec3 position = glm::vec3(0.0f);
-    int width = 256;
-    int depth = 256;
-    float scale = 2.0f;
-    float maxHeight = 80.0f;
-    uint32_t seed = 42;
-    float frequency = 0.02f;
-    int octaves = 6;
-    float persistence = 0.5f;
-    float lacunarity = 2.0f;
-  } m_settings;
-
+  void DrawTextureSettings(EditorContext &ctx);
+  void DrawTexturePreview();
+  void LoadAndPreviewTexture(const std::string &path);
+  engine::TerrainGenerationSettings m_settings;
+  std::shared_ptr<engine::Texture> m_texturePreview;
   bool m_regenerate = false;
+  bool m_textureChanged = false;
+  bool m_textureLoaded = false;
+  std::string m_texturePreviewPath;
+  char m_texturePath[256];
 };
 
 } // namespace ui

@@ -115,6 +115,7 @@ add_library(core_for_tests STATIC ${CORE_SOURCE_FILES})
 target_include_directories(core_for_tests PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+
     libs/glad/include/    # ← ДОБАВИЛ ЭТО
     libs/entt/ 
 )
@@ -128,6 +129,7 @@ add_executable(unit_tests ${TEST_SRC_FILES})
 
 target_link_libraries(unit_tests
     core_for_tests
+    GTest::gmock
     GTest::GTest
     GTest::Main
 )

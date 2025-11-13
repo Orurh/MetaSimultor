@@ -1,9 +1,9 @@
 // tests/mocks/MockGraphics.h
 #pragma once
 #include "graphics/IndexBuffer.h"
+#include "graphics/Texture.h"
 #include "graphics/VertexArrayObject.h"
 #include "graphics/VertexBuffer.h"
-
 namespace engine {
 
 class MockVertexBuffer : public VertexBuffer {
@@ -58,5 +58,36 @@ private:
   std::vector<std::shared_ptr<VertexBuffer>> m_vertexBuffers;
   std::shared_ptr<IndexBuffer> m_indexBuffer;
 };
+class MockTexture : public Texture {
+public:
+  MockTexture(const std::string &path)
+      : m_path(path), m_width(256), m_height(256),
+        m_id(static_cast<uint32_t>(std::hash<std::string>{}(path))) {}
 
+  MockTexture(const TextureSpecification &spec)
+      : m_spec(spec), m_width(spec.Width), m_height(spec.Height),
+        m_id(static_cast<uint32_t>(
+            std::hash<size_t>{}(reinterpret_cast<size_t>(this)))) {}
+
+  ~MockTexture() override = default;
+
+  void Bind(uint32_t slot = 0) const override {}
+  void Unbind() const override {}
+
+  uint32_t GetId() const override { return m_id; }
+  uint32_t GetWidth() const override { return m_width; }
+  uint32_t GetHeight() const override { return m_height; }
+  uint32_t GetRendererID() const override { return m_id; }
+
+  const TextureSpecification &GetSpecification() const override {
+    return m_spec;
+  }
+
+private:
+  std::string m_path;
+  TextureSpecification m_spec;
+  uint32_t m_width;
+  uint32_t m_height;
+  uint32_t m_id;
+};
 } // namespace engine

@@ -1,54 +1,39 @@
 #pragma once
 #include "Components.h"
-#include "Scene.h"
 #include "entt.hpp"
+
 namespace engine {
-template <typename T>
-concept HasToString = requires(T t) {
-  { t.toString() } -> std::convertible_to<std::string>;
-};
 class Entity {
 public:
   Entity() = default;
-  Entity(const Entity &other) = default;
-  Entity(entt::entity handle, Scene *scene);
+  Entity(entt::entity handle, entt::registry *registry);
 
   template <typename T, typename... Args> T &AddComponent(Args &&...args) {
-    if constexpr (HasToString<T>) {
-      if (HasComponent<T>()) {
-
-        return GetComponent<T>();
-      }
-    }
-    return scene_->m_Registry.emplace<T>(m_EntityHandle,
-                                         std::forward<Args>(args)...);
+    return m_registry->emplace<T>(m_handle, std::forward<Args>(args)...);
   }
 
-  template <typename T> bool HasComponent() {
-    return scene_->m_Registry.all_of<T>(m_EntityHandle);
-  }
-
-  template <typename T> void RemoveComponent() {
-    if (!HasComponent<T>()) {
-      return;
-    }
-    scene_->m_Registry.remove<T>(m_EntityHandle);
+  template <typename T> bool HasComponent() const {
+    return m_registry->all_of<T>(m_handle);
   }
 
   template <typename T> T &GetComponent() {
-    if (!HasComponent<T>()) {
-      throw std::runtime_error("Component not found: " +
-                               std::string(typeid(T).name()));
-    }
-    return scene_->m_Registry.get<T>(m_EntityHandle);
+    return m_registry->get<T>(m_handle);
   }
 
-  EntityID GetID() { return GetComponent<IDComponent>().ID; }
+  template <typename T> const T &GetComponent() const {
+    return m_registry->get<T>(m_handle);
+  }
 
-  operator entt::entity() const { return m_EntityHandle; }
+  entt::entity GetHandle() const { return m_handle; }
+  operator entt::entity() const { return m_handle; }
+
+  bool operator==(const Entity &other) const {
+    return m_handle == other.m_handle && m_registry == other.m_registry;
+  }
 
 private:
-  entt::entity m_EntityHandle{entt::null};
-  Scene *scene_ = nullptr;
+  entt::entity m_handle{entt::null};
+  entt::registry *m_registry = nullptr;
 };
+
 } // namespace engine

@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "graphics/IndexBuffer.h"
+#include "graphics/Texture.h"
 #include "graphics/VertexArrayObject.h"
 #include "graphics/VertexBuffer.h"
 #include <glm/gtc/noise.hpp>
@@ -24,6 +25,9 @@ public:
   glm::vec3 m_position = glm::vec3(0.0f);
   std::vector<std::vector<float>> m_heightMap;
   std::shared_ptr<VertexArrayObject> m_vao;
+
+  TerrainTextureSettings m_textureSettings;
+  std::shared_ptr<Texture> m_diffuseTexture;
 
   float FBM(glm::vec2 p, const TerrainGenerationSettings &s) const {
     std::mt19937 gen(s.seed);
@@ -56,6 +60,8 @@ public:
     m_octaves = s.octaves;
     m_persistence = s.persistence;
     m_lacunarity = s.lacunarity;
+    m_textureSettings = s.textureSettings;
+
     m_heightMap.assign(m_width, std::vector<float>(m_depth, 0.0f));
 
     for (int z = 0; z < m_depth; ++z) {
@@ -76,6 +82,8 @@ public:
     std::vector<float> vertices;
     std::vector<uint32_t> indices;
 
+    float textureScale = m_textureSettings.textureScale;
+
     for (int z = 0; z < m_depth; ++z) {
       for (int x = 0; x < m_width; ++x) {
         float worldX = x * m_scale;
@@ -91,9 +99,8 @@ public:
           normal = glm::normalize(glm::vec3(hL - hR, 2.0f * m_scale, hD - hU));
         }
 
-        // UV
-        float u = static_cast<float>(x) / (m_width - 1);
-        float v = static_cast<float>(z) / (m_depth - 1);
+        float u = (static_cast<float>(x) / (m_width - 1)) * textureScale;
+        float v = (static_cast<float>(z) / (m_depth - 1)) * textureScale;
 
         vertices.insert(vertices.end(), {worldX, y, worldZ, normal.x, normal.y,
                                          normal.z, u, v});
@@ -119,7 +126,25 @@ public:
     m_vao->AddVertexBuffer(vbo);
     m_vao->SetIndexBuffer(ibo);
   }
-  void Cleanup() { m_vao.reset(); }
+
+  bool LoadTexture(const std::string &path) {
+    m_diffuseTexture = Texture::Create(path);
+    if (m_diffuseTexture && m_diffuseTexture->GetRendererID() != 0) {
+      m_textureSettings.diffuseMap = path;
+      return true;
+    }
+    m_diffuseTexture.reset();
+    return false;
+  }
+
+  void UnloadTexture() {
+    m_diffuseTexture.reset();
+    m_textureSettings.diffuseMap.clear();
+  }
+  void Cleanup() {
+    m_vao.reset();
+    m_diffuseTexture.reset();
+  }
 };
 
 Terrain::Terrain() : m_impl(std::make_unique<PImpl>()) {}
@@ -128,6 +153,10 @@ Terrain::~Terrain() = default;
 void Terrain::GenerateRandom(const TerrainGenerationSettings &s) {
   m_impl->GenerateHeightmapRandom(s);
   m_impl->GenerateMesh();
+
+  if (!s.textureSettings.diffuseMap.empty()) {
+    m_impl->LoadTexture(s.textureSettings.diffuseMap);
+  }
 }
 
 int Terrain::GetWidth() const { return m_impl->m_width; }
@@ -155,5 +184,17 @@ float Terrain::GetLacunarity() const { return m_impl->m_lacunarity; }
 glm::vec3 Terrain::GetPosition() const { return m_impl->m_position; }
 void Terrain::SetPosition(const glm::vec3 &pos) { m_impl->m_position = pos; }
 void Terrain::Cleanup() { m_impl->Cleanup(); }
+std::shared_ptr<Texture> Terrain::GetDiffuseTexture() const {
+  return m_impl->m_diffuseTexture;
+}
+
+const TerrainTextureSettings &Terrain::GetTextureSettings() const {
+  return m_impl->m_textureSettings;
+}
+bool Terrain::LoadTexture(const std::string &path) {
+  return m_impl->LoadTexture(path);
+}
+
+void Terrain::UnloadTexture() { m_impl->UnloadTexture(); }
 
 } // namespace engine
