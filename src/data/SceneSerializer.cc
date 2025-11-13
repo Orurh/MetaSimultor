@@ -220,8 +220,9 @@ void SceneSerializer::Deserialize(const std::string &filename) {
                     node["scale"][2].as<float>());
       obj.m_is_visible = node["is_visible"].as<bool>(true);
 
-      // Восстанавливаем через AddPrefab
-      m_scene->AddPrefab(obj.m_object_type, obj.m_position.x, obj.m_position.z);
+      float loaded_scale = obj.m_scale.x; 
+
+      m_scene->AddPrefab(obj.m_object_type, obj.m_position.x, obj.m_position.z, loaded_scale);
     }
 
   } catch (const std::exception &e) {

@@ -153,7 +153,7 @@ void PlaceOnGroundTool::OnUpdate(EditorContext& ctx) {
     if (ctx.State().m_placeKind == EditorState::PlaceKind::FIRE) {
       ctx.m_scene->AddFireAt(hitTerrain, ctx.State().m_fireIntensity);
     } else {
-      ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hitTerrain.x, hitTerrain.z);
+      ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hitTerrain.x, hitTerrain.z, 1);
     }
     return;
   }
@@ -167,7 +167,7 @@ void PlaceOnGroundTool::OnUpdate(EditorContext& ctx) {
   if (ctx.State().m_placeKind == EditorState::PlaceKind::FIRE) {
     ctx.m_scene->AddFire(hitPlane.x, hitPlane.z, ctx.State().m_fireIntensity);
   } else {
-    ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hitPlane.x, hitPlane.z);
+    ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hitPlane.x, hitPlane.z, 1);
   }
 }
 

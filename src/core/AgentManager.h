@@ -12,6 +12,7 @@ struct AgentComponents {
   Float3 collider_bounds_max = {1, 2, 1};
   int collider_point_count = 10;
   float collider_fuel_density = 20.0f;
+  float scale = 1.0f;
 };
 class AgentManager {
 public:
@@ -20,7 +21,7 @@ public:
   Agent CreateAgent(AgentType type, Float3 position,
                     const AgentComponents &components = AgentComponents());
 
-  Agent AddTree(int tree_id, float base_x, float base_z);
+  Agent AddTree(int tree_id, float base_x, float base_z, float scale);
   void AddFire(float x, float y, float intensity);
   void AddFireAt(const Float3 &world, float intensity);
   int AddAgent(const Agent &angent);
@@ -38,8 +39,8 @@ public:
 
 private:
   void generateTreeHeatPoints(FireCollider &collider, float base_x,
-                              float base_z);
-  void setupTreeFireCollider(Agent &tree, float base_x, float base_z);
+                              float base_z, float scale);
+  void setupTreeFireCollider(Agent &tree, float base_x, float base_z, float scale);
   void setupFireSourceCollider(Agent &fire, float x, float y);
 
   Agent *m_agents;
