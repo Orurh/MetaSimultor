@@ -5,7 +5,16 @@
 #include <string>
 namespace engine {
 class VertexArrayObject;
+class Texture;
+
+struct TerrainTextureSettings {
+  std::string diffuseMap = "res/textures/rocky_terrain.jpg";
+  float textureScale = 10.0f;
+  glm::vec3 specular = glm::vec3(0.3f);
+  float shininess = 16.0f;
+};
 struct TerrainGenerationSettings {
+  glm::vec3 position;
   int width = 256;
   int depth = 256;
   uint32_t seed = 12345;
@@ -16,6 +25,7 @@ struct TerrainGenerationSettings {
   float lacunarity = 2.0f;
   bool smooth = true;
   float scale = 1.0f;
+  TerrainTextureSettings textureSettings;
 };
 class Terrain {
 public:
@@ -29,6 +39,12 @@ public:
   glm::vec3 GetNormalAt(float worldX, float worldZ) const;
 
   std::shared_ptr<VertexArrayObject> GetVAO() const;
+  std::shared_ptr<Texture> GetDiffuseTexture() const;
+  bool LoadTexture(const std::string &path);
+  void UnloadTexture();
+  // Геттеры для настроек текстуры
+  const TerrainTextureSettings &GetTextureSettings() const;
+  void SetTextureSettings(const TerrainTextureSettings &settings);
   int GetWidth() const;
   int GetDepth() const;
   float GetScale() const;

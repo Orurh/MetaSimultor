@@ -19,6 +19,10 @@ std::shared_ptr<VertexArrayObject> VertexArrayObject::Create() {
   return std::make_shared<MockVertexArrayObject>();
 }
 
+std::shared_ptr<Texture> Texture::Create(const std::string &path) {
+  return std::make_shared<MockTexture>(path);
+}
+
 } // namespace engine
 using namespace engine;
 
@@ -93,7 +97,7 @@ TEST(TerrainTest, GenerateRandom_DifferentSeeds_DifferentResult) {
 
 TEST(TerrainMeshTest, VertexCount_MatchesGrid) {
   Terrain terrain;
-  TerrainGenerationSettings s{7, 4};
+  TerrainGenerationSettings s{{0, 0, 0}, 7, 4};
   terrain.GenerateRandom(s);
 
   auto vao = terrain.GetVAO();

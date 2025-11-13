@@ -13,7 +13,6 @@ namespace engine {
 class Model;
 class Entity;
 class Material;
-
 class Scene {
 
 public:
@@ -26,35 +25,19 @@ public:
   void AddFire(float x, float z, float intensity = 1.0F);
 
   void AddFireAt(const glm::vec3 &world, float intensity = 1.0F);
-
   void Generate();
   void Clear();
   void Shutdown();
-  enum class PlaceMode { Tree, Fire };
   void SetFireIntensity(float v) { m_fireIntensity = v; }
   std::vector<Agent> LoadAgentsFromGPU();
   auto GetSceneObjectsView() const {
-    return m_Registry
+    return m_registry
         .view<TransformComponent, RenderComponent, AgentLinkComponent>();
   }
-  void LoadPrimaryModel(const std::string &path);
-
-  Camera &GetCamera() { return m_camera; }
-  const Camera &GetCamera() const { return m_camera; }
 
   glm::mat4 GetViewMatrix() { return m_camera.GetViewMatrix(); }
   glm::mat4 GetProjMatrix(int w, int h);
-  int GetVpWidth() const { return m_vpW; }
-  int GetVpHeight() const { return m_vpH; }
   AgentManager &GetAgentManager() { return m_agentManager; }
-  void SetViewport(int w, int h) {
-    m_vpW = w;
-    m_vpH = h;
-  }
-  void LoadObjectModels(const std::string &object_name,
-                        const std::string &normal_path,
-                        const std::string &burning_path,
-                        const std::string &burned_path);
 
   void SetViewportRect(int x, int y, int w, int h) {
     m_vpX = x;
@@ -86,33 +69,28 @@ public:
 
   Terrain *GetTerrain() { return m_terrain.get(); }
   const Terrain *GetTerrain() const { return m_terrain.get(); }
-
   float GetGroundHeight(float x, float z) const;
+  size_t GetAgentCount() const { return m_agentManager.getAgentCount(); }
 
 private:
-  void RenderAgent(const Agent &agent, const SceneObject &scene_obj);
   void EnsureModelsForPrefab(const std::string &id,
                              const engine::data::AgentPrefab &prefab);
-
-  // для удаления префабов
-  entt::registry m_Registry;
-  std::unordered_map<EntityID, entt::entity> m_EntityMap;
-
+  void LoadObjectModels(const std::string &object_name,
+                        const std::string &normal_path,
+                        const std::string &burning_path,
+                        const std::string &burned_path);
   AgentManager m_agentManager;
+  entt::registry m_registry;
   std::unique_ptr<Terrain> m_terrain;
   data::PrefabSystem m_prefabSystem;
-
   ObjectModelStore m_objectModels;
-
   Camera m_camera;
   WindConfig m_windConfig;
   float m_windTime = 0.0F;
-  // --- интерактив ---
   float m_fireIntensity{1.0F};
 
   int m_vpX{0}, m_vpY{0};
   int m_vpW{1920}, m_vpH{1080};
   float m_vpScaleX{1.0F}, m_vpScaleY{1.0F};
-  friend class Entity;
 };
 } // namespace engine

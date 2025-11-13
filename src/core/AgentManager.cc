@@ -1,8 +1,8 @@
 #include "AgentManager.h"
 #include <cuda_runtime.h>
 #include <iostream>
+#include <print>
 #include <random>
-
 AgentManager::AgentManager(int max_agents)
     : m_capacity(max_agents), m_count(0) {
   cudaMalloc(&m_agents, max_agents * sizeof(Agent));
@@ -22,21 +22,20 @@ Agent AgentManager::AddTree(int tree_id, float base_x, float base_z) {
   return tree;
 }
 
-// void AgentManager::AddFire(float x, float y, float z, float intensity) {
-//   Agent a;
-//   a.position = Float3{x, y, z};
-//   a.type = AgentType::BURNING;             // или NORMAL, если у тебя огонь
-//   «разжигает» со временем a.intensity = intensity;                  // или
-//   твоя логика начального значения
+std::vector<Agent> AgentManager::LoadAgentsFromGPU() {
+  size_t currentCount = getAgentCount();
+  std::vector<Agent> agents(currentCount);
 
-//   // если нужен коллайдер — инициализируй его локально:
-//   a.fire_collider.point_count = 1;
-//   a.fire_collider.heat_points[0] = Float3{0.f, 0.f, 0.f};
-//   a.fire_collider.fuels[0] = 100.f;
-//   a.fire_collider.intensities[0] = intensity;
+  cudaMemcpy(agents.data(), getDeviceAgents(), currentCount * sizeof(Agent),
+             cudaMemcpyDeviceToHost);
 
-//   AddAgent(a); // как ты обычно пушишь в буфер + на GPU
-// }
+  cudaError_t err = cudaGetLastError();
+  if (err != cudaSuccess) {
+    std::println("CUDA memcpy error: {}", cudaGetErrorString(err));
+  }
+
+  return agents;
+}
 
 void AgentManager::setupTreeFireCollider(Agent &tree, float base_x,
                                          float base_z) {

@@ -1,5 +1,7 @@
 #include "Scene.h"
 #include "Entity.h"
+
+#include "core/AgentManager.h"
 #include "core/Input.h"
 #include "core/Window.h"
 #include "core/agent.h"
@@ -7,12 +9,12 @@
 #include "core/simulation.cuh"
 #include "graphics/Model.h"
 #include "graphics/Renderer.h"
+
 #include <chrono>
-#include <cuda_runtime.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <memory>
-#include <print>
+
 namespace engine {
 Scene::Scene()
     : m_agentManager(1000000), m_camera(glm::vec3(500.0F, 100.0F, 600.0F)) {}
@@ -24,9 +26,10 @@ void Scene::Init() {
 }
 
 auto Scene::CreateEntity(const std::string &id) -> Entity {
-  Entity entity = {m_Registry.create(), this};
+  auto handle = m_registry.create();
+  Entity entity(handle, &m_registry);
+
   entity.AddComponent<IDComponent>(id);
-  m_EntityMap[id] = entity;
   return entity;
 }
 
@@ -61,14 +64,10 @@ void Scene::Update(float dt) {
                    m_windConfig.getCurrentWind(m_windTime));
   }
   auto simTime = std::chrono::high_resolution_clock::now();
-  //  std::cout << "sim time" <<
-  //  std::chrono::duration_cast<std::chrono::milliseconds>(simTime -
-  //  startTime).count() << std::endl;
 
   const bool UI_MOUSE = engine::InputSystem::Instance().UIMouseCaptured();
   const bool UI_KBD = engine::InputSystem::Instance().UIKeyboardCaptured();
 
-  // 2) WASD — только если UI не держит клавиатуру
   if (!UI_KBD) {
     if (engine::InputSystem::Instance().GetKey(engine::KeyCode::W)) {
       m_camera.ProcessKeyboard(FORWARD, dt);
@@ -93,12 +92,9 @@ void Scene::Update(float dt) {
     }
   }
 
-  // 5) Зум — только если UI не держит мышь/скролл
   if (!UI_MOUSE) {
     const float SCROLL_Y = engine::InputSystem::Instance().GetMouseScrollY();
     if (SCROLL_Y != 0.0F) {
-      // m_camera.ProcessMouseScroll(SCROLL_Y);
-      // engine::InputSystem::Instance().ResetMouseScroll();
     }
   }
 }
@@ -114,12 +110,10 @@ void Scene::Render() {
 
   Renderer::Instance().BeginScene(view, projection);
 
-  // 1. Синхронизация GPU → CPU
-  auto agents = LoadAgentsFromGPU(); // ← m_agentManager
+  auto agents = LoadAgentsFromGPU();
 
-  // 2. Рендер через ECS
   auto render_view =
-      m_Registry
+      m_registry
           .view<TransformComponent, RenderComponent, AgentLinkComponent>();
   for (auto [entity, transform, render, link] : render_view.each()) {
     if (!render.is_visible)
@@ -128,7 +122,6 @@ void Scene::Render() {
     const Agent &agent = agents[link.gpu_index];
     const auto &prefab = m_prefabSystem.GetPrefab(link.prefab_id);
 
-    // Определяем состояние
     AgentType state = AgentType::NORMAL;
     if (agent.type == AgentType::BURNED)
       state = AgentType::BURNED;
@@ -153,7 +146,6 @@ void Scene::Render() {
     }
   }
 
-  // 3. Частицы + Terrain
   Renderer::Instance().UploadAgentsData(agents);
   Renderer::Instance().RenderWithGeometryShader(
       m_windConfig.getCurrentWind(m_windTime));
@@ -172,18 +164,7 @@ void Scene::Generate() {
 }
 
 std::vector<Agent> Scene::LoadAgentsFromGPU() {
-  size_t currentCount = m_agentManager.getAgentCount();
-  std::vector<Agent> agents(currentCount);
-
-  cudaMemcpy(agents.data(), m_agentManager.getDeviceAgents(),
-             currentCount * sizeof(Agent), cudaMemcpyDeviceToHost);
-
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    std::println("CUDA memcpy error: {}", cudaGetErrorString(err));
-  }
-
-  return agents;
+  return m_agentManager.LoadAgentsFromGPU();
 }
 void Scene::LoadObjectModels(const std::string &object_name,
                              const std::string &normal_path,
@@ -201,41 +182,6 @@ void Scene::LoadObjectModels(const std::string &object_name,
   }
 }
 
-void Scene::RenderAgent(const Agent &agent, const SceneObject &scene_obj) {
-  glm::vec3 position(agent.position.x, agent.position.y, agent.position.z);
-
-  // Получаем префаб
-  const auto &prefab = m_prefabSystem.GetPrefab(scene_obj.m_object_type);
-
-  // Получаем модель
-  const ObjectModels *om = m_objectModels.Find(scene_obj.m_object_type);
-  if ((om == nullptr) || !om->m_normal) {
-    std::cerr << "[RenderAgent] no model for '" << scene_obj.m_object_type
-              << "'\n";
-    return;
-  }
-
-  // Определяем состояние агента
-  AgentType state = AgentType::NORMAL;
-  if (agent.type == AgentType::BURNED) {
-    state = AgentType::BURNED;
-  } else if (agent.isBurning() || agent.type == AgentType::BURNING) {
-    state = AgentType::BURNING;
-  }
-
-  auto material = prefab.GetMaterialForState(state);
-  auto model = om->m_normal;
-
-  if (model && material) {
-    Renderer::Instance().DrawModelWithMaterial(
-        *model, position, scene_obj.m_scale, m_camera.GetPosition(), material);
-  } else {
-    // Fallback
-    Renderer::Instance().DrawModel(*model, position, scene_obj.m_scale,
-                                   m_camera.GetPosition());
-  }
-}
-
 glm::mat4 Scene::GetProjMatrix(int w, int h) {
   return glm::perspective(m_camera.GetZoom(),
                           static_cast<float>(w) / static_cast<float>(h), 0.1F,
@@ -244,8 +190,7 @@ glm::mat4 Scene::GetProjMatrix(int w, int h) {
 
 void Scene::Clear() {
   m_agentManager.Clear();
-  m_Registry.clear();
-  m_EntityMap.clear();
+  m_registry.clear();
 }
 
 void Scene::Shutdown() {
@@ -305,7 +250,7 @@ void Scene::ReloadModelForPrefab(const std::string &prefab_id,
   system_prefab.burnedMaterial = prefab.burnedMaterial;
 
   // 3. Обновляем scale у всех Entity с этим prefab_id
-  auto view = m_Registry.view<RenderComponent>();
+  auto view = m_registry.view<RenderComponent>();
   for (auto [entity, render] : view.each()) {
     if (render.prefab_id == prefab_id) {
       render.scale = prefab.m_modelScale;
@@ -332,7 +277,7 @@ bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
   float bestDist2 = maxXZDist * maxXZDist;
   entt::entity best = entt::null;
 
-  auto view = m_Registry.view<TransformComponent, AgentLinkComponent>();
+  auto view = m_registry.view<TransformComponent, AgentLinkComponent>();
   view.each([&](entt::entity entity, const TransformComponent &transform,
                 const AgentLinkComponent &link) {
     float dx = transform.position.x - world.x;
@@ -347,7 +292,7 @@ bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
   if (best == entt::null)
     return false;
 
-  auto &link = m_Registry.get<AgentLinkComponent>(best);
+  auto &link = m_registry.get<AgentLinkComponent>(best);
   int gpu_idx = link.gpu_index;
 
   int swapped_from = -1, swapped_to = -1;
@@ -356,7 +301,7 @@ bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
   }
 
   if (swapped_from != -1 && swapped_to != -1 && swapped_from != swapped_to) {
-    auto update_view = m_Registry.view<AgentLinkComponent>();
+    auto update_view = m_registry.view<AgentLinkComponent>();
     for (auto [entity, link_comp] : update_view.each()) {
       if (link_comp.gpu_index == swapped_from) {
         link_comp.gpu_index = swapped_to;
@@ -365,12 +310,11 @@ bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
     }
   }
 
-  m_Registry.destroy(best);
+  m_registry.destroy(best);
 
   // Удаляем из мапы по ID
-  if (m_Registry.all_of<IDComponent>(best)) {
-    auto &id = m_Registry.get<IDComponent>(best);
-    m_EntityMap.erase(id.ID);
+  if (m_registry.all_of<IDComponent>(best)) {
+    auto &id = m_registry.get<IDComponent>(best);
   }
 
   return true;
