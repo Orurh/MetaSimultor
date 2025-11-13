@@ -4,6 +4,7 @@
 #include "configs/WindConfig.h"
 #include "core/AgentManager.h"
 #include "data/PrefabSystem.h"
+#include "graphics/ParticleSystem.h"
 #include <memory>
 
 #include "Components.h"
@@ -21,7 +22,8 @@ public:
   void Update(float dt);
   auto CreateEntity(const std::string &id) -> Entity;
   void Render();
-  void AddTree(float x, float z, const std::string &tree_type = "default_tree", float scale = 1.F);
+  void AddTree(float x, float z, const std::string &tree_type = "default_tree",
+               float scale = 1.F);
   void AddFire(float x, float z, float intensity = 1.0F);
 
   void AddFireAt(const glm::vec3 &world, float intensity = 1.0F);
@@ -71,6 +73,12 @@ public:
   const Terrain *GetTerrain() const { return m_terrain.get(); }
   float GetGroundHeight(float x, float z) const;
   size_t GetAgentCount() const { return m_agentManager.getAgentCount(); }
+  void AddParticleSystem(const std::shared_ptr<ParticleSystem> &system);
+  void RemoveParticleSystem(const std::shared_ptr<ParticleSystem> &system);
+  const std::vector<std::shared_ptr<ParticleSystem>> &
+  GetParticleSystems() const {
+    return m_particleSystems;
+  }
 
 private:
   void EnsureModelsForPrefab(const std::string &id,
@@ -80,6 +88,8 @@ private:
                         const std::string &burning_path,
                         const std::string &burned_path);
   AgentManager m_agentManager;
+  std::vector<std::shared_ptr<ParticleSystem>> m_particleSystems;
+
   entt::registry m_registry;
   std::unique_ptr<Terrain> m_terrain;
   data::PrefabSystem m_prefabSystem;

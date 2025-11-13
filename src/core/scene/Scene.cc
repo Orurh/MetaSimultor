@@ -97,6 +97,10 @@ void Scene::Update(float dt) {
     if (SCROLL_Y != 0.0F) {
     }
   }
+
+  for (auto &system : m_particleSystems) {
+    system->Update();
+  }
 }
 
 void Scene::Render() {
@@ -151,8 +155,21 @@ void Scene::Render() {
       m_windConfig.getCurrentWind(m_windTime));
   Renderer::Instance().DrawTerrain(m_terrain->GetVAO(),
                                    m_terrain->GetPosition());
-
+  for (auto &system : m_particleSystems) {
+    system->Render(view, projection);
+  }
   Renderer::Instance().EndScene();
+}
+
+void Scene::AddParticleSystem(const std::shared_ptr<ParticleSystem> &system) {
+  m_particleSystems.push_back(system);
+}
+
+void Scene::RemoveParticleSystem(
+    const std::shared_ptr<ParticleSystem> &system) {
+  m_particleSystems.erase(
+      std::remove(m_particleSystems.begin(), m_particleSystems.end(), system),
+      m_particleSystems.end());
 }
 
 void Scene::Generate() {
@@ -203,7 +220,8 @@ void Scene::Shutdown() {
   Renderer::Instance().Shutdown();
 }
 
-void Scene::AddPrefab(const std::string &prefab_id, float x, float z, float scale) {
+void Scene::AddPrefab(const std::string &prefab_id, float x, float z,
+                      float scale) {
   const auto &prefab = m_prefabSystem.GetPrefab(prefab_id);
   EnsureModelsForPrefab(prefab_id, prefab);
   const float y = GetGroundHeight(x, z);
@@ -227,7 +245,8 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z, float scal
 }
 
 // Если нужно, оставь AddTree как шорткат:
-void Scene::AddTree(float x, float z, const std::string &tree_type, float scale) {
+void Scene::AddTree(float x, float z, const std::string &tree_type,
+                    float scale) {
   AddPrefab(tree_type, x, z, scale);
 }
 

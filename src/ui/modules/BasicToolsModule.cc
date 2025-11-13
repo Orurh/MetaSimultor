@@ -3,6 +3,7 @@
 #include "ui/Editor.h"
 #include "ui/panels/FireParamsPanel.h"
 #include "ui/panels/FoliageBrushTool.h"
+#include "ui/panels/ParticleSystemPanel.h"
 #include "ui/panels/PrefabBrowserPanel.h"
 #include "ui/panels/SceneIOPanel.h"
 #include "ui/panels/TerrainConfigPanel.h"
@@ -21,6 +22,7 @@ void BasicToolsModule::Startup(Editor &editor) {
   editor.RegisterPanel(std::make_unique<ui::TerrainConfigPanel>());
   editor.RegisterPanel(std::make_unique<ui::FireParamsPanel>());
   editor.RegisterTool(std::make_unique<FoliageBrushTool>(""));
+  editor.RegisterPanel(std::make_unique<ParticleSystemPanel>());
 }
 
 void BasicToolsModule::Shutdown() {
