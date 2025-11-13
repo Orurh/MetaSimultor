@@ -23,23 +23,24 @@ ParticleSystem::ParticleSystem() {
 ParticleSystem::~ParticleSystem() {}
 
 void ParticleSystem::InitializeBuffers() {
-  // Particle buffer - все частицы мертвые изначально
+
   std::vector<GPUParticle> particles(MAX_PARTICLES);
   for (int i = 0; i < MAX_PARTICLES; i++) {
-    particles[i].position = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f); // lifetime = 0
+    particles[i].position = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
     particles[i].velocity = glm::vec4(0.0f);
     particles[i].color = glm::vec4(0.0f);
     particles[i].size = glm::vec4(0.0f);
-    particles[i].randomData = glm::uvec4(0);
   }
 
   m_particleBuffer = ShaderStorageBuffer::Create(
-      sizeof(GPUParticle) * MAX_PARTICLES, nullptr, GL_DYNAMIC_DRAW);
+      sizeof(GPUParticle) * MAX_PARTICLES, particles.data(), GL_DYNAMIC_DRAW);
 
-  // Counter buffer [aliveCount, deadCount, emitCount]
-  uint32_t counters[3] = {0, MAX_PARTICLES, 0};
-  m_counterBuffer =
-      ShaderStorageBuffer::Create(sizeof(counters), counters, GL_DYNAMIC_DRAW);
+  // ТОЛЬКО aliveCount
+  uint32_t aliveCount = 0;
+  m_counterBuffer = ShaderStorageBuffer::Create(sizeof(aliveCount), &aliveCount,
+                                                GL_DYNAMIC_DRAW);
+
+  m_aliveCount = 0;
 }
 
 void ParticleSystem::InitializeRenderData() {
@@ -74,31 +75,26 @@ uint32_t ParticleSystem::CalculateEmitCount() {
 
   return emitCount;
 }
-
 void ParticleSystem::DispatchComputeShader() {
-  // 1. Emit pass
   uint32_t emitCount = CalculateEmitCount();
+
   if (emitCount > 0 && m_emitCS) {
     m_emitCS->Bind();
-    m_emitCS->SetFloat("u_time", m_time);
-    m_emitCS->SetFloat("u_deltaTime", Time::GetDeltaTime());
-    m_emitCS->SetUInt("u_maxParticles", MAX_PARTICLES);
     m_emitCS->SetUInt("u_emitCount", emitCount);
+    m_emitCS->SetFloat3("u_emitterPosition", {500, 100, 500});
 
-    // Передаем параметры из эффекта
     if (m_effect) {
       // Main module
-      m_emitCS->SetFloat("u_emissionRate", m_effect->emission.rateOverTime);
       m_emitCS->SetFloat3("u_startVelocity", m_effect->main.startSpeed);
       m_emitCS->SetFloat("u_startLifetime", m_effect->main.startLifetime);
       m_emitCS->SetFloat4("u_startColor", m_effect->main.startColor);
       m_emitCS->SetFloat3("u_startSize", m_effect->main.startSize);
 
       // Shape module
-      // m_emitCS->SetFloat("u_shapeRadius", m_effect->shape.radius);
-      // m_emitCS->SetFloat("u_shapeAngle", m_effect->shape.angle);
-      // m_emitCS->SetFloat3("u_shapeBoxSize", m_effect->shape.boxSize);
-      // m_emitCS->SetInt("u_shapeType", m_effect->shape.shapeType);
+      m_emitCS->SetInt("u_shapeType", m_effect->shape.shapeType);
+      m_emitCS->SetFloat("u_shapeRadius", m_effect->shape.radius);
+      m_emitCS->SetFloat("u_shapeAngle", m_effect->shape.angle);
+      m_emitCS->SetFloat3("u_shapeBoxSize", m_effect->shape.boxSize);
     }
 
     m_particleBuffer->Bind(0);
@@ -107,30 +103,38 @@ void ParticleSystem::DispatchComputeShader() {
     uint32_t groups = (emitCount + WORK_GROUP_SIZE - 1) / WORK_GROUP_SIZE;
     m_emitCS->Dispatch(groups, 1, 1);
     m_emitCS->MemoryBarrier();
+
+    // Обновляем aliveCount
+    uint32_t currentAlive;
+    m_counterBuffer->GetData(&currentAlive, sizeof(currentAlive));
+    m_aliveCount = currentAlive;
   }
 
   // 2. Update pass
   if (m_updateCS && m_aliveCount > 0) {
     m_updateCS->Bind();
-    m_updateCS->SetFloat("u_time", m_time);
     m_updateCS->SetFloat("u_deltaTime", Time::GetDeltaTime());
     m_updateCS->SetUInt("u_aliveCount", m_aliveCount);
+    m_updateCS->SetFloat3("u_emitterPosition",
+                          {500, 100, 500}); // Добавили для orbital
 
     if (m_effect) {
       // Physics
       m_updateCS->SetFloat("u_gravity", m_effect->main.gravityModifier * 9.81f);
 
       // Lifetime modules
-      m_updateCS->SetBool("u_sizeOverLifetimeEnabled",
-                          m_effect->sizeOverLifetime.enabled);
-      m_updateCS->SetBool("u_colorOverLifetimeEnabled",
-                          m_effect->colorOverLifetime.enabled);
+      m_updateCS->SetInt("u_sizeOverLifetimeEnabled",
+                         m_effect->sizeOverLifetime.enabled ? 1 : 0);
+      m_updateCS->SetInt("u_colorOverLifetimeEnabled",
+                         m_effect->colorOverLifetime.enabled ? 1 : 0);
 
-      // Forces
-      m_updateCS->SetFloat3("u_forceOverLifetime",
-                            m_effect->forceOverLifetime.force);
-      m_updateCS->SetFloat3("u_velocityOverLifetime",
+      // Velocity over lifetime
+      m_updateCS->SetInt("u_velocityOverLifetimeEnabled",
+                         m_effect->velocityOverLifetime.enabled ? 1 : 0);
+      m_updateCS->SetFloat3("u_velocityOverLifetimeLinear",
                             m_effect->velocityOverLifetime.linear);
+      m_updateCS->SetFloat3("u_velocityOverLifetimeOrbital",
+                            m_effect->velocityOverLifetime.orbital);
     }
 
     m_particleBuffer->Bind(0);
@@ -152,20 +156,14 @@ void ParticleSystem::Play() {
 void ParticleSystem::Stop() { m_playing = false; }
 
 void ParticleSystem::Update() {
-  if (!m_playing || !m_effect)
-    return;
-
   float deltaTime = Time::GetDeltaTime();
   m_time += deltaTime;
 
-  // Вызываем compute shaders
   DispatchComputeShader();
 
-  // Обновляем alive count (в реальности читать из atomic counter)
-  uint32_t emitCount = CalculateEmitCount();
-  if (emitCount > 0) {
-    m_aliveCount = std::min(m_aliveCount + emitCount, MAX_PARTICLES);
-  }
+  uint32_t counters[3];
+  m_counterBuffer->GetData(counters, sizeof(counters));
+  m_aliveCount = counters[0];
 }
 
 void ParticleSystem::Render(const glm::mat4 &view,

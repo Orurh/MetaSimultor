@@ -7,7 +7,6 @@ struct Particle {
     vec4 velocity;  
     vec4 color;
     vec4 size;
-    uvec4 randomData;
 };
 
 layout(std430, binding = 0) buffer ParticleBuffer {
@@ -16,20 +15,20 @@ layout(std430, binding = 0) buffer ParticleBuffer {
 
 layout(std430, binding = 1) buffer CounterBuffer {
     uint aliveCount;
-    uint deadCount; 
-    uint emitCount;
 };
 
-uniform float u_time;
-uniform float u_deltaTime;
-uniform uint u_maxParticles;
 uniform uint u_emitCount;
-uniform float u_emissionRate;
-
+uniform vec3 u_emitterPosition;
 uniform vec3 u_startVelocity;
 uniform float u_startLifetime;
 uniform vec4 u_startColor;
 uniform vec3 u_startSize;
+
+// Shape module uniforms
+uniform int u_shapeType;
+uniform float u_shapeRadius;
+uniform float u_shapeAngle;
+uniform vec3 u_shapeBoxSize;
 
 float rand(inout uint seed) {
     seed = (seed ^ 61u) ^ (seed >> 16u);
@@ -40,30 +39,63 @@ float rand(inout uint seed) {
     return float(seed) / 4294967295.0;
 }
 
+vec3 GetSpawnPosition(inout uint seed, int shapeType) {
+    if (shapeType == 1) { // Cone
+        float angleRad = radians(u_shapeAngle);
+        float distance = u_shapeRadius * rand(seed);
+        float randomAngle = rand(seed) * 2.0 * 3.14159;
+        
+        return vec3(
+            cos(randomAngle) * distance * tan(angleRad),
+            sin(randomAngle) * distance * tan(angleRad),
+            -distance
+        );
+    } else if (shapeType == 2) { // Box
+        return vec3(
+            (rand(seed) - 0.5) * u_shapeBoxSize.x,
+            (rand(seed) - 0.5) * u_shapeBoxSize.y, 
+            (rand(seed) - 0.5) * u_shapeBoxSize.z
+        );
+    } else { // Sphere (default)
+        float theta = rand(seed) * 2.0 * 3.14159;
+        float phi = acos(1.0 - 2.0 * rand(seed));
+        float r = u_shapeRadius * pow(rand(seed), 1.0/3.0);
+        
+        return vec3(
+            r * sin(phi) * cos(theta),
+            r * sin(phi) * sin(theta), 
+            r * cos(phi)
+        );
+    }
+}
+
 void main() {
     uint id = gl_GlobalInvocationID.x;
     if (id >= u_emitCount) return;
     
-    if (u_maxParticles == 0) return;
+    uint index = atomicAdd(aliveCount, 1);
+    if (index >= 10000) return;
     
-    uint deadIndex = atomicAdd(deadCount, -1);
-    if (deadIndex == 0) return;
+    uint seed = uint(index * 7919 + id * 137);
     
-    uint particleIndex = deadIndex - 1;
-    uint seed = uint(u_time * 1000.0) + id;
+    // Получаем позицию спавна в зависимости от формы
+    vec3 spawnOffset = GetSpawnPosition(seed, u_shapeType);
     
-    float timeVariation = u_deltaTime * 10.0;
+    // Случайные вариации
+    float sizeVariation = 0.5 + 0.5 * rand(seed);
+    float lifetimeVariation = 0.7 + 0.6 * rand(seed);
+    float speedVariation = 0.8 + 0.4 * rand(seed);
     
-    float offsetX = (rand(seed) - 0.5) * 2.0 * (1.0 + timeVariation);
-    float offsetZ = (rand(seed) - 0.5) * 2.0 * (1.0 + timeVariation);
+    particles[index].position = vec4(
+        u_emitterPosition + spawnOffset,
+        u_startLifetime * lifetimeVariation
+    );
     
-    float intensity = min(u_emissionRate / 100.0, 1.0);
+    particles[index].velocity = vec4(
+        u_startVelocity * speedVariation,
+        u_startLifetime * lifetimeVariation
+    );
     
-    particles[particleIndex].position = vec4(500, 0.0, 500, u_startLifetime);
-    particles[particleIndex].velocity = vec4(u_startVelocity + vec3(offsetX, 0.0, offsetZ) * 0.5 * intensity, u_startLifetime);
-    particles[particleIndex].color = u_startColor * intensity;
-    particles[particleIndex].size = vec4(u_startSize * intensity, 0.0);
-    particles[particleIndex].randomData = uvec4(seed, uint(u_time), 0, 0);
-    
-    uint aliveIndex = atomicAdd(aliveCount, 1);
+    particles[index].color = u_startColor;
+    particles[index].size = vec4(u_startSize * sizeVariation, 0.0);
 }

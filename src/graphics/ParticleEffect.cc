@@ -12,7 +12,7 @@ std::shared_ptr<ParticleEffect> ParticleEffect::CreateDefault() {
   effect->main.startLifetime = 3.0f;
   effect->main.startSpeed = {0.0f, 5.0f, 0.0f};
   effect->main.startSize = {1.0f, 1.0f, 1.0f};
-  effect->main.startColor = {1.0f, 1.0f, 1.0f, 1.0f};
+  effect->main.startColor = {1.0f, 0.0f, 0.0f, 1.0f};
   effect->main.gravityModifier = 1.0f;
   effect->main.maxParticles = 1000;
 
@@ -27,26 +27,14 @@ std::shared_ptr<ParticleEffect> ParticleEffect::CreateDefault() {
 std::shared_ptr<ParticleEffect> ParticleEffect::CreateFire() {
   auto effect = CreateDefault();
 
-  effect->main.startLifetime = 2.0f;
-  effect->main.startSpeed = {0.0f, 3.0f, 0.0f};
-  effect->main.startColor = {1.0f, 0.3f, 0.1f, 1.0f};
-  effect->main.gravityModifier = -0.5f; // Огонь поднимается
+  // ПРОВЕРЬ ЧТО ЭТИ ЗНАЧЕНИЯ НОРМАЛЬНЫЕ
+  effect->main.startLifetime = 3.0f; // Должно быть > 0
+  effect->main.startSpeed = glm::vec3(0.0f, 2.0f, 0.0f);
+  effect->main.startSize = glm::vec3(0.3f);
+  effect->main.startColor =
+      glm::vec4(1.0f, 0.0f, 0.0f, 1.0f); // Красный, непрозрачный
 
-  effect->emission.rateOverTime = 50.0f;
-
-  // Color over Lifetime - от оранжевого к прозрачному
-  effect->colorOverLifetime.enabled = true;
-  effect->colorOverLifetime.gradient = {{0.0f, {1.0f, 0.5f, 0.1f, 1.0f}},
-                                        {0.5f, {1.0f, 0.8f, 0.2f, 0.8f}},
-                                        {1.0f, {1.0f, 0.9f, 0.3f, 0.0f}}};
-
-  // Size over Lifetime - уменьшается
-  effect->sizeOverLifetime.enabled = true;
-  effect->sizeOverLifetime.curve = {{0.0f, {1.0f, 1.0f, 1.0f}},
-                                    {1.0f, {0.1f, 0.1f, 0.1f}}};
-
-  //   effect->renderer.blendMode = 1; // Additive blending
-  //   effect->renderer.glowIntensity = 2.0f;
+  effect->emission.rateOverTime = 10.0f;
 
   return effect;
 }

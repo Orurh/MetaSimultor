@@ -29,7 +29,6 @@ private:
     glm::vec4 velocity; // xyz + startLifetime
     glm::vec4 color;
     glm::vec4 size;
-    glm::uvec4 randomData;
   };
 
   void InitializeBuffers();
