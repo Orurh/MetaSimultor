@@ -3,6 +3,7 @@
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <cmath>
+#include <iostream>
 #include <numbers>
 #include "core/Input.h"
 #include "core/scene/Scene.h"
@@ -21,7 +22,6 @@ static float ComputeAnchorY(const ui::EditorContext& ctx) {
   if ((ctx.m_scene != nullptr) && !ctx.State().m_selectedPrefab.empty()) {
     const auto& id = ctx.State().m_selectedPrefab;
     const auto& P = ctx.m_scene->GetPrefabSystem().GetPrefab(id);
-    // поднимаем “центр” на высоту нижней грани bbox * scale
     anchorY = -P.m_bounds_min.y * P.m_modelScale.y;
   }
   return anchorY;
@@ -192,21 +192,64 @@ void FoliageBrushTool::DrawControls(EditorContext& ctx) {
   dirty |= ImGui::SliderFloat("Scale max", &m_settings.scaleMax, 0.2f, 5.0f);
   dirty |= ImGui::SliderFloat("Yaw min", &m_settings.yawMinDeg, 0.f, 360.f);
   dirty |= ImGui::SliderFloat("Yaw max", &m_settings.yawMaxDeg, 0.f, 360.f);
-  static char prefabBuf[256] = {};
-  if (m_settings.prefab.size() && prefabBuf[0] == '\0') {
-    std::snprintf(prefabBuf, sizeof(prefabBuf), "%s", m_settings.prefab.c_str());
+
+  // ----- ВЫБОР ПРЕФАБА ИЗ СПИСКА -----
+  ImGui::Separator();
+  ImGui::TextUnformatted("Prefab");
+
+  if (ctx.m_scene) {
+    auto& prefabSystem = ctx.m_scene->GetPrefabSystem();
+    auto prefabNames = prefabSystem.GetPrefabNames();  // все префабы
+
+    if (!prefabNames.empty()) {
+      // если текущий prefab пустой или не найден — берём первый
+      int currentIndex = 0;
+      if (!m_settings.prefab.empty()) {
+        auto it = std::find(prefabNames.begin(), prefabNames.end(), m_settings.prefab);
+        if (it != prefabNames.end()) {
+          currentIndex = static_cast<int>(std::distance(prefabNames.begin(), it));
+        }
+      } else {
+        m_settings.prefab = prefabNames[0];
+        dirty = true;
+      }
+
+      // Комбо по имени префаба
+      const char* preview = prefabNames[currentIndex].c_str();
+      if (ImGui::BeginCombo("##PrefabCombo", preview)) {
+        for (int i = 0; i < static_cast<int>(prefabNames.size()); ++i) {
+          const bool isSelected = (i == currentIndex);
+          const std::string& name = prefabNames[i];
+
+          // Можно тут же скрывать "огненные" префабы, если не нужны:
+          // if (IsFireName(name)) continue;
+
+          if (ImGui::Selectable(name.c_str(), isSelected)) {
+            currentIndex = i;
+            m_settings.prefab = name;
+            dirty = true;
+          }
+          if (isSelected)
+            ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+      }
+    } else {
+      ImGui::TextUnformatted("No prefabs loaded");
+    }
+  } else {
+    ImGui::TextUnformatted("Scene not available");
   }
-  if (ImGui::InputText("Prefab", prefabBuf, sizeof(prefabBuf))) {
-    m_settings.prefab = prefabBuf;
-    dirty = true;
-  }
+
   if (ImGui::Button("Re-seed")) {
     EnsureSeed();
     dirty = true;
   }
   ImGui::SameLine();
   if (ImGui::Button("Apply")) {
-    ApplyPlacement(*ctx.m_scene);
+    if (ctx.m_scene) {
+      ApplyPlacement(*ctx.m_scene);
+    }
   }
   ImGui::SameLine();
   if (ImGui::Button("Clear")) {
@@ -215,6 +258,7 @@ void FoliageBrushTool::DrawControls(EditorContext& ctx) {
   }
   ImGui::Separator();
   ImGui::Text("Preview points: %zu", m_preview.size());
+
   if (dirty && m_hasCenter) {
     if (m_settings.shape == Shape::Circle) {
       m_anchor = m_center;
@@ -227,6 +271,7 @@ void FoliageBrushTool::DrawControls(EditorContext& ctx) {
     }
   }
 }
+
 // ——— генераторы предпросмотра ———
 
 void FoliageBrushTool::RebuildPreviewCircle() {
@@ -333,10 +378,7 @@ void FoliageBrushTool::ApplyPlacement(engine::Scene& scene) {
     (void)yawMin;
     (void)yawMax;  // пока не сохраняем углы — при надобности расширь SceneObject
 
-    // вызываем твой пайплайн:
-    // сейчас Scene::AddTree(name=default_tree) создаёт Agent и SceneObject, скейл берётся из префаба
-    // если хочешь именно свой s — либо расширь AddTree/SceneObject, либо применяй prefab.model_scale*s
-    scene.AddTree(p.x, p.z, m_settings.prefab);
+    scene.AddTree(p.x, p.z, m_settings.prefab, s);
   }
 
   m_preview.clear();
@@ -360,14 +402,14 @@ bool FoliageBrushTool::ProjectToScreen(const EditorContext& ctx, const glm::vec3
 
 void FoliageBrushTool::DrawOverlay(EditorContext& ctx) {
   auto* dl = ImGui::GetBackgroundDrawList();  // рисуем под UI (можно Foreground)
-  const ImU32 colOutline = IM_COL32(80, 200, 120, 200);
-  const ImU32 colPoints = IM_COL32(80, 200, 120, 180);
+  const ImU32 COL_OUTLINE = IM_COL32(80, 200, 120, 200);
+  const ImU32 COL_POINTS = IM_COL32(80, 200, 120, 180);
 
   const auto* T = ctx.m_scene ? ctx.m_scene->GetTerrain() : nullptr;
-  const float anchorY = ComputeAnchorY(ctx);
+  const float ANCHOR_Y = ComputeAnchorY(ctx);
   auto lift = [&](glm::vec3 p) {
     if (T)
-      p.y = T->GetHeightAt(p.x, p.z) + anchorY;
+      p.y = T->GetHeightAt(p.x, p.z) + ANCHOR_Y;
     return p;
   };
   // контур области
@@ -438,7 +480,7 @@ if (poly.size() >= 2) {
   const bool isFullCircle = (m_settings.shape == Shape::Circle && poly.size() == 64);
   dl->AddPolyline(poly.data(),
                   (int)poly.size(),
-                  colOutline,
+                  COL_OUTLINE,
                   isFullCircle ? ImDrawFlags_Closed : 0,
                   2.0f);
 }
@@ -451,7 +493,7 @@ if (poly.size() >= 2) {
     glm::vec3 pw = lift(p);
     glm::vec2 px;
     if (ProjectToScreen(ctx, pw, px)) {
-      dl->AddCircleFilled(ImVec2(px.x, px.y), 2.0f, colPoints, 8);
+      dl->AddCircleFilled(ImVec2(px.x, px.y), 2.0f, COL_POINTS, 8);
     }
   }
 }

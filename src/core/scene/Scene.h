@@ -21,7 +21,7 @@ public:
   void Update(float dt);
   auto CreateEntity(const std::string &id) -> Entity;
   void Render();
-  void AddTree(float x, float z, const std::string &tree_type = "default_tree");
+  void AddTree(float x, float z, const std::string &tree_type = "default_tree", float scale = 1.F);
   void AddFire(float x, float z, float intensity = 1.0F);
 
   void AddFireAt(const glm::vec3 &world, float intensity = 1.0F);
@@ -50,7 +50,7 @@ public:
     m_vpScaleY = sy;
   }
 
-  void AddPrefab(const std::string &prefab_id, float x, float z);
+  void AddPrefab(const std::string &prefab_id, float x, float z, float scale);
   bool RemoveNearestAt(const glm::vec3 &world, float maxXZDist);
 
   const std::vector<std::string> &ListPrefabIds() const;

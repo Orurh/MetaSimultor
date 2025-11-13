@@ -203,19 +203,21 @@ void Scene::Shutdown() {
   Renderer::Instance().Shutdown();
 }
 
-void Scene::AddPrefab(const std::string &prefab_id, float x, float z) {
+void Scene::AddPrefab(const std::string &prefab_id, float x, float z, float scale) {
   const auto &prefab = m_prefabSystem.GetPrefab(prefab_id);
   EnsureModelsForPrefab(prefab_id, prefab);
   const float y = GetGroundHeight(x, z);
 
+  glm::vec3 finalScale = prefab.m_modelScale * scale;
+
   // 1. GPU агент
-  Agent agent = m_prefabSystem.CreateAgentFromPrefab(prefab, {x, y, z});
+  Agent agent = m_prefabSystem.CreateAgentFromPrefab(prefab, {x, y, z}, scale);
   int gpu_index = m_agentManager.AddAgent(agent);
 
   // 2. ECS Entity
   Entity entity = CreateEntity(prefab_id);
   entity.AddComponent<TransformComponent>(glm::vec3{x, y, z});
-  entity.AddComponent<RenderComponent>(prefab_id, prefab.m_modelScale, true);
+  entity.AddComponent<RenderComponent>(prefab_id, finalScale, true);
   entity.AddComponent<AgentLinkComponent>(gpu_index, prefab_id);
 
   // 3. FireEmitter
@@ -225,8 +227,8 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z) {
 }
 
 // Если нужно, оставь AddTree как шорткат:
-void Scene::AddTree(float x, float z, const std::string &tree_type) {
-  AddPrefab(tree_type, x, z);
+void Scene::AddTree(float x, float z, const std::string &tree_type, float scale) {
+  AddPrefab(tree_type, x, z, scale);
 }
 
 // Список id префабов (проксируем)

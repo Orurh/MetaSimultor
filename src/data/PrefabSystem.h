@@ -79,9 +79,9 @@ public:
   bool PrefabExists(const std::string &name) const;
 
   Agent CreateAgentFromPrefab(const std::string &prefab_name,
-                              const glm::vec3 &position);
+                              const glm::vec3 &position, float scale);
   Agent CreateAgentFromPrefab(const AgentPrefab &prefab,
-                              const glm::vec3 &position);
+                              const glm::vec3 &position, float scale);
   void CreatePrefabFromAgent(const std::string &name, const Agent &agent,
                              const std::string &model_path,
                              const glm::vec3 &scale = glm::vec3(1.0F));
@@ -105,7 +105,7 @@ public:
   AgentPrefab &GetPrefabMutable(const std::string &name) {
     auto it = m_prefabs.find(name);
     if (it == m_prefabs.end())
-      throw std::runtime_error("Prefab not found: " + name);
+      throw std::runtime_error("Prefab not found:1 " + name);
     return it->second;
   }
 
