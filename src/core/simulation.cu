@@ -30,7 +30,7 @@ __device__ float compute_heat_transfer(float Tsrc, float Tdst, float distance,
   // Ветер: усиливаем вдоль ветра, чуть гасим против
   float wind_mul = 1.0f;
   if (wind_factor > 0.0f) {
-    wind_mul += wind_factor * p.wind_heat_bonus;
+    wind_mul += wind_factor * p.m_wind_heat_bonus;
   } else if (wind_factor < 0.0f) {
     wind_mul += wind_factor * 0.3f; // чуть ослабляем против ветра
   }
@@ -212,7 +212,7 @@ __global__ void update_agents_kernel(Agent *agents, int count, float dt,
               }
 
               float max_spread_distance =
-                  params.base_spread_distance * wind_spread_effect;
+                  params.m_base_spread_distance * wind_spread_effect;
 
               if (point_dist < max_spread_distance) {
                 float distance_factor = 1.0f - point_dist / max_spread_distance;
@@ -236,7 +236,7 @@ __global__ void update_agents_kernel(Agent *agents, int count, float dt,
                   float conductivity =
                       other_agent->fire_collider.conductivity > 0.0f
                           ? other_agent->fire_collider.conductivity
-                          : params.base_conductivity;
+                          : params.m_base_conductivity;
 
                   float heat = compute_heat_transfer(
                       Tsrc, Tdst, point_dist, conductivity, wind_dot, params);
@@ -283,7 +283,7 @@ __global__ void update_agents_kernel(Agent *agents, int count, float dt,
           distance3d(point_pos.x, point_pos.y, point_pos.z, other_point_pos.x,
                      other_point_pos.y, other_point_pos.z);
 
-      float max_local_dist = params.local_spread_distance;
+      float max_local_dist = params.m_local_spread_distance;
 
       if (point_dist < max_local_dist) {
         float distance_factor = 1.0f - point_dist / max_local_dist;
@@ -296,13 +296,13 @@ __global__ void update_agents_kernel(Agent *agents, int count, float dt,
         if (Tsrc > Tdst) {
           float conductivity = agent->fire_collider.conductivity > 0.0f
                                    ? agent->fire_collider.conductivity
-                                   : params.base_conductivity;
+                                   : params.m_base_conductivity;
 
           float heat =
               compute_heat_transfer(Tsrc, Tdst, point_dist, conductivity,
                                     /*wind_factor=*/0.0f, params);
 
-          heat *= distance_factor * params.local_spread_strength * dt;
+          heat *= distance_factor * params.m_local_spread_strength * dt;
 
           if (heat > 0.0f) {
             agent->fire_collider.temperatures[j] += heat;
