@@ -79,4 +79,11 @@ struct FireEmitterComponent {
   FireEmitterComponent() = default;
   FireEmitterComponent(float intensity) : Intensity(intensity) {}
 };
+
+struct ParticleSystemComponent {
+  std::shared_ptr<ParticleSystem> system;
+  bool isActive = false;
+  float activationTimer = 0.0f;
+  glm::vec3 instancePosition;
+};
 } // namespace engine

@@ -8,7 +8,7 @@ struct Particle {
     vec4 position;
     vec4 velocity;  
     vec4 color;
-    vec4 size;
+    vec4 size;        // xyz = размер, w = rotation
 };
 
 layout(std430, binding = 0) readonly buffer ParticleBuffer {
@@ -26,18 +26,26 @@ void main() {
     Particle p = particles[particleIndex];
     
     v_color = p.color;
+    v_texcoord = a_texcoord;
     
     vec3 worldPos = p.position.xyz;
     float size = p.size.x;
+    float rotation = p.size.w; 
+    
+    vec2 pos = a_position.xy * size;
+    float cosR = cos(rotation);
+    float sinR = sin(rotation);
+    vec2 rotatedPos = vec2(
+        pos.x * cosR - pos.y * sinR,
+        pos.x * sinR + pos.y * cosR
+    );
     
     vec4 viewPos = u_view * vec4(worldPos, 1.0);
-    viewPos.xy += a_position.xy * size;
+    viewPos.xy += rotatedPos;
     
     gl_Position = u_projection * viewPos;
-    v_texcoord = a_texcoord;
 }
-
-#shader fragment
+#shader fragment  
 #version 430 core
 
 in vec2 v_texcoord;
@@ -45,18 +53,14 @@ in vec4 v_color;
 
 out vec4 FragColor;
 
+uniform sampler2D u_particleTexture;
+uniform int u_useTexture;
+
 void main() {
-    vec2 centered = v_texcoord - 0.5;
-    float dist = length(centered);
-    
-    if (dist > 0.5) {
-        discard;
-    }
-    
-    float alpha = 1.0 - smoothstep(0.3, 0.5, dist);
-    FragColor = v_color * alpha;
-    
-    if (FragColor.a < 0.01) {
-        discard;
+    if (u_useTexture == 1) {
+        FragColor = texture(u_particleTexture, v_texcoord) * v_color;
+    } else {
+        // Сплошной квадрат без скругления
+        FragColor = v_color;
     }
 }

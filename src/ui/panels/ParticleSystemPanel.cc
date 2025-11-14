@@ -27,10 +27,8 @@ void ParticleSystemPanel::Draw(EditorContext &ctx) {
 
   ImGui::Separator();
 
-  // Список систем
   DrawParticleSystemList(ctx);
 
-  // Управление выбранной системой и редактор эффектов
   if (m_selectedSystem) {
     DrawParticleSystemControls(ctx);
     ImGui::Separator();
@@ -60,9 +58,21 @@ void ParticleSystemPanel::DrawEffectEditor() {
                       50.0f);
     ImGui::DragFloat3("Start Size", &effect->main.startSize[0], 0.1f, 0.01f,
                       10.0f);
+    ImGui::Checkbox("3D Size", &effect->main.use3DSize);
+    ImGui::DragFloat3("Start Rotation", &effect->main.startRotation[0], 0.1f,
+                      -180.0f, 180.0f);
+    ImGui::Checkbox("3D Rotation", &effect->main.use3DRotation);
     ImGui::ColorEdit4("Start Color", &effect->main.startColor[0]);
     ImGui::DragFloat("Gravity Modifier", &effect->main.gravityModifier, 0.1f,
                      -10.0f, 10.0f);
+
+    ImGui::Separator();
+    ImGui::Text("Simulation:");
+    const char *simulationSpaces[] = {"Local", "World", "Custom"};
+    ImGui::Combo("Simulation Space", &effect->main.simulationSpace,
+                 simulationSpaces, IM_ARRAYSIZE(simulationSpaces));
+    ImGui::DragFloat("Simulation Speed", &effect->main.simulationSpeed, 0.1f,
+                     0.0f, 10.0f);
 
     ImGui::DragInt("Max Particles", (int *)&effect->main.maxParticles, 100, 100,
                    100000);
@@ -120,6 +130,9 @@ void ParticleSystemPanel::DrawEffectEditor() {
     }
 
     ImGui::DragFloat("Arc", &effect->shape.arc, 1.0f, 0.0f, 360.0f);
+    ImGui::DragFloat("Random Direction", &effect->shape.randomDirection, 0.1f,
+                     0.0f, 1.0f);
+    ImGui::Checkbox("Align To Direction", &effect->shape.alignToDirection);
   }
 
   if (ImGui::CollapsingHeader("Velocity Over Lifetime")) {
@@ -130,6 +143,37 @@ void ParticleSystemPanel::DrawEffectEditor() {
     ImGui::DragFloat3("Orbital Velocity",
                       &effect->velocityOverLifetime.orbital[0], 0.1f, -10.0f,
                       10.0f);
+    ImGui::DragFloat("Speed Modifier",
+                     &effect->velocityOverLifetime.speedModifier, 0.1f, 0.1f,
+                     10.0f);
+  }
+
+  if (ImGui::CollapsingHeader("Force Over Lifetime")) {
+    ImGui::Checkbox("Enabled##Force", &effect->forceOverLifetime.enabled);
+    ImGui::DragFloat3("Force", &effect->forceOverLifetime.force[0], 0.1f,
+                      -10.0f, 10.0f);
+    ImGui::Checkbox("Randomize", &effect->forceOverLifetime.randomize);
+    if (effect->forceOverLifetime.randomize) {
+      ImGui::DragFloat3("Random Force",
+                        &effect->forceOverLifetime.randomForce[0], 0.1f, 0.0f,
+                        10.0f);
+    }
+  }
+
+  if (ImGui::CollapsingHeader("Limit Velocity Over Lifetime")) {
+    ImGui::Checkbox("Enabled##LimitVelocity",
+                    &effect->limitVelocityOverLifetime.enabled);
+    ImGui::DragFloat("Speed Limit", &effect->limitVelocityOverLifetime.limit,
+                     0.1f, 0.1f, 100.0f);
+    ImGui::DragFloat("Dampen", &effect->limitVelocityOverLifetime.dampen, 0.1f,
+                     0.0f, 1.0f);
+    ImGui::Checkbox("Separate Axes",
+                    &effect->limitVelocityOverLifetime.separateAxes);
+    if (effect->limitVelocityOverLifetime.separateAxes) {
+      ImGui::DragFloat3("Limit XYZ",
+                        &effect->limitVelocityOverLifetime.limitXYZ[0], 0.1f,
+                        0.1f, 100.0f);
+    }
   }
 
   if (ImGui::CollapsingHeader("Color Over Lifetime")) {
@@ -183,6 +227,67 @@ void ParticleSystemPanel::DrawEffectEditor() {
       }
       ImGui::TreePop();
     }
+  }
+
+  if (ImGui::CollapsingHeader("Rotation Over Lifetime")) {
+    ImGui::Checkbox("Enabled##Rotation", &effect->rotationOverLifetime.enabled);
+    ImGui::DragFloat3("Angular Velocity",
+                      &effect->rotationOverLifetime.angularVelocity[0], 1.0f,
+                      -360.0f, 360.0f);
+    ImGui::Checkbox("Separate Axes##Rotation",
+                    &effect->rotationOverLifetime.separateAxes);
+  }
+
+  if (ImGui::CollapsingHeader("Renderer Module")) {
+    // Texture path
+    static char texturePath[256] = "";
+    ImGui::InputText("Texture Path", texturePath, sizeof(texturePath));
+    if (ImGui::Button("Load Texture")) {
+      effect->renderer.texturePath = texturePath;
+      m_selectedSystem->LoadTexture(texturePath);
+    }
+
+    const char *renderModes[] = {"Billboard", "Stretched Billboard",
+                                 "Horizontal Billboard", "Vertical Billboard",
+                                 "Mesh"};
+    ImGui::Combo("Render Mode", &effect->renderer.renderMode, renderModes,
+                 IM_ARRAYSIZE(renderModes));
+
+    ImGui::DragFloat3("Normal Direction", &effect->renderer.normalDirection[0],
+                      0.1f, -1.0f, 1.0f);
+    ImGui::ColorEdit4("Material Color", &effect->renderer.materialColor[0]);
+    ImGui::Checkbox("Cast Shadows", &effect->renderer.castShadows);
+    ImGui::Checkbox("Receive Shadows", &effect->renderer.receiveShadows);
+  }
+
+  // Кнопки для применения изменений
+  ImGui::Separator();
+  if (ImGui::Button("Apply Changes")) {
+    m_selectedSystem->SetEffect(effect);
+  }
+  ImGui::SameLine();
+  if (ImGui::Button("Reset")) {
+    effect = m_selectedSystem->GetEffect();
+  }
+
+  ImGui::Separator();
+  ImGui::Text("Serialization:");
+
+  static char savePath[256] = "res/effects/effect.yaml";
+  ImGui::InputText("Save Path", savePath, sizeof(savePath));
+
+  if (ImGui::Button("Save Effect")) {
+    effect->SaveToFile(savePath);
+  }
+
+  ImGui::SameLine();
+
+  static char loadPath[256] = "res/effects/effect.yaml";
+  ImGui::InputText("Load Path", loadPath, sizeof(loadPath));
+
+  if (ImGui::Button("Load Effect")) {
+    effect->LoadFromFile(loadPath);
+    m_selectedSystem->SetEffect(effect); // Применяем загруженный эффект
   }
 
   // Кнопки для применения изменений
@@ -285,6 +390,7 @@ void ParticleSystemPanel::DrawParticleSystemControls(EditorContext &ctx) {
     auto effect = engine::ParticleEffect::CreateMagic();
     m_selectedSystem->SetEffect(effect);
   }
+  ImGui::SameLine();
 }
 
 void ParticleSystemPanel::DrawAddParticleSystemMenu(EditorContext &ctx) {
@@ -294,7 +400,7 @@ void ParticleSystemPanel::DrawAddParticleSystemMenu(EditorContext &ctx) {
   if (ImGui::MenuItem("Fire")) {
     auto effect = engine::ParticleEffect::CreateFire();
     auto system = std::make_shared<engine::ParticleSystem>();
-    system->SetEffect(effect);
+    system->SetFireEffect();
     system->Play();
 
     if (ctx.m_scene) {
@@ -337,8 +443,6 @@ void ParticleSystemPanel::DrawAddParticleSystemMenu(EditorContext &ctx) {
       m_selectedSystem = system;
     }
   }
+}
 
-  // ... остальные методы как были ...
-
-} // namespace ui
 } // namespace ui
