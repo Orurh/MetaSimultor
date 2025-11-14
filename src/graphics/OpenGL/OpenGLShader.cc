@@ -13,16 +13,17 @@ std::unique_ptr<Shader> CreateOpenGLShader(const std::string &vertexSrc,
 }
 
 std::unique_ptr<Shader> CreateOpenGLShader(const std::string &vertexSrc,
-                                           const std::string &fragmentSrc, const std::string &geometrySrc) {
+                                           const std::string &fragmentSrc,
+                                           const std::string &geometrySrc) {
   return std::make_unique<OpenGLShader>(vertexSrc, fragmentSrc, geometrySrc);
 }
 OpenGLShader::OpenGLShader(const std::string &filename) {
   std::ifstream stream(filename);
   std::string line;
-  enum ShaderType { NONE = -1, VERTEX = 0, GEOMETRY = 1, FRAGMENT = 2 }; 
+  enum ShaderType { NONE = -1, VERTEX = 0, GEOMETRY = 1, FRAGMENT = 2 };
   std::stringstream ss[3];
   ShaderType type = ShaderType::NONE;
-  
+
   while (getline(stream, line)) {
     if (line.find("#shader") != std::string::npos) {
       if (line.find("vertex") != std::string::npos) {
@@ -40,20 +41,20 @@ OpenGLShader::OpenGLShader(const std::string &filename) {
   }
 
   m_rendererID = glCreateProgram();
-  
+
   GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, ss[0].str());
   glAttachShader(m_rendererID, vertexShader);
-  
+
   if (!ss[1].str().empty()) {
     GLuint geometryShader = CompileShader(GL_GEOMETRY_SHADER, ss[1].str());
     glAttachShader(m_rendererID, geometryShader);
   }
-  
+
   GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, ss[2].str());
   glAttachShader(m_rendererID, fragmentShader);
-  
+
   glLinkProgram(m_rendererID);
-  
+
   GLint isLinked;
   glGetProgramiv(m_rendererID, GL_LINK_STATUS, &isLinked);
   if (!isLinked) {
@@ -78,17 +79,17 @@ OpenGLShader::OpenGLShader(const std::string &vertexSrc,
                            const std::string &geometrySrc,
                            const std::string &fragmentSrc) {
   m_rendererID = glCreateProgram();
-  
+
   GLuint vertexShader = CompileShader(GL_VERTEX_SHADER, vertexSrc);
   GLuint geometryShader = CompileShader(GL_GEOMETRY_SHADER, geometrySrc);
   GLuint fragmentShader = CompileShader(GL_FRAGMENT_SHADER, fragmentSrc);
-  
+
   glAttachShader(m_rendererID, vertexShader);
   glAttachShader(m_rendererID, geometryShader);
   glAttachShader(m_rendererID, fragmentShader);
-  
+
   glLinkProgram(m_rendererID);
-  
+
   // ПРОВЕРКА ОШИБОК
   GLint isLinked;
   glGetProgramiv(m_rendererID, GL_LINK_STATUS, &isLinked);
@@ -152,14 +153,13 @@ void OpenGLShader::SetFloat(const std::string &name, float value) {
 }
 
 void OpenGLShader::SetBool(const std::string &name, bool value) {
-    auto loc = glGetUniformLocation(m_rendererID, name.c_str());
+  auto loc = glGetUniformLocation(m_rendererID, name.c_str());
   if (loc != -1) {
     glUniform1i(loc, (int)value);
   } else {
     std::cout << "Warning: uniform '" + name + "' doesn't exist!\n";
   }
 }
-
 
 GLuint OpenGLShader::CompileShader(GLenum type, const std::string &source) {
   GLuint shader = glCreateShader(type);
@@ -174,7 +174,8 @@ GLuint OpenGLShader::CompileShader(GLenum type, const std::string &source) {
     std::string infoLog(maxLength, ' ');
     glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
     glDeleteShader(shader);
-    std::cout << "Shader compilation failed: " + infoLog << '\n';
+    std::cout << "Shader compilation failed: " + infoLog << " in file "
+              << source << '\n';
   }
   return shader;
 }

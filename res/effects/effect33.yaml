@@ -1,0 +1,100 @@
+main:
+  duration: 5
+  looping: true
+  startDelay: 0
+  startLifetime: 3
+  startSpeed:
+    - 0
+    - 2
+    - 0
+  startSize:
+    - 0.300000012
+    - 0.300000012
+    - 0.300000012
+  use3DSize: false
+  startRotation:
+    - 0
+    - 0
+    - 0
+  use3DRotation: false
+  startColor:
+    - 1
+    - 0
+    - 0
+    - 1
+  gravityModifier: 1
+  simulationSpace: 0
+  simulationSpeed: 1
+  maxParticles: 1000
+emission:
+  enabled: true
+  rateOverTime: 10
+  rateOverDistance: 0
+shape:
+  enabled: true
+  shapeType: 0
+  radius: 1
+  angle: 25
+  boxSize:
+    - 1
+    - 1
+    - 1
+  arc: 360
+  randomDirection: 0
+  alignToDirection: false
+velocityOverLifetime:
+  enabled: false
+  linear:
+    - 0
+    - 0
+    - 0
+  orbital:
+    - 0
+    - 0
+    - 0
+  speedModifier: 1
+forceOverLifetime:
+  enabled: false
+  force:
+    - 0
+    - 0
+    - 0
+  randomize: false
+  randomForce:
+    - 1
+    - 1
+    - 1
+limitVelocityOverLifetime:
+  enabled: false
+  limit: 1
+  dampen: 0.5
+  separateAxes: false
+  limitXYZ:
+    - 1
+    - 1
+    - 1
+colorOverLifetime:
+  enabled: false
+sizeOverLifetime:
+  enabled: false
+rotationOverLifetime:
+  enabled: false
+  angularVelocity:
+    - 0
+    - 0
+    - 0
+  separateAxes: false
+renderer:
+  texturePath: ""
+  renderMode: 0
+  normalDirection:
+    - 0
+    - 1
+    - 0
+  materialColor:
+    - 1
+    - 1
+    - 1
+    - 1
+  castShadows: false
+  receiveShadows: false

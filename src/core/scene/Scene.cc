@@ -10,12 +10,13 @@
 #include "graphics/Model.h"
 #include "graphics/Renderer.h"
 
+#include "graphics/ParticleSystemPool.h"
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <memory>
-
 namespace engine {
+
 Scene::Scene()
     : m_agentManager(1000000), m_camera(glm::vec3(500.0F, 100.0F, 600.0F)) {}
 
@@ -23,6 +24,7 @@ void Scene::Init() {
   m_terrain = std::make_unique<Terrain>();
   GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
   engine::Renderer::Instance().Init();
+  ParticleSystemPool::Initialize(1000);
 }
 
 auto Scene::CreateEntity(const std::string &id) -> Entity {
@@ -97,6 +99,27 @@ void Scene::Update(float dt) {
     if (SCROLL_Y != 0.0F) {
     }
   }
+  glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
+
+  auto particleView = m_registry.view<ParticleSystemComponent>();
+  for (auto [entity, particleComp] : particleView.each()) {
+    if (particleComp.isActive) {
+      particleComp.system->Update();
+      particleComp.system->SetWind(currentWind);
+      // Автоматическое выключение через некоторое время после деактивации
+      if (!particleComp.system->IsPlaying() &&
+          particleComp.activationTimer > 0.0f) {
+        particleComp.activationTimer -= dt;
+        if (particleComp.activationTimer <= 0.0f) {
+          particleComp.isActive = false;
+        }
+      }
+    }
+  }
+  for (auto &system : m_particleSystems) {
+    system->SetWind(currentWind);
+    system->Update();
+  }
 }
 
 void Scene::Render() {
@@ -128,6 +151,17 @@ void Scene::Render() {
     else if (agent.isBurning() || agent.type == AgentType::BURNING)
       state = AgentType::BURNING;
 
+    // ПРОСТАЯ ЛОГИКА: включаем/выключаем систему частиц
+    auto &particleComp = m_registry.get<ParticleSystemComponent>(entity);
+
+    if (state == AgentType::BURNING && !particleComp.isActive) {
+      particleComp.isActive = true;
+      particleComp.system->Play();
+    } else if (state != AgentType::BURNING && particleComp.isActive) {
+      particleComp.isActive = false;
+      particleComp.system->Stop();
+    }
+
     auto material = prefab.GetMaterialForState(state);
     auto model = m_objectModels.Find(link.prefab_id);
     if (!model || !model->m_normal)
@@ -147,12 +181,36 @@ void Scene::Render() {
   }
 
   Renderer::Instance().UploadAgentsData(agents);
-  Renderer::Instance().RenderWithGeometryShader(
-      m_windConfig.getCurrentWind(m_windTime));
+
+  auto particleView =
+      m_registry.view<ParticleSystemComponent, TransformComponent>();
+  for (auto [entity, particleComp, transform] : particleView.each()) {
+    if (particleComp.isActive) {
+      particleComp.system->SetPosition(transform.position);
+      particleComp.system->Render(view, projection);
+    }
+  }
+
   Renderer::Instance().DrawTerrain(m_terrain->GetVAO(),
                                    m_terrain->GetPosition());
 
+  // Рендерим отдельные системы частиц (если нужны)
+  for (auto &system : m_particleSystems) {
+    system->Render(view, projection);
+  }
+
   Renderer::Instance().EndScene();
+}
+
+void Scene::AddParticleSystem(const std::shared_ptr<ParticleSystem> &system) {
+  m_particleSystems.push_back(system);
+}
+
+void Scene::RemoveParticleSystem(
+    const std::shared_ptr<ParticleSystem> &system) {
+  m_particleSystems.erase(
+      std::remove(m_particleSystems.begin(), m_particleSystems.end(), system),
+      m_particleSystems.end());
 }
 
 void Scene::Generate() {
@@ -203,7 +261,8 @@ void Scene::Shutdown() {
   Renderer::Instance().Shutdown();
 }
 
-void Scene::AddPrefab(const std::string &prefab_id, float x, float z, float scale) {
+void Scene::AddPrefab(const std::string &prefab_id, float x, float z,
+                      float scale) {
   const auto &prefab = m_prefabSystem.GetPrefab(prefab_id);
   EnsureModelsForPrefab(prefab_id, prefab);
   const float y = GetGroundHeight(x, z);
@@ -219,19 +278,22 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z, float scal
   entity.AddComponent<TransformComponent>(glm::vec3{x, y, z});
   entity.AddComponent<RenderComponent>(prefab_id, finalScale, true);
   entity.AddComponent<AgentLinkComponent>(gpu_index, prefab_id);
-
+  auto &particleComp = entity.AddComponent<ParticleSystemComponent>();
+  particleComp.system = ParticleSystemPool::AcquireFire();
+  particleComp.system->SetPosition({x, y + 100, z});
+  particleComp.system->Stop();
+  particleComp.isActive = false;
   // 3. FireEmitter
   if (prefab_id.find("fire") != std::string::npos) {
     entity.AddComponent<FireEmitterComponent>();
   }
 }
 
-// Если нужно, оставь AddTree как шорткат:
-void Scene::AddTree(float x, float z, const std::string &tree_type, float scale) {
+void Scene::AddTree(float x, float z, const std::string &tree_type,
+                    float scale) {
   AddPrefab(tree_type, x, z, scale);
 }
 
-// Список id префабов (проксируем)
 const std::vector<std::string> &Scene::ListPrefabIds() const {
   return m_prefabSystem.ListIds();
 }
@@ -267,13 +329,23 @@ float Scene::GetGroundHeight(float x, float z) const {
 }
 
 void Scene::AddFire(float x, float z, float intensity) {
-  // теперь учитываем высоту земли и перенаправляем в 3D-вариант
   const float y = GetGroundHeight(x, z);
   AddFireAt(glm::vec3{x, y, z}, intensity);
 }
 
 void Scene::AddFireAt(const glm::vec3 &world, float intensity) {
   m_agentManager.AddFireAt(Float3{world.x, world.y, world.z}, intensity);
+
+  Entity fireEntity = CreateEntity("fire_emitter");
+  fireEntity.AddComponent<TransformComponent>(world);
+
+  auto &particleComp = fireEntity.AddComponent<ParticleSystemComponent>();
+  particleComp.system = ParticleSystemPool::AcquireFire();
+  particleComp.system->SetPosition(world);
+  particleComp.system->Play();
+  particleComp.isActive = true;
+
+  fireEntity.AddComponent<FireEmitterComponent>();
 }
 bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
   float bestDist2 = maxXZDist * maxXZDist;
@@ -290,6 +362,10 @@ bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
       best = entity;
     }
   });
+
+  if (m_registry.all_of<ParticleSystemComponent>(best)) {
+    m_registry.remove<ParticleSystemComponent>(best);
+  }
 
   if (best == entt::null)
     return false;

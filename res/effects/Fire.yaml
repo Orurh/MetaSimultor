@@ -1,0 +1,135 @@
+main:
+  duration: 5
+  looping: true
+  startDelay: 0
+  startLifetime: 1.10000002
+  startSpeed:
+    - 0
+    - 2
+    - 0
+  startSize:
+    - 0.300000012
+    - 0.300000012
+    - 0.300000012
+  use3DSize: false
+  startRotation:
+    - 0
+    - 0
+    - 0
+  use3DRotation: false
+  startColor:
+    - 1
+    - 0
+    - 0
+    - 1
+  gravityModifier: 1
+  simulationSpace: 0
+  simulationSpeed: 1
+  maxParticles: 1000
+emission:
+  enabled: true
+  rateOverTime: 18
+  rateOverDistance: 0
+shape:
+  enabled: true
+  shapeType: 0
+  radius: 1
+  angle: 25
+  boxSize:
+    - 1
+    - 1
+    - 1
+  arc: 360
+  randomDirection: 0
+  alignToDirection: false
+velocityOverLifetime:
+  enabled: false
+  linear:
+    - 0
+    - 0
+    - 0
+  orbital:
+    - 0
+    - -0.400000006
+    - 0.300000012
+  speedModifier: 0.899999976
+forceOverLifetime:
+  enabled: false
+  force:
+    - 0
+    - 0
+    - 0
+  randomize: false
+  randomForce:
+    - 1
+    - 1
+    - 1
+limitVelocityOverLifetime:
+  enabled: true
+  limit: 1.70000005
+  dampen: 1
+  separateAxes: false
+  limitXYZ:
+    - 1
+    - 1
+    - 1
+colorOverLifetime:
+  enabled: true
+  gradient:
+    - time: 0
+      color:
+        - 0.985294104
+        - 0.342920989
+        - 0.342920989
+        - 0.56078434
+    - time: 0.460000008
+      color:
+        - 0.68235296
+        - 0.596078455
+        - 0.101960786
+        - 0.34117648
+    - time: 1
+      color:
+        - 0.152941182
+        - 0.152941182
+        - 0.152941182
+        - 0.200000003
+sizeOverLifetime:
+  enabled: true
+  curve:
+    - time: 0
+      size:
+        - 7
+        - 10
+        - 1
+    - time: 0.709999979
+      size:
+        - 1.29999995
+        - 2.0999999
+        - 5.5
+    - time: 1
+      size:
+        - 1
+        - 1
+        - 3.29999995
+rotationOverLifetime:
+  enabled: true
+  angularVelocity:
+    - 18
+    - 30
+    - 0.5
+  separateAxes: true
+renderer:
+  texturePath: res/textures/fire_texture3.png
+  renderMode: 0
+  normalDirection:
+    - 0
+    - 1
+    - 0
+  materialColor:
+    - 1
+    - 1
+    - 1
+    - 1
+  castShadows: false
+  receiveShadows: false
