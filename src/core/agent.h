@@ -32,14 +32,31 @@ struct FireCollider {
     Float3 bounds_min, bounds_max;
     Float3 heat_points[64];
     float fuels[64];
-    float intensities[64];
+    float intensities[64];   // "мощность" горения (визуал/источник тепла)
+    float temperatures[64];  // температура точки (K или °C — главное, везде одинаково)
+    float moisture[64];      // локальная влажность (0..1), пока не используем, но пригодится
+
+        // Материал / физические свойства
+    float conductivity;      // базовая теплопроводность коллайдера (дерево/трава)
+    float ignition_temp;     // базовый порог воспламенения материала
+
     int point_count;
-    
+
     __host__ __device__
-    FireCollider() : point_count(0) {
-        for (int i = 0; i < 3; i++) {
-            bounds_min[i] = 0.0f;
-            bounds_max[i] = 0.0f;
+    FireCollider()
+        : conductivity(0.1f),
+          ignition_temp(600.0f),
+          point_count(0)
+    {
+        for (int k = 0; k < 3; ++k) {
+            bounds_min[k] = 0.0f;
+            bounds_max[k] = 0.0f;
+        }
+        for (int i = 0; i < 64; ++i) {
+            fuels[i]        = 0.0f;
+            intensities[i]  = 0.0f;
+            temperatures[i] = 293.15f; // ~20°C
+            moisture[i]     = 0.3f;    // немного влажности по умолчанию
         }
     }
 };
