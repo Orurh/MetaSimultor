@@ -69,6 +69,9 @@ __global__ void update_agents_kernel(Agent *agents, int count, float dt,
     return;
 
   Agent *agent = &agents[idx];
+  if (agent->type == BURNED) {
+    return;
+  }
 
   // Нормализуем вектор ветра и вычисляем его силу
   float wind_strength =
@@ -315,21 +318,29 @@ __global__ void update_agents_kernel(Agent *agents, int count, float dt,
     }
   }
 
-  // 4. Обновляем тип агента на основе точек горения
-  bool all_burned = true;
+  // 4. Обновляем тип агента на основе точек горения и топлива
+  bool has_fire = false;
+  bool has_fuel = false;
 
   for (int i = 0; i < agent->fire_collider.point_count; i++) {
-    if (agent->fire_collider.intensities[i] > 0.1F) {
-      all_burned = false;
+    if (agent->fire_collider.intensities[i] > 0.1f) {
+      has_fire = true;
     }
     if (agent->fire_collider.fuels[i] > 0.1f) {
-      all_burned = false;
+      has_fuel = true;
     }
   }
 
-  if (all_burned && agent->type == NORMAL) {
+  if (has_fire) {
+    // Как только где-то загорелось — помечаем агент как горящий
+    agent->type = BURNING;
+  } else if (!has_fire && !has_fuel) {
+    // Топлива нет и нигде не горит — всё, агент сгорел окончательно
     agent->type = BURNED;
   }
+  // Иначе:
+  //  - есть топливо, но прямо сейчас вспышек нет → оставляем type как был
+  //    (NORMAL, если ещё не загорался; или BURNING, если уже горел)
 }
 
 void SimulationStep(Agent *agents, int count, float dt,
