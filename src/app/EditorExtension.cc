@@ -1,5 +1,6 @@
 // src/editor/EditorExtension.cpp
 #include "app/EditorExtension.h"
+#include <GLFW/glfw3.h>
 #include "core/Application.h"
 #include "core/Input.h"
 #include "core/scene/Scene.h"
@@ -8,31 +9,29 @@
 #include "ui/EditorContext.h"
 #include "ui/backends/ImGuiBackend.h"
 #include "ui/modules/BasicToolsModule.h"
-#include <GLFW/glfw3.h>
 
 EditorExtension::~EditorExtension() noexcept = default;
 
-void EditorExtension::OnInit(engine::Application &app) {
+void EditorExtension::OnInit(engine::Application& app) {
   m_imgui = std::make_unique<ui::ImGuiBackend>();
-  m_imgui->Init(app.GetNativeWindow(), "#version 330");
+  m_imgui->Init(static_cast<GLFWwindow*>(app.GetNativeWindow()), "#version 330");
 
   m_editor = std::make_unique<ui::Editor>();
   m_editor->RegisterModule(std::make_unique<ui::BasicToolsModule>());
-  ui::EditorContext ec{};
-  ec.m_app = &app;
+    ui::EditorContext ec{};
+  ec.m_app    = &app;
   ec.m_window = app.GetNativeWindow();
-  ec.m_scene = &app.GetScene();
+  ec.m_scene  = &app.GetScene();
   m_editor->SetActiveTool(ui::ToolType::PLACE_ON_GROUND, ec);
 }
 
-void EditorExtension::OnBeginUI(engine::Application & /*app*/,
-                                ui::EditorContext &ctx) {
+void EditorExtension::OnBeginUI(engine::Application& /*app*/, ui::EditorContext& ctx) {
   // 1) начинаем кадр ImGui
   m_imgui->BeginFrame();
   m_imgui->DrawDockspace();
 
   // 2) Получаем актуальный viewport из ImGui
-  ImGuiViewport *vp = ImGui::GetMainViewport();
+  ImGuiViewport* vp = ImGui::GetMainViewport();
   ctx.vpX = static_cast<int>(vp->WorkPos.x);
   ctx.vpY = static_cast<int>(vp->WorkPos.y);
   ctx.vpW = static_cast<int>(vp->WorkSize.x);
@@ -42,10 +41,8 @@ void EditorExtension::OnBeginUI(engine::Application & /*app*/,
   int fbw = 0, fbh = 0, ww = 0, wh = 0;
   glfwGetFramebufferSize(ctx.m_window, &fbw, &fbh);
   glfwGetWindowSize(ctx.m_window, &ww, &wh);
-  ctx.m_vpScaleX =
-      (ww > 0) ? static_cast<float>(fbw) / static_cast<float>(ww) : 1.f;
-  ctx.m_vpScaleY =
-      (wh > 0) ? static_cast<float>(fbh) / static_cast<float>(wh) : 1.f;
+  ctx.m_vpScaleX = (ww > 0) ? static_cast<float>(fbw) / static_cast<float>(ww) : 1.f;
+  ctx.m_vpScaleY = (wh > 0) ? static_cast<float>(fbh) / static_cast<float>(wh) : 1.f;
 
   // 4) Размеры вьюпорта для проекций (в framebuffer-пикселях)
   ctx.m_viewportW = static_cast<int>(ctx.vpW * ctx.m_vpScaleX);
@@ -61,23 +58,23 @@ void EditorExtension::OnBeginUI(engine::Application & /*app*/,
 
   // 7) Рендер UI редактора
   m_editor->DrawUI(ctx);
-
+  
   // 8) Обновляем состояние захвата ввода
-  const ImGuiIO &io = ImGui::GetIO();
-  engine::InputSystem::Instance().SetUICapture(io.WantCaptureMouse,
-                                               io.WantCaptureKeyboard);
-
+  const ImGuiIO& io = ImGui::GetIO();
+  engine::InputSystem::Instance().SetUICapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
+  
   // 9) Обновляем активные инструменты
   m_editor->TickTools(ctx);
 }
 
-void EditorExtension::OnEndUI(engine::Application &, ui::EditorContext &) {
+
+void EditorExtension::OnEndUI(engine::Application&, ui::EditorContext&) {
   // 3) завершаем кадр ImGui (Render + RenderDrawData + платформенные окна)
   m_imgui->EndFrame();
 }
 
-void EditorExtension::OnShutdown(engine::Application &) {
-  m_editor.reset(); // сначала редактор
+void EditorExtension::OnShutdown(engine::Application&) {
+  m_editor.reset();  // сначала редактор
   if (m_imgui) {
     m_imgui->Shutdown();
   }
