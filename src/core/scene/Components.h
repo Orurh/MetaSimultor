@@ -1,6 +1,7 @@
 #pragma once
 #include "entt.hpp"
 
+#include "graphics/ParticleSystem.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -34,6 +35,25 @@ struct TransformComponent {
            std::to_string(position.y) + ", " + std::to_string(position.z) + "}";
   }
 };
+struct ParticleComponent {
+  std::shared_ptr<ParticleSystem> system;
+  glm::vec3 offset = glm::vec3(0.0f); // Смещение относительно позиции entity
+
+  ParticleComponent() { system = std::make_shared<ParticleSystem>(); }
+
+  void Play() {
+    if (system)
+      system->Play();
+  }
+  void Stop() {
+    if (system)
+      system->Stop();
+  }
+  void SetEffect(const std::shared_ptr<ParticleEffect> &effect) {
+    if (system)
+      system->SetEffect(effect);
+  }
+};
 
 struct RenderComponent {
   std::string prefab_id;
@@ -58,5 +78,12 @@ struct FireEmitterComponent {
 
   FireEmitterComponent() = default;
   FireEmitterComponent(float intensity) : Intensity(intensity) {}
+};
+
+struct ParticleSystemComponent {
+  std::shared_ptr<ParticleSystem> system;
+  bool isActive = false;
+  float activationTimer = 0.0f;
+  glm::vec3 instancePosition;
 };
 } // namespace engine

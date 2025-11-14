@@ -98,7 +98,13 @@ private:
   WindConfig m_windConfig;
   float m_windTime = 0.0F;
   float m_fireIntensity{1.0F};
+  std::shared_ptr<ParticleSystem> m_firePrototype;
 
+  void InitializeParticlePrototypes() {
+    m_firePrototype = std::make_shared<ParticleSystem>();
+    m_firePrototype->SetFireEffect();
+    m_firePrototype->Stop();
+  }
   int m_vpX{0}, m_vpY{0};
   int m_vpW{1920}, m_vpH{1080};
   float m_vpScaleX{1.0F}, m_vpScaleY{1.0F};

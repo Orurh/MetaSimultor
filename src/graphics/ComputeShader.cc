@@ -167,6 +167,45 @@ void ComputeShader::SetFloat4(const std::string &name, const glm::vec4 &value) {
   }
 }
 
+void ComputeShader::SetFloatArray(const std::string &name, const float *values,
+                                  uint32_t count) {
+  int location = GetUniformLocation(name);
+  if (location != -1) {
+    glUniform1fv(location, count, values);
+  }
+}
+
+void ComputeShader::SetFloat2Array(const std::string &name,
+                                   const glm::vec2 *values, uint32_t count) {
+  int location = GetUniformLocation(name);
+  if (location != -1) {
+    glUniform2fv(location, count, (const float *)values);
+  }
+}
+
+void ComputeShader::SetFloat3Array(const std::string &name,
+                                   const glm::vec3 *values, uint32_t count) {
+  int location = GetUniformLocation(name);
+  if (location != -1) {
+    glUniform3fv(location, count, (const float *)values);
+  }
+}
+
+void ComputeShader::SetFloat4Array(const std::string &name,
+                                   const glm::vec4 *values, uint32_t count) {
+  int location = GetUniformLocation(name);
+  if (location != -1) {
+    glUniform4fv(location, count, (const float *)values);
+  }
+}
+
+void ComputeShader::SetIntArray(const std::string &name, const int *values,
+                                uint32_t count) {
+  int location = GetUniformLocation(name);
+  if (location != -1) {
+    glUniform1iv(location, count, values);
+  }
+}
 void ComputeShader::SetMat4(const std::string &name, const glm::mat4 &value) {
   int location = GetUniformLocation(name);
   if (location != -1) {

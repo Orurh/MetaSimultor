@@ -3,6 +3,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <yaml-cpp/yaml.h>
 
 namespace engine {
 
@@ -158,6 +159,9 @@ struct ParticleEffect {
   static std::shared_ptr<ParticleEffect> CreateFire();
   static std::shared_ptr<ParticleEffect> CreateSmoke();
   static std::shared_ptr<ParticleEffect> CreateMagic();
+
+  YAML::Node ToYAML() const;
+  void FromYAML(const YAML::Node &node);
 };
 
 } // namespace engine

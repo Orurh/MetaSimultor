@@ -31,6 +31,15 @@ public:
   void SetFloat2(const std::string &name, const glm::vec2 &value);
   void SetFloat3(const std::string &name, const glm::vec3 &value);
   void SetFloat4(const std::string &name, const glm::vec4 &value);
+  void SetFloatArray(const std::string &name, const float *values,
+                     uint32_t count);
+  void SetFloat2Array(const std::string &name, const glm::vec2 *values,
+                      uint32_t count);
+  void SetFloat3Array(const std::string &name, const glm::vec3 *values,
+                      uint32_t count);
+  void SetFloat4Array(const std::string &name, const glm::vec4 *values,
+                      uint32_t count);
+  void SetIntArray(const std::string &name, const int *values, uint32_t count);
   void SetMat4(const std::string &name, const glm::mat4 &value);
   void SetBool(const std::string &name, bool value) {
     SetInt(name, value ? 1 : 0);
