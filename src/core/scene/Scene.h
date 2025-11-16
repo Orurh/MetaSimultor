@@ -8,6 +8,7 @@
 #include <memory>
 
 #include "Components.h"
+#include "core/fire/FireModule.h"
 #include "entt.hpp"
 #include "sceneObj/ObjectModelStore.h"
 namespace engine {
@@ -80,6 +81,9 @@ public:
     return m_particleSystems;
   }
 
+  FireModule &GetFireModule() { return m_fire; }
+  const FireModule &GetFireModule() const { return m_fire; }
+
 private:
   void EnsureModelsForPrefab(const std::string &id,
                              const engine::data::AgentPrefab &prefab);
@@ -108,5 +112,7 @@ private:
   int m_vpX{0}, m_vpY{0};
   int m_vpW{1920}, m_vpH{1080};
   float m_vpScaleX{1.0F}, m_vpScaleY{1.0F};
+
+  FireModule m_fire;
 };
 } // namespace engine

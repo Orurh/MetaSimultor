@@ -25,6 +25,11 @@ struct AgentPrefab {
   };
   std::vector<FirePoint> m_firePoints;
 
+    // --- НОВОЕ: настройки огня для этого префаба ---
+  std::string m_fireMaterialId   = "wood"; // id в FireConfig / FireMaterialLibrary
+  float       m_fireIgnitionMult = 1.0F;   // множитель к ignition_temp
+  float       m_fireMoistureOffset = 0.0F; // добавка к moisture[i]
+
   struct Phisics {
     float m_intencity;
   } m_physics;

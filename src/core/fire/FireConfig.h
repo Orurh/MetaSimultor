@@ -17,15 +17,16 @@ struct FireMaterialParams {
 
 // Параметры окружающей среды (глобальные, одна на всю сцену)
 struct FireEnvironmentConfig {
-  float     m_ambient_temperature = 293.15F; // ~20°C
-  float     m_air_humidity        = 0.3F;    // влажность воздуха 0..1
-  glm::vec3 m_wind_direction      = {1.0F, 0.0F, 0.0F};
-  float     m_wind_speed          = 5.0F;    // м/с, условно
+  float m_ambient_temperature    = 293.15F; // ~20°C
+  float m_air_humidity           = 0.3F;    // влажность воздуха 0..1
+  float m_humidity_dampen_coeff  = 0.8F;    // как влажность гасит теплопередачу
+  float m_humidity_ignition_mult = 0.5F;    // как влажность поднимает порог
+  float m_wind_speed             = 5.0F;    // м/с, условно
 };
 
 // Общий конфиг огня на CPU
 struct FireConfig {
-  FireEnvironmentConfig m_env;
+  FireEnvironmentConfig m_env;  // ← ОДНО поле
 
   // Материалы по строковому id: "wood", "grass", "house", "stone" и т.п.
   std::unordered_map<std::string, FireMaterialParams> m_materials;

@@ -16,6 +16,8 @@ public:
   FireConfig &Config() { return m_config; }
   [[nodiscard]] const FireConfig &Config() const { return m_config; }
 
+  
+
   void SetWind(const glm::vec3 &wind) { m_wind = wind; }
   [[nodiscard]] const glm::vec3 &Wind() const { return m_wind; }
 

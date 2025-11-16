@@ -1,6 +1,7 @@
 // modules/BasicToolsModule.cc
 #include "ui/modules/BasicToolsModule.h"
 #include "ui/Editor.h"
+#include "ui/panels/FireDebugPanel.h"
 #include "ui/panels/FireParamsPanel.h"
 #include "ui/panels/FoliageBrushTool.h"
 #include "ui/panels/ParticleSystemPanel.h"
@@ -23,6 +24,7 @@ void BasicToolsModule::Startup(Editor &editor) {
   editor.RegisterPanel(std::make_unique<ui::FireParamsPanel>());
   editor.RegisterTool(std::make_unique<FoliageBrushTool>(""));
   editor.RegisterPanel(std::make_unique<ParticleSystemPanel>());
+  editor.RegisterPanel(std::make_unique<ui::FireDebugPanel>());
 }
 
 void BasicToolsModule::Shutdown() {

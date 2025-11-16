@@ -6,7 +6,6 @@
 #include "core/Window.h"
 #include "core/agent.h"
 #include "core/scene/Terrain.h"
-#include "core/simulation.cuh"
 #include "graphics/Model.h"
 #include "graphics/Renderer.h"
 
@@ -58,12 +57,12 @@ void Scene::Update(float dt) {
   auto startTime = std::chrono::high_resolution_clock::now();
 
   m_windTime += dt;
+  glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
 
+  //Шаг симуляции через FireModule
   auto simStart = std::chrono::high_resolution_clock::now();
   if (m_agentManager.getAgentCount() > 0) {
-    SimulationStep(m_agentManager.getDeviceAgents(),
-                   m_agentManager.getAgentCount(), dt,
-                   m_windConfig.getCurrentWind(m_windTime));
+    m_fire.Step(m_agentManager, dt, currentWind);
   }
   auto simTime = std::chrono::high_resolution_clock::now();
 
@@ -85,7 +84,7 @@ void Scene::Update(float dt) {
     }
   }
 
-  // 3) Поворот камеры — только если UI не держит мышь И зажат RMB
+  // Поворот камеры
   const glm::vec2 DELTA = engine::InputSystem::Instance().GetMouseDelta();
   if (!UI_MOUSE && engine::InputSystem::Instance().GetMouseButton(
                        engine::MouseButton::Right, InputState::Held)) {
@@ -97,10 +96,11 @@ void Scene::Update(float dt) {
   if (!UI_MOUSE) {
     const float SCROLL_Y = engine::InputSystem::Instance().GetMouseScrollY();
     if (SCROLL_Y != 0.0F) {
+      // zoom / fov, если нужно
     }
   }
-  glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
 
+  // Частицы используют тот же ветер
   auto particleView = m_registry.view<ParticleSystemComponent>();
   for (auto [entity, particleComp] : particleView.each()) {
     if (particleComp.isActive) {
@@ -116,6 +116,7 @@ void Scene::Update(float dt) {
       }
     }
   }
+
   for (auto &system : m_particleSystems) {
     system->SetWind(currentWind);
     system->Update();
@@ -271,6 +272,22 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z,
 
   // 1. GPU агент
   Agent agent = m_prefabSystem.CreateAgentFromPrefab(prefab, {x, y, z}, scale);
+
+  // 🔥 Применяем материал огня из префаба
+  // prefab.m_fireMaterialId / m_fireIgnitionMult / m_fireMoistureOffset
+  m_fire.ApplyMaterialToAgent(agent, prefab.m_fireMaterialId);
+
+  // Небольшие модификаторы из префаба
+  auto &coll = agent.fire_collider;
+
+  // ignition_temp у тебя скаляр — скейлим один раз
+  coll.ignition_temp *= prefab.m_fireIgnitionMult;
+
+  // moisture — массив по точкам
+  for (int i = 0; i < coll.point_count; ++i) {
+    coll.moisture[i] += prefab.m_fireMoistureOffset;
+  }
+
   int gpu_index = m_agentManager.AddAgent(agent);
 
   // 2. ECS Entity
@@ -278,11 +295,13 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z,
   entity.AddComponent<TransformComponent>(glm::vec3{x, y, z});
   entity.AddComponent<RenderComponent>(prefab_id, finalScale, true);
   entity.AddComponent<AgentLinkComponent>(gpu_index, prefab_id);
+
   auto &particleComp = entity.AddComponent<ParticleSystemComponent>();
   particleComp.system = ParticleSystemPool::AcquireFire();
   particleComp.system->SetPosition({x, y + 100, z});
   particleComp.system->Stop();
   particleComp.isActive = false;
+
   // 3. FireEmitter
   if (prefab_id.find("fire") != std::string::npos) {
     entity.AddComponent<FireEmitterComponent>();
