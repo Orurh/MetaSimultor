@@ -19,10 +19,11 @@ struct FireSimulationParams {
   float m_local_spread_strength = 20.0F;
 
   // На будущее, под физику:
-  float m_humidity_ignition_factor =
-      1.5F; // как влажность повышает порог воспламенения
-  float m_humidity_heat_dampen = 0.8F; // как влажность гасит теплопередачу
-  float m_wind_heat_bonus = 2.0F;      // усиление тепла по ветру
-  float m_base_conductivity = 0.1F;    // базовая теплопроводность материала
-  float m_max_heat_distance = 8.0F;    // макс. расстояние для теплопередачи
+  float m_humidity_ignition_factor = 1.5F;  // как влажность повышает порог воспламенения
+  float m_humidity_heat_dampen = 0.8F;      // как влажность гасит теплопередачу
+  float m_wind_heat_bonus = 2.0F;           // усиление тепла по ветру
+  float m_base_conductivity = 0.1F;         // базовая теплопроводность материала
+  float m_max_heat_distance = 8.0F;         // макс. расстояние для теплопередачи
+  float m_air_humidity_factor = 0.3F;       // глоб влажность воздуха
+  
 };

@@ -58,14 +58,17 @@ void BuildSimulationParams(const FireConfig& cfg,
   out_params.m_cross_agent_spread_strength = 10.0F;
   out_params.m_local_spread_strength       = 20.0F;
 
-  // Здесь можешь уже завязаться на cfg.m_env.m_air_humidity,
-  // пока оставлены константы:
-  out_params.m_humidity_ignition_factor = 1.5F;
-  out_params.m_humidity_heat_dampen     = 0.8F;
+  // ВЛАЖНОСТЬ: просто пробрасываем коэффициенты из конфига
+  out_params.m_humidity_heat_dampen     = cfg.m_env.m_humidity_dampen_coeff;
+  out_params.m_humidity_ignition_factor = cfg.m_env.m_humidity_ignition_mult;
 
-  // Влияние ветра из конфига
-  out_params.m_wind_heat_bonus = 1.0F + (cfg.m_env.m_wind_speed * 0.1F);
+  // Глобальная влажность воздуха 0..1
+  out_params.m_air_humidity_factor = cfg.m_env.m_air_humidity;
+
+  // Ветер — базово 1.0, реальный бонус ставит FireSimulationSystem::Step
+  out_params.m_wind_heat_bonus = 1.0F;
 
   out_params.m_base_conductivity = 0.1F;
   out_params.m_max_heat_distance = 8.0F;
 }
+

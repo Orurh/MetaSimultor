@@ -10,18 +10,21 @@
 class FireMaterialLibrary {
  public:
   FireMaterialLibrary() = default;
-  explicit FireMaterialLibrary(FireConfig cfg)
-      : m_config(std::move(cfg)) {}
 
-  void SetConfig(const FireConfig& cfg) { m_config = cfg; }
-  [[nodiscard]] const FireConfig& GetConfig() const { return m_config; }
+  explicit FireMaterialLibrary(FireConfig& cfg) noexcept
+      : m_config(&cfg) {}
 
-  // Вернуть параметры материала по строковому id ("wood", "grass", ...)
+  void SetConfig(FireConfig& cfg) noexcept { m_config = &cfg; }
+
+  [[nodiscard]] const FireConfig& GetConfig() const {
+    assert(m_config && "FireMaterialLibrary::m_config is null");
+    return *m_config;
+  }
+
   [[nodiscard]] const FireMaterialParams& Get(std::string_view id) const;
-
-  // Применить материал к коллайдеру: заполнить fuel/temperature/moisture/cond/ignition
-  void ApplyToCollider(FireCollider& f_collider, std::string_view material_id) const;
+  void ApplyToCollider(FireCollider& f_collider,
+                       std::string_view material_id) const;
 
  private:
-  FireConfig m_config;
+  FireConfig* m_config = nullptr;  // важно: инициализировать
 };
