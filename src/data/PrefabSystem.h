@@ -29,6 +29,7 @@ struct AgentPrefab {
   std::string m_fireMaterialId   = "wood"; // id в FireConfig / FireMaterialLibrary
   float       m_fireIgnitionMult = 1.0F;   // множитель к ignition_temp
   float       m_fireMoistureOffset = 0.0F; // добавка к moisture[i]
+  float       m_fireFuelMult = 1.0f;
 
   struct Phisics {
     float m_intencity;

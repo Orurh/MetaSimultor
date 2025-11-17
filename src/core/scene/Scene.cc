@@ -273,6 +273,7 @@ void Scene::AddPrefab(const std::string& prefab_id, float x, float z, float scal
   // moisture — массив по точкам
   for (int i = 0; i < coll.point_count; ++i) {
     coll.moisture[i] += prefab.m_fireMoistureOffset;
+    coll.fuels[i]    *= prefab.m_fireFuelMult; // добавил множитель топлива
   }
 
   int gpu_index = m_agentManager.AddAgent(agent);

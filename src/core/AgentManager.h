@@ -1,7 +1,7 @@
 #pragma once
-#include "agent.h"
 #include <glm/glm.hpp>
 #include <vector>
+#include "agent.h"
 
 struct AgentComponents {
   // Базовые свойства
@@ -16,48 +16,27 @@ struct AgentComponents {
   float scale = 1.0f;
 };
 class AgentManager {
-public:
+ public:
   AgentManager(int max_agents);
   ~AgentManager();
   // точечный источник огня
-  void AddFireAt(const Float3 &world, float intensity);
-  int AddAgent(const Agent &angent);
-  bool RemoveAgentAt(int idx, int *outSwappedFrom, int *outSwappedTo);
+  void AddFireAt(const Float3& world, float intensity);
+  int AddAgent(const Agent& angent);
+  bool RemoveAgentAt(int idx, int* outSwappedFrom, int* outSwappedTo);
   int GetAgentCount() const { return m_count; }
   void Clear();
-  void SetAgents(const std::vector<Agent> &agents) {
+  void SetAgents(const std::vector<Agent>& agents) {
     Clear();
-    for (const auto &agent : agents) {
+    for (const auto& agent : agents) {
       AddAgent(agent);
     }
   }
   std::vector<Agent> LoadAgentsFromGPU();
 
+  Agent* GetDeviceAgents() { return m_agents; }
 
-  Agent *GetDeviceAgents() { return m_agents; }
-
-  // Agent CreateAgent(AgentType type, Float3 position,
-  //                   const AgentComponents &components = AgentComponents());
-
-  // Agent AddTree(int tree_id, float base_x, float base_z, float scale);
-  // void AddFire(float x, float y, float intensity);
-
-
-
-
-  // void IgniteRandomPoint(int agent_index);
-
-
-
-
-
-private:
-  // void generateTreeHeatPoints(FireCollider &collider, float base_x,
-  //                             float base_z, float scale);
-  // void setupTreeFireCollider(Agent &tree, float base_x, float base_z, float scale);
-  // void setupFireSourceCollider(Agent &fire, float x, float y);
-
-  Agent *m_agents{};
+ private:
+  Agent* m_agents{};
   int m_capacity;
   int m_count;
 };

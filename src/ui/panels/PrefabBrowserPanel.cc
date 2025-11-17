@@ -230,6 +230,9 @@ void PrefabBrowserPanel::DrawFireSection(AgentPrefab &P) {
   // Смещение влажности (от -1 до 1)
   ImGui::DragFloat("Moisture offset", &P.m_fireMoistureOffset,
                    0.01f, -1.0f, 1.0f);
+  // Множитель топлива
+  ImGui::DragFloat("Fuel mult", &P.m_fireFuelMult,
+                 0.01f, 0.5f, 2.0f);
 }
 
 
