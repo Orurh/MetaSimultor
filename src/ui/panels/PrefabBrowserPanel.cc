@@ -83,6 +83,7 @@ void PrefabBrowserPanel::Draw(EditorContext &ctx) {
   DrawModelSection(P);
   DrawBounds(P);
   DrawPhysics(P);
+  DrawFireSection(P);
   DrawFirePoints(P);
   DrawVisuals(P);
 
@@ -149,6 +150,8 @@ PrefabBrowserPanel::EnsureSelection(EditorContext &ctx,
                   m_edit->normal_material.specular_path.c_str());
     std::snprintf(m_matBurnedBuf, sizeof(m_matBurnedBuf), "%s",
                   m_edit->normal_material.diffuse_path.c_str());
+    std::snprintf(m_fireMaterialBuf, sizeof(m_fireMaterialBuf), "%s",
+                 m_edit->m_fireMaterialId.c_str());
   }
   return id;
 }
@@ -208,6 +211,27 @@ void PrefabBrowserPanel::DrawPhysics(AgentPrefab &P) {
                      1000.0f);
   }
 }
+
+
+void PrefabBrowserPanel::DrawFireSection(AgentPrefab &P) {
+  if (!ImGui::CollapsingHeader("Fire", ImGuiTreeNodeFlags_DefaultOpen))
+    return;
+
+  // ID материала (строка из FireConfig, пока редактируем руками)
+  if (ImGui::InputText("Material id", m_fireMaterialBuf,
+                       IM_ARRAYSIZE(m_fireMaterialBuf))) {
+    P.m_fireMaterialId = m_fireMaterialBuf;
+  }
+
+  // Мультипликатор температуры воспламенения
+  ImGui::DragFloat("Ignition mult", &P.m_fireIgnitionMult,
+                   0.01f, 0.1f, 10.0f);
+
+  // Смещение влажности (от -1 до 1)
+  ImGui::DragFloat("Moisture offset", &P.m_fireMoistureOffset,
+                   0.01f, -1.0f, 1.0f);
+}
+
 
 void PrefabBrowserPanel::DrawFirePoints(AgentPrefab &P) {
   if (!ImGui::CollapsingHeader("Fire points", ImGuiTreeNodeFlags_DefaultOpen))

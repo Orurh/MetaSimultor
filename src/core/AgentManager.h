@@ -19,17 +19,11 @@ class AgentManager {
 public:
   AgentManager(int max_agents);
   ~AgentManager();
-  Agent CreateAgent(AgentType type, Float3 position,
-                    const AgentComponents &components = AgentComponents());
-
-  Agent AddTree(int tree_id, float base_x, float base_z, float scale);
-  void AddFire(float x, float y, float intensity);
+  // точечный источник огня
   void AddFireAt(const Float3 &world, float intensity);
   int AddAgent(const Agent &angent);
   bool RemoveAgentAt(int idx, int *outSwappedFrom, int *outSwappedTo);
-  Agent *getDeviceAgents() { return m_agents; }
-  int getAgentCount() const { return m_count; }
-  void IgniteRandomPoint(int agent_index);
+  int GetAgentCount() const { return m_count; }
   void Clear();
   void SetAgents(const std::vector<Agent> &agents) {
     Clear();
@@ -37,16 +31,33 @@ public:
       AddAgent(agent);
     }
   }
-
   std::vector<Agent> LoadAgentsFromGPU();
 
-private:
-  void generateTreeHeatPoints(FireCollider &collider, float base_x,
-                              float base_z, float scale);
-  void setupTreeFireCollider(Agent &tree, float base_x, float base_z, float scale);
-  void setupFireSourceCollider(Agent &fire, float x, float y);
 
-  Agent *m_agents;
+  Agent *GetDeviceAgents() { return m_agents; }
+
+  // Agent CreateAgent(AgentType type, Float3 position,
+  //                   const AgentComponents &components = AgentComponents());
+
+  // Agent AddTree(int tree_id, float base_x, float base_z, float scale);
+  // void AddFire(float x, float y, float intensity);
+
+
+
+
+  // void IgniteRandomPoint(int agent_index);
+
+
+
+
+
+private:
+  // void generateTreeHeatPoints(FireCollider &collider, float base_x,
+  //                             float base_z, float scale);
+  // void setupTreeFireCollider(Agent &tree, float base_x, float base_z, float scale);
+  // void setupFireSourceCollider(Agent &fire, float x, float y);
+
+  Agent *m_agents{};
   int m_capacity;
   int m_count;
 };

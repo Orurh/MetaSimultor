@@ -3,7 +3,6 @@
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 #include <cmath>
-#include <iostream>
 #include <numbers>
 #include "core/Input.h"
 #include "core/scene/Scene.h"

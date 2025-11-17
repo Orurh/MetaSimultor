@@ -39,6 +39,8 @@ private:
   void DrawModelPreview(EditorContext &ctx);
   void RenderPreview(engine::data::AgentPrefab &P);
 
+  void DrawFireSection(engine::data::AgentPrefab &P); // тыц
+
   std::optional<engine::data::AgentPrefab> m_edit;
   std::unique_ptr<PrefabPreviewRenderer> m_preview;
   std::string m_savePath;
@@ -49,7 +51,7 @@ private:
   char m_matNormalBuf[256]{};
   char m_matBurningBuf[256]{};
   char m_matBurnedBuf[256]{};
-
+  char m_fireMaterialBuf[128]{}; // материал же надо
   bool m_savePopupOpen = false;
   char m_saveBuf[512]{};
 

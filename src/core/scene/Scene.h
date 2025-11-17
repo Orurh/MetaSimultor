@@ -73,7 +73,7 @@ public:
   Terrain *GetTerrain() { return m_terrain.get(); }
   const Terrain *GetTerrain() const { return m_terrain.get(); }
   float GetGroundHeight(float x, float z) const;
-  size_t GetAgentCount() const { return m_agentManager.getAgentCount(); }
+  size_t GetAgentCount() const { return m_agentManager.GetAgentCount(); }
   void AddParticleSystem(const std::shared_ptr<ParticleSystem> &system);
   void RemoveParticleSystem(const std::shared_ptr<ParticleSystem> &system);
   const std::vector<std::shared_ptr<ParticleSystem>> &

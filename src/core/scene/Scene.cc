@@ -9,15 +9,14 @@
 #include "graphics/Model.h"
 #include "graphics/Renderer.h"
 
-#include "graphics/ParticleSystemPool.h"
 #include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <memory>
+#include "graphics/ParticleSystemPool.h"
 namespace engine {
 
-Scene::Scene()
-    : m_agentManager(1000000), m_camera(glm::vec3(500.0F, 100.0F, 600.0F)) {}
+Scene::Scene() : m_agentManager(1000000), m_camera(glm::vec3(500.0F, 100.0F, 600.0F)) {}
 
 void Scene::Init() {
   m_terrain = std::make_unique<Terrain>();
@@ -26,7 +25,7 @@ void Scene::Init() {
   ParticleSystemPool::Initialize(1000);
 }
 
-auto Scene::CreateEntity(const std::string &id) -> Entity {
+auto Scene::CreateEntity(const std::string& id) -> Entity {
   auto handle = m_registry.create();
   Entity entity(handle, &m_registry);
 
@@ -34,17 +33,16 @@ auto Scene::CreateEntity(const std::string &id) -> Entity {
   return entity;
 }
 
-void Scene::GenerateTerrain(const TerrainGenerationSettings &s) {
+void Scene::GenerateTerrain(const TerrainGenerationSettings& s) {
   m_terrain->GenerateRandom(s);
 }
 
-void Scene::EnsureModelsForPrefab(const std::string &id,
-                                  const engine::data::AgentPrefab &prefab) {
+void Scene::EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab) {
   if (m_objectModels.Find(id)) {
     return;
   }
 
-  const std::string &path = prefab.m_modelPath;
+  const std::string& path = prefab.m_modelPath;
   if (path.empty()) {
     std::cerr << "[Scene] prefab '" << id << "' has empty model_path\n";
     return;
@@ -61,7 +59,7 @@ void Scene::Update(float dt) {
 
   //Шаг симуляции через FireModule
   auto simStart = std::chrono::high_resolution_clock::now();
-  if (m_agentManager.getAgentCount() > 0) {
+  if (m_agentManager.GetAgentCount() > 0) {
     m_fire.Step(m_agentManager, dt, currentWind);
   }
   auto simTime = std::chrono::high_resolution_clock::now();
@@ -86,8 +84,8 @@ void Scene::Update(float dt) {
 
   // Поворот камеры
   const glm::vec2 DELTA = engine::InputSystem::Instance().GetMouseDelta();
-  if (!UI_MOUSE && engine::InputSystem::Instance().GetMouseButton(
-                       engine::MouseButton::Right, InputState::Held)) {
+  if (!UI_MOUSE && engine::InputSystem::Instance().GetMouseButton(engine::MouseButton::Right,
+                                                                  InputState::Held)) {
     if (DELTA.x != 0.F || DELTA.y != 0.F) {
       m_camera.ProcessMouseMovement(DELTA.x, DELTA.y);
     }
@@ -107,8 +105,7 @@ void Scene::Update(float dt) {
       particleComp.system->Update();
       particleComp.system->SetWind(currentWind);
       // Автоматическое выключение через некоторое время после деактивации
-      if (!particleComp.system->IsPlaying() &&
-          particleComp.activationTimer > 0.0f) {
+      if (!particleComp.system->IsPlaying() && particleComp.activationTimer > 0.0f) {
         particleComp.activationTimer -= dt;
         if (particleComp.activationTimer <= 0.0f) {
           particleComp.isActive = false;
@@ -117,7 +114,7 @@ void Scene::Update(float dt) {
     }
   }
 
-  for (auto &system : m_particleSystems) {
+  for (auto& system : m_particleSystems) {
     system->SetWind(currentWind);
     system->Update();
   }
@@ -136,15 +133,13 @@ void Scene::Render() {
 
   auto agents = LoadAgentsFromGPU();
 
-  auto render_view =
-      m_registry
-          .view<TransformComponent, RenderComponent, AgentLinkComponent>();
+  auto render_view = m_registry.view<TransformComponent, RenderComponent, AgentLinkComponent>();
   for (auto [entity, transform, render, link] : render_view.each()) {
     if (!render.is_visible)
       continue;
 
-    const Agent &agent = agents[link.gpu_index];
-    const auto &prefab = m_prefabSystem.GetPrefab(link.prefab_id);
+    const Agent& agent = agents[link.gpu_index];
+    const auto& prefab = m_prefabSystem.GetPrefab(link.prefab_id);
 
     AgentType state = AgentType::NORMAL;
     if (agent.type == AgentType::BURNED)
@@ -153,7 +148,7 @@ void Scene::Render() {
       state = AgentType::BURNING;
 
     // ПРОСТАЯ ЛОГИКА: включаем/выключаем систему частиц
-    auto &particleComp = m_registry.get<ParticleSystemComponent>(entity);
+    auto& particleComp = m_registry.get<ParticleSystemComponent>(entity);
 
     if (state == AgentType::BURNING && !particleComp.isActive) {
       particleComp.isActive = true;
@@ -168,23 +163,21 @@ void Scene::Render() {
     if (!model || !model->m_normal)
       continue;
 
-    auto *draw_model = model->m_normal.get();
+    auto* draw_model = model->m_normal.get();
     if (state == AgentType::BURNING && model->m_burning)
       draw_model = model->m_burning.get();
     if (state == AgentType::BURNED && model->m_burned)
       draw_model = model->m_burned.get();
 
     if (draw_model && material) {
-      Renderer::Instance().DrawModelWithMaterial(
-          *draw_model, transform.position, render.scale, m_camera.GetPosition(),
-          material);
+      Renderer::Instance().DrawModelWithMaterial(*draw_model, transform.position, render.scale,
+                                                 m_camera.GetPosition(), material);
     }
   }
 
   Renderer::Instance().UploadAgentsData(agents);
 
-  auto particleView =
-      m_registry.view<ParticleSystemComponent, TransformComponent>();
+  auto particleView = m_registry.view<ParticleSystemComponent, TransformComponent>();
   for (auto [entity, particleComp, transform] : particleView.each()) {
     if (particleComp.isActive) {
       particleComp.system->SetPosition(transform.position);
@@ -192,26 +185,23 @@ void Scene::Render() {
     }
   }
 
-  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(),
-                                   m_terrain->GetPosition());
+  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition());
 
   // Рендерим отдельные системы частиц (если нужны)
-  for (auto &system : m_particleSystems) {
+  for (auto& system : m_particleSystems) {
     system->Render(view, projection);
   }
 
   Renderer::Instance().EndScene();
 }
 
-void Scene::AddParticleSystem(const std::shared_ptr<ParticleSystem> &system) {
+void Scene::AddParticleSystem(const std::shared_ptr<ParticleSystem>& system) {
   m_particleSystems.push_back(system);
 }
 
-void Scene::RemoveParticleSystem(
-    const std::shared_ptr<ParticleSystem> &system) {
-  m_particleSystems.erase(
-      std::remove(m_particleSystems.begin(), m_particleSystems.end(), system),
-      m_particleSystems.end());
+void Scene::RemoveParticleSystem(const std::shared_ptr<ParticleSystem>& system) {
+  m_particleSystems.erase(std::remove(m_particleSystems.begin(), m_particleSystems.end(), system),
+                          m_particleSystems.end());
 }
 
 void Scene::Generate() {
@@ -225,25 +215,21 @@ void Scene::Generate() {
 std::vector<Agent> Scene::LoadAgentsFromGPU() {
   return m_agentManager.LoadAgentsFromGPU();
 }
-void Scene::LoadObjectModels(const std::string &object_name,
-                             const std::string &normal_path,
-                             const std::string &burning_path,
-                             const std::string &burned_path) {
+void Scene::LoadObjectModels(const std::string& object_name, const std::string& normal_path,
+                             const std::string& burning_path, const std::string& burned_path) {
   try {
     ObjectModels models;
     models.m_normal = std::make_shared<Model>(normal_path);
     models.m_burning = std::make_shared<Model>(burning_path);
     models.m_burned = std::make_shared<Model>(burned_path);
     m_objectModels.Put(object_name, std::move(models));
-  } catch (const std::exception &e) {
-    std::cout << "Failed to load model '" << object_name << "': " << e.what()
-              << '\n';
+  } catch (const std::exception& e) {
+    std::cout << "Failed to load model '" << object_name << "': " << e.what() << '\n';
   }
 }
 
 glm::mat4 Scene::GetProjMatrix(int w, int h) {
-  return glm::perspective(m_camera.GetZoom(),
-                          static_cast<float>(w) / static_cast<float>(h), 0.1F,
+  return glm::perspective(m_camera.GetZoom(), static_cast<float>(w) / static_cast<float>(h), 0.1F,
                           2000.0F);
 }
 
@@ -262,9 +248,8 @@ void Scene::Shutdown() {
   Renderer::Instance().Shutdown();
 }
 
-void Scene::AddPrefab(const std::string &prefab_id, float x, float z,
-                      float scale) {
-  const auto &prefab = m_prefabSystem.GetPrefab(prefab_id);
+void Scene::AddPrefab(const std::string& prefab_id, float x, float z, float scale) {
+  const auto& prefab = m_prefabSystem.GetPrefab(prefab_id);
   EnsureModelsForPrefab(prefab_id, prefab);
   const float y = GetGroundHeight(x, z);
 
@@ -278,7 +263,7 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z,
   m_fire.ApplyMaterialToAgent(agent, prefab.m_fireMaterialId);
 
   // Небольшие модификаторы из префаба
-  auto &coll = agent.fire_collider;
+  auto& coll = agent.fire_collider;
 
   // ignition_temp у тебя скаляр — скейлим один раз
   coll.ignition_temp *= prefab.m_fireIgnitionMult;
@@ -296,9 +281,13 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z,
   entity.AddComponent<RenderComponent>(prefab_id, finalScale, true);
   entity.AddComponent<AgentLinkComponent>(gpu_index, prefab_id);
 
-  auto &particleComp = entity.AddComponent<ParticleSystemComponent>();
+  auto& particleComp = entity.AddComponent<ParticleSystemComponent>();
   particleComp.system = ParticleSystemPool::AcquireFire();
-  particleComp.system->SetPosition({x, y + 100, z});
+
+  // ставим систему частиц примерно над объектом
+  glm::vec3 particlePos{x, y + finalScale.y, z};
+  particleComp.system->SetPosition(particlePos);
+
   particleComp.system->Stop();
   particleComp.isActive = false;
 
@@ -308,17 +297,16 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z,
   }
 }
 
-void Scene::AddTree(float x, float z, const std::string &tree_type,
-                    float scale) {
+void Scene::AddTree(float x, float z, const std::string& tree_type, float scale) {
   AddPrefab(tree_type, x, z, scale);
 }
 
-const std::vector<std::string> &Scene::ListPrefabIds() const {
+const std::vector<std::string>& Scene::ListPrefabIds() const {
   return m_prefabSystem.ListIds();
 }
 
-void Scene::ReloadModelForPrefab(const std::string &prefab_id,
-                                 const engine::data::AgentPrefab &prefab) {
+void Scene::ReloadModelForPrefab(const std::string& prefab_id,
+                                 const engine::data::AgentPrefab& prefab) {
   // Перезагрузка модели
   ObjectModels models;
   models.m_normal = std::make_shared<Model>(prefab.m_modelPath);
@@ -327,7 +315,7 @@ void Scene::ReloadModelForPrefab(const std::string &prefab_id,
   m_objectModels.Put(prefab_id, std::move(models));
 
   // 2. Обновляем префаб (материалы)
-  auto &system_prefab = m_prefabSystem.GetPrefabMutable(prefab_id);
+  auto& system_prefab = m_prefabSystem.GetPrefabMutable(prefab_id);
   system_prefab.normalMaterial = prefab.normalMaterial;
   system_prefab.burningMaterial = prefab.burningMaterial;
   system_prefab.burnedMaterial = prefab.burnedMaterial;
@@ -352,13 +340,13 @@ void Scene::AddFire(float x, float z, float intensity) {
   AddFireAt(glm::vec3{x, y, z}, intensity);
 }
 
-void Scene::AddFireAt(const glm::vec3 &world, float intensity) {
+void Scene::AddFireAt(const glm::vec3& world, float intensity) {
   m_agentManager.AddFireAt(Float3{world.x, world.y, world.z}, intensity);
 
   Entity fireEntity = CreateEntity("fire_emitter");
   fireEntity.AddComponent<TransformComponent>(world);
 
-  auto &particleComp = fireEntity.AddComponent<ParticleSystemComponent>();
+  auto& particleComp = fireEntity.AddComponent<ParticleSystemComponent>();
   particleComp.system = ParticleSystemPool::AcquireFire();
   particleComp.system->SetPosition(world);
   particleComp.system->Play();
@@ -366,13 +354,13 @@ void Scene::AddFireAt(const glm::vec3 &world, float intensity) {
 
   fireEntity.AddComponent<FireEmitterComponent>();
 }
-bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
+bool Scene::RemoveNearestAt(const glm::vec3& world, float maxXZDist) {
   float bestDist2 = maxXZDist * maxXZDist;
   entt::entity best = entt::null;
 
   auto view = m_registry.view<TransformComponent, AgentLinkComponent>();
-  view.each([&](entt::entity entity, const TransformComponent &transform,
-                const AgentLinkComponent &link) {
+  view.each([&](entt::entity entity, const TransformComponent& transform,
+                const AgentLinkComponent& link) {
     float dx = transform.position.x - world.x;
     float dz = transform.position.z - world.z;
     float dist2 = dx * dx + dz * dz;
@@ -389,7 +377,7 @@ bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
   if (best == entt::null)
     return false;
 
-  auto &link = m_registry.get<AgentLinkComponent>(best);
+  auto& link = m_registry.get<AgentLinkComponent>(best);
   int gpu_idx = link.gpu_index;
 
   int swapped_from = -1, swapped_to = -1;
@@ -411,9 +399,9 @@ bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
 
   // Удаляем из мапы по ID
   if (m_registry.all_of<IDComponent>(best)) {
-    auto &id = m_registry.get<IDComponent>(best);
+    auto& id = m_registry.get<IDComponent>(best);
   }
 
   return true;
 }
-} // namespace engine
+}  // namespace engine

@@ -2,8 +2,9 @@
 #pragma once
 #include "ui/IPanel.h"
 #include "ui/EditorContext.h"
-#include "core/AgentManager.h"     
-#include <optional>
+#include "core/agent.h"
+// #include "core/AgentManager.h"     
+// #include <optional>
 
 namespace ui {
 

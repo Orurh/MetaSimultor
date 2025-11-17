@@ -5,9 +5,98 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <cmath> // наверху файла, если ещё нет
+
+
+
+
+
 namespace fs = std::filesystem;
 namespace engine::data {
 
+namespace {
+
+// Генерация точек огня для "дерева" по bounds и scale
+void GenerateTreeFirePointsFromBounds(const AgentPrefab& prefab,
+                                      const glm::vec3& position,
+                                      float scale,
+                                      FireCollider& c) {
+  const glm::vec3 scaled_min = prefab.m_bounds_min * scale;
+  const glm::vec3 scaled_max = prefab.m_bounds_max * scale;
+
+  const glm::vec3 world_min = position + scaled_min;
+  const glm::vec3 world_max = position + scaled_max;
+
+  const float height = scaled_max.y - scaled_min.y;
+  if (height <= 0.0f) {
+    // вырожденный объём – одна точка в центре
+    const glm::vec3 center = 0.5f * (world_min + world_max);
+    c.point_count    = 1;
+    c.heat_points[0] = Float3::fromGlm(center);
+    c.fuels[0]       = 100.0f;
+    c.intensities[0] = 0.0f;
+    return;
+  }
+
+  c.point_count = 0;
+  constexpr int MAX_POINTS = 64;
+
+  // --- ствол: несколько точек по высоте в центре
+  const int trunkSegments = 6;
+  for (int i = 0; i < trunkSegments && c.point_count < MAX_POINTS; ++i) {
+    const float t      = (i + 0.5f) / trunkSegments; // 0..1
+    const float yLocal = scaled_min.y + t * height;
+    glm::vec3 world_pos = position + glm::vec3(0.0f, yLocal, 0.0f);
+
+    c.heat_points[c.point_count] = Float3::fromGlm(world_pos);
+    c.fuels[c.point_count]       = 30.0f;
+    c.intensities[c.point_count] = 0.0f;
+    ++c.point_count;
+  }
+
+  // --- крона: несколько колец по радиусу
+  const float radiusX = 0.5f * (scaled_max.x - scaled_min.x);
+  const float radiusZ = 0.5f * (scaled_max.z - scaled_min.z);
+  const float baseRadius = std::max(radiusX, radiusZ);
+
+  constexpr int   crownLevels      = 3;
+  const float     levelHeights[crownLevels]   = {0.3f, 0.6f, 0.85f}; // доли высоты
+  const float     levelRadiusMul[crownLevels] = {0.4f, 0.8f, 0.6f};
+  constexpr float PI = 3.1415926535f;
+
+  for (int li = 0; li < crownLevels && c.point_count < MAX_POINTS; ++li) {
+    const float hLocal = scaled_min.y + levelHeights[li] * height;
+    const float r      = baseRadius * levelRadiusMul[li];
+    const int   numPts = 8 + li * 4; // 8, 12, 16
+
+    for (int i = 0; i < numPts && c.point_count < MAX_POINTS; ++i) {
+      const float a  = 2.0f * PI * (static_cast<float>(i) / numPts);
+      const float cx = std::cos(a) * r;
+      const float cz = std::sin(a) * r;
+
+      glm::vec3 world_pos = position + glm::vec3(cx, hLocal, cz);
+
+      c.heat_points[c.point_count] = Float3::fromGlm(world_pos);
+      c.fuels[c.point_count]       = 20.0f;
+      c.intensities[c.point_count] = 0.0f;
+      ++c.point_count;
+    }
+  }
+
+  // на всякий случай – если что-то пошло не так
+  if (c.point_count == 0) {
+    const glm::vec3 center = 0.5f * (world_min + world_max);
+    c.point_count    = 1;
+    c.heat_points[0] = Float3::fromGlm(center);
+    c.fuels[0]       = 100.0f;
+    c.intensities[0] = 0.0f;
+  }
+}
+
+} // namespace
+
+
+  
 static void PushUnique(std::vector<std::string> &v, const std::string &id) {
   if (std::ranges::find(v, id) == v.end()) {
     v.push_back(id);
@@ -91,35 +180,58 @@ Agent PrefabSystem::CreateAgentFromPrefab(const std::string &prefab_name,
 Agent PrefabSystem::CreateAgentFromPrefab(const AgentPrefab &prefab,
                                           const glm::vec3 &position,
                                           float scale) {
-  Agent agent;
-  agent.position = Float3::fromGlm(position);
+  Agent agent{};
+  agent.position  = Float3::fromGlm(position);
+  agent.type      = prefab.m_type;
+  agent.intensity = prefab.m_physics.m_intencity;
 
-  glm::vec3 scaled_bounds_min = prefab.m_bounds_min * scale;
-  glm::vec3 scaled_bounds_max = prefab.m_bounds_max * scale;
+  FireCollider &c = agent.fire_collider;
 
-  agent.fire_collider.bounds_min =
-      Float3::fromGlm(prefab.m_bounds_min + position);
-  agent.fire_collider.bounds_max =
-      Float3::fromGlm(prefab.m_bounds_max + position);
+  // 1) Масштабируем bounds относительно позиции
+  glm::vec3 scaled_min = prefab.m_bounds_min * scale;
+  glm::vec3 scaled_max = prefab.m_bounds_max * scale;
 
-  agent.fire_collider.point_count =
-      std::min(static_cast<int>(prefab.m_firePoints.size()), 64);
+  c.bounds_min = Float3::fromGlm(position + scaled_min);
+  c.bounds_max = Float3::fromGlm(position + scaled_max);
 
-  for (int i = 0; i < agent.fire_collider.point_count; ++i) {
-    // масштаб позиции точек огня
-    glm::vec3 scaled_local_pos = prefab.m_firePoints[i].m_position * scale;
-    agent.fire_collider.heat_points[i] =
-        Float3(position.x + scaled_local_pos.x, position.y + scaled_local_pos.y,
-               position.z + scaled_local_pos.z);
-    agent.fire_collider.fuels[i] = prefab.m_firePoints[i].m_initialFuel;
-    agent.fire_collider.intensities[i] = 0.0F;
+  // 2) Если в префабе явно заданы fire_points – используем их
+  if (!prefab.m_firePoints.empty()) {
+    c.point_count = std::min<int>(prefab.m_firePoints.size(), 64);
+
+    for (int i = 0; i < c.point_count; ++i) {
+      const auto &fp = prefab.m_firePoints[i];
+
+      glm::vec3 scaled_local_pos = fp.m_position * scale;
+      glm::vec3 world_pos        = position + scaled_local_pos;
+
+      c.heat_points[i]   = Float3::fromGlm(world_pos);
+      c.fuels[i]         = fp.m_initialFuel;
+      c.intensities[i]   = 0.0f;
+    }
+
+    return agent;
   }
 
-  agent.intensity = prefab.m_physics.m_intencity;
-  agent.type = prefab.m_type;
+  // 3) Иначе – автогенерация по типу
+
+  // Тип 0 в UI – "Tree", в enum это твой NORMAL
+  if (prefab.m_type == AgentType::NORMAL) {
+    GenerateTreeFirePointsFromBounds(prefab, position, scale, c);
+  } else {
+    // простой fallback: одна точка в центре объёма
+    const glm::vec3 world_min = position + scaled_min;
+    const glm::vec3 world_max = position + scaled_max;
+    const glm::vec3 center    = 0.5f * (world_min + world_max);
+
+    c.point_count    = 1;
+    c.heat_points[0] = Float3::fromGlm(center);
+    c.fuels[0]       = 100.0f;
+    c.intensities[0] = 0.0f;
+  }
 
   return agent;
 }
+
 
 void PrefabSystem::CreatePrefabFromAgent(const std::string &name,
                                          const Agent &agent,

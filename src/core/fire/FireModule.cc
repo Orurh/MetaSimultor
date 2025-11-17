@@ -13,7 +13,7 @@ void FireModule::Step(AgentManager &manager, float dt, const glm::vec3 &wind) {
   m_materials.SetConfig(m_sim.Config());
 
   // 3) запускаем CUDA ядро
-  m_sim.Step(manager.getDeviceAgents(), manager.getAgentCount(), dt);
+  m_sim.Step(manager.GetDeviceAgents(), manager.GetAgentCount(), dt);
 }
 
 void FireModule::ApplyMaterialToAgent(Agent &agent,
