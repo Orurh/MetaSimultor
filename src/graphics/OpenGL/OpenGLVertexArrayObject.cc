@@ -95,6 +95,7 @@ void OpenGLVertexArrayObject::AddVertexBuffer(
         glVertexAttribDivisor(m_VertexBufferIndex, 1);
         m_VertexBufferIndex++;
       }
+      break;
     }
     default:
       std::cout << "Unknown ShaderDataType!" << std::endl;

@@ -42,15 +42,11 @@ namespace engine {
 
     void Mesh::DrawInstanced(Shader& shader, const std::vector<glm::mat4>& instanceMatrices) {
         if (instanceMatrices.empty()) return;
-    
-        SetupMaterial(shader, m_material);
-        m_vao->Bind();
-        
-        m_vao->AddVertexBuffer(m_instanceBuffer);
-        
+
         m_instanceBuffer->SetData(instanceMatrices.data(), instanceMatrices.size() * sizeof(glm::mat4));
+
+        m_vao->Bind();
         glDrawElementsInstanced(GL_TRIANGLES, m_indexCount, GL_UNSIGNED_INT, 0, instanceMatrices.size());
-        
         m_vao->Unbind();
     }
 
@@ -94,6 +90,12 @@ namespace engine {
 
         m_vao->SetIndexBuffer(m_ebo);
         m_indexCount = meshData.indices.size();
+        m_instanceBuffer = VertexBuffer::Create(100 * sizeof(glm::mat4));
+        m_instanceBuffer->SetLayout({
+            {ShaderDataType::Mat4, "a_instance_matrix", 1}
+        });
+    
+        m_vao->AddVertexBuffer(m_instanceBuffer);
     }
     void Model::Draw(Shader& shader)
     {

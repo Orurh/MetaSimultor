@@ -283,6 +283,10 @@ void ParticleSystem::Render(const glm::mat4 &view,
   glDrawArraysInstanced(GL_TRIANGLES, 0, 6, m_aliveCount);
   m_vao->Unbind();
 
+  // ДОБАВЬ ОТВЯЗКУ ТЕКСТУРЫ:
+  glBindTexture(GL_TEXTURE_2D, 0);
+
+  m_renderShader->Unbind();
   glDepthMask(GL_TRUE);
   glDisable(GL_BLEND);
 }

@@ -20,7 +20,6 @@ void BasicToolsModule::Startup(Editor &editor) {
   editor.RegisterPanel(std::make_unique<ui::WindPanel>());
   editor.RegisterPanel(std::make_unique<ui::PrefabBrowserPanel>());
   editor.RegisterPanel(std::make_unique<ui::TerrainConfigPanel>());
-  editor.RegisterPanel(std::make_unique<ui::FireParamsPanel>());
   editor.RegisterTool(std::make_unique<FoliageBrushTool>(""));
   editor.RegisterPanel(std::make_unique<ParticleSystemPanel>());
 }

@@ -55,7 +55,7 @@ void Scene::EnsureModelsForPrefab(const std::string &id,
 }
 
 void Scene::Update(float dt) {
-  auto startTime = std::chrono::high_resolution_clock::now();
+    auto startTime = std::chrono::high_resolution_clock::now();
 
   m_windTime += dt;
 
@@ -85,7 +85,6 @@ void Scene::Update(float dt) {
     }
   }
 
-  // 3) Поворот камеры — только если UI не держит мышь И зажат RMB
   const glm::vec2 DELTA = engine::InputSystem::Instance().GetMouseDelta();
   if (!UI_MOUSE && engine::InputSystem::Instance().GetMouseButton(
                        engine::MouseButton::Right, InputState::Held)) {
@@ -101,12 +100,29 @@ void Scene::Update(float dt) {
   }
   glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
 
+  auto agents = LoadAgentsFromGPU();
+
+  auto particleAgentView = m_registry.view<ParticleSystemComponent, AgentLinkComponent>();
+  for (auto [entity, particleComp, link] : particleAgentView.each()) {
+    if (link.gpu_index < agents.size()) {
+      const Agent& agent = agents[link.gpu_index];
+      
+      if ((agent.isBurning() || agent.type == AgentType::BURNING) && !particleComp.isActive) {
+        particleComp.isActive = true;
+        particleComp.system->Play();
+        particleComp.activationTimer = 2.0f; 
+      }
+      else if (!agent.isBurning() && agent.type != AgentType::BURNING && particleComp.isActive) {
+        particleComp.isActive = false;
+        particleComp.system->Stop();
+      }
+    }
+  }
   auto particleView = m_registry.view<ParticleSystemComponent>();
   for (auto [entity, particleComp] : particleView.each()) {
     if (particleComp.isActive) {
       particleComp.system->Update();
       particleComp.system->SetWind(currentWind);
-      // Автоматическое выключение через некоторое время после деактивации
       if (!particleComp.system->IsPlaying() &&
           particleComp.activationTimer > 0.0f) {
         particleComp.activationTimer -= dt;
@@ -120,6 +136,7 @@ void Scene::Update(float dt) {
     system->SetWind(currentWind);
     system->Update();
   }
+
 }
 
 void Scene::Render() {
@@ -134,72 +151,49 @@ void Scene::Render() {
   Renderer::Instance().BeginScene(view, projection);
 
   auto agents = LoadAgentsFromGPU();
-
-  auto render_view =
-      m_registry
-          .view<TransformComponent, RenderComponent, AgentLinkComponent>();
+  
+  std::unordered_map<std::string, std::vector<glm::mat4>> instanceData;
+  
+  auto render_view = m_registry.view<TransformComponent, RenderComponent, AgentLinkComponent>();
   for (auto [entity, transform, render, link] : render_view.each()) {
-    if (!render.is_visible)
-      continue;
+    if (!render.is_visible) continue;
 
     const Agent &agent = agents[link.gpu_index];
-    const auto &prefab = m_prefabSystem.GetPrefab(link.prefab_id);
-
+    
     AgentType state = AgentType::NORMAL;
     if (agent.type == AgentType::BURNED)
       state = AgentType::BURNED;
     else if (agent.isBurning() || agent.type == AgentType::BURNING)
       state = AgentType::BURNING;
 
-    // ПРОСТАЯ ЛОГИКА: включаем/выключаем систему частиц
-    auto &particleComp = m_registry.get<ParticleSystemComponent>(entity);
-
-    if (state == AgentType::BURNING && !particleComp.isActive) {
-      particleComp.isActive = true;
-      particleComp.system->Play();
-    } else if (state != AgentType::BURNING && particleComp.isActive) {
-      particleComp.isActive = false;
-      particleComp.system->Stop();
-    }
-
-    auto material = prefab.GetMaterialForState(state);
-    auto model = m_objectModels.Find(link.prefab_id);
-    if (!model || !model->m_normal)
-      continue;
-
-    auto *draw_model = model->m_normal.get();
-    if (state == AgentType::BURNING && model->m_burning)
-      draw_model = model->m_burning.get();
-    if (state == AgentType::BURNED && model->m_burned)
-      draw_model = model->m_burned.get();
-
-    if (draw_model && material) {
-      Renderer::Instance().DrawModelWithMaterial(
-          *draw_model, transform.position, render.scale, m_camera.GetPosition(),
-          material);
-    }
+    glm::mat4 modelMatrix = CalculateModelMatrix(transform.position, render.scale);
+    std::string instanceKey = link.prefab_id + "_" + std::to_string(static_cast<int>(state));
+    
+    instanceData[instanceKey].push_back(modelMatrix);
   }
+  
+  RenderInstancedModels(instanceData);
 
   Renderer::Instance().UploadAgentsData(agents);
-
-  auto particleView =
-      m_registry.view<ParticleSystemComponent, TransformComponent>();
+  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(),
+                                   m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
+  auto particleView = m_registry.view<ParticleSystemComponent, TransformComponent>();
+  
   for (auto [entity, particleComp, transform] : particleView.each()) {
     if (particleComp.isActive) {
       particleComp.system->SetPosition(transform.position);
       particleComp.system->Render(view, projection);
     }
   }
+  
+  
 
-  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(),
-                                   m_terrain->GetPosition());
-
-  // Рендерим отдельные системы частиц (если нужны)
   for (auto &system : m_particleSystems) {
     system->Render(view, projection);
   }
 
   Renderer::Instance().EndScene();
+
 }
 
 void Scene::AddParticleSystem(const std::shared_ptr<ParticleSystem> &system) {
@@ -238,6 +232,49 @@ void Scene::LoadObjectModels(const std::string &object_name,
     std::cout << "Failed to load model '" << object_name << "': " << e.what()
               << '\n';
   }
+}
+
+void Scene::RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>> &instanceData)
+{
+    for (const auto& [key, matrices] : instanceData) {
+        // Разбираем ключ на prefab_id и состояние
+        size_t underscorePos = key.find_last_of('_');
+        std::string prefabId = key.substr(0, underscorePos);
+        AgentType state = static_cast<AgentType>(std::stoi(key.substr(underscorePos + 1)));
+        
+        auto model = m_objectModels.Find(prefabId);
+        auto material = m_prefabSystem.GetPrefab(prefabId).GetMaterialForState(state);
+        
+        if (model && material) {
+            auto* draw_model = GetModelForState(model, state);
+            if (draw_model) {
+                Renderer::Instance().DrawModelInstanced(*draw_model, matrices, m_camera.GetPosition(), material);
+            }
+        }
+    }
+}
+
+Model *Scene::GetModelForState(const ObjectModels *models, AgentType state)
+{
+  if (!models) return nullptr;
+
+    switch (state) {
+        case AgentType::BURNING:
+            if (models->m_burning) return models->m_burning.get();
+        case AgentType::BURNED:
+            if (models->m_burned) return models->m_burned.get();
+        case AgentType::NORMAL:
+        default:
+            return models->m_normal ? models->m_normal.get() : nullptr;
+    }
+}
+
+glm::mat4 Scene::CalculateModelMatrix(const glm::vec3 &position, const glm::vec3 &scale) const
+{
+  glm::mat4 modelMatrix = glm::mat4(1.0f);
+  modelMatrix = glm::translate(modelMatrix, position);
+  modelMatrix = glm::scale(modelMatrix, scale);
+  return modelMatrix;
 }
 
 glm::mat4 Scene::GetProjMatrix(int w, int h) {
@@ -300,20 +337,17 @@ const std::vector<std::string> &Scene::ListPrefabIds() const {
 
 void Scene::ReloadModelForPrefab(const std::string &prefab_id,
                                  const engine::data::AgentPrefab &prefab) {
-  // Перезагрузка модели
   ObjectModels models;
   models.m_normal = std::make_shared<Model>(prefab.m_modelPath);
   models.m_burning = std::make_shared<Model>(prefab.m_modelPath);
   models.m_burned = std::make_shared<Model>(prefab.m_modelPath);
   m_objectModels.Put(prefab_id, std::move(models));
 
-  // 2. Обновляем префаб (материалы)
   auto &system_prefab = m_prefabSystem.GetPrefabMutable(prefab_id);
   system_prefab.normalMaterial = prefab.normalMaterial;
   system_prefab.burningMaterial = prefab.burningMaterial;
   system_prefab.burnedMaterial = prefab.burnedMaterial;
 
-  // 3. Обновляем scale у всех Entity с этим prefab_id
   auto view = m_registry.view<RenderComponent>();
   for (auto [entity, render] : view.each()) {
     if (render.prefab_id == prefab_id) {
