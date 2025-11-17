@@ -52,7 +52,7 @@ void Scene::EnsureModelsForPrefab(const std::string& id, const engine::data::Age
 }
 
 void Scene::Update(float dt) {
-  auto startTime = std::chrono::high_resolution_clock::now();
+    auto startTime = std::chrono::high_resolution_clock::now();
 
   m_windTime += dt;
   glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
@@ -118,6 +118,7 @@ void Scene::Update(float dt) {
     system->SetWind(currentWind);
     system->Update();
   }
+
 }
 
 void Scene::Render() {
@@ -132,11 +133,13 @@ void Scene::Render() {
   Renderer::Instance().BeginScene(view, projection);
 
   auto agents = LoadAgentsFromGPU();
-
+  
+  std::unordered_map<std::string, std::vector<glm::mat4>> instanceData;
+  
   auto render_view = m_registry.view<TransformComponent, RenderComponent, AgentLinkComponent>();
+
   for (auto [entity, transform, render, link] : render_view.each()) {
-    if (!render.is_visible)
-      continue;
+    if (!render.is_visible) continue;
 
     const Agent& agent = agents[link.gpu_index];
     const auto& prefab = m_prefabSystem.GetPrefab(link.prefab_id);
@@ -147,7 +150,6 @@ void Scene::Render() {
     else if (agent.isBurning() || agent.type == AgentType::BURNING)
       state = AgentType::BURNING;
 
-    // ПРОСТАЯ ЛОГИКА: включаем/выключаем систему частиц
     auto& particleComp = m_registry.get<ParticleSystemComponent>(entity);
 
     if (state == AgentType::BURNING && !particleComp.isActive) {
@@ -176,7 +178,7 @@ void Scene::Render() {
   }
 
   Renderer::Instance().UploadAgentsData(agents);
-
+  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
   auto particleView = m_registry.view<ParticleSystemComponent, TransformComponent>();
   for (auto [entity, particleComp, transform] : particleView.each()) {
     if (particleComp.isActive) {
@@ -185,14 +187,14 @@ void Scene::Render() {
     }
   }
 
-  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition());
 
-  // Рендерим отдельные системы частиц (если нужны)
+
   for (auto& system : m_particleSystems) {
     system->Render(view, projection);
   }
 
   Renderer::Instance().EndScene();
+
 }
 
 void Scene::AddParticleSystem(const std::shared_ptr<ParticleSystem>& system) {
@@ -320,7 +322,6 @@ void Scene::ReloadModelForPrefab(const std::string& prefab_id,
   system_prefab.burningMaterial = prefab.burningMaterial;
   system_prefab.burnedMaterial = prefab.burnedMaterial;
 
-  // 3. Обновляем scale у всех Entity с этим prefab_id
   auto view = m_registry.view<RenderComponent>();
   for (auto [entity, render] : view.each()) {
     if (render.prefab_id == prefab_id) {

@@ -57,15 +57,6 @@ void Renderer::Init() {
                          {ShaderDataType::Float3, "a_bounds_min"},
                          {ShaderDataType::Float3, "a_bounds_max"}});
   m_agentVAO->AddVertexBuffer(m_agentVBO);
-  m_instanceBuffer = VertexBuffer::Create(10000 * sizeof(glm::mat4));
-  m_instanceBuffer->SetLayout(
-      {{ShaderDataType::Float4, "a_instance_matrix0", 1},
-       {ShaderDataType::Float4, "a_instance_matrix1", 1},
-       {ShaderDataType::Float4, "a_instance_matrix2", 1},
-       {ShaderDataType::Float4, "a_instance_matrix3", 1}});
-
-  // Создаем отдельный VAO для инстансинга
-  m_instanceVAO = VertexArrayObject::Create();
 
   m_universalParticleShader = Shader::Create("res/shaders/fire_geom.sh");
   
@@ -88,7 +79,6 @@ void Renderer::Shutdown() {
   m_ebo.reset();
   m_agentVAO.reset();
   m_agentVBO.reset();
-  m_instanceBuffer.reset();
   m_instanceVAO.reset();
   m_particleVAO.reset();
   m_particleVBO.reset();
@@ -142,7 +132,7 @@ void Renderer::DrawModel(Model &model, const glm::vec3 &position,
 }
 void Renderer::DrawModelInstanced(Model &model,
                                   const std::vector<glm::mat4> &instances,
-                                  const glm::vec3 &camPos) {
+                                  const glm::vec3 &camPos,  std::shared_ptr<Material> material) {
   if (instances.empty())
     return;
 
@@ -155,8 +145,21 @@ void Renderer::DrawModelInstanced(Model &model,
   m_instanceModelShader->SetVec3("light.ambient", glm::vec3(0.2f));
   m_instanceModelShader->SetVec3("light.diffuse", glm::vec3(0.8f));
   m_instanceModelShader->SetVec3("light.specular", glm::vec3(1.0f));
+  if (material) {
+    material->Bind(*m_instanceModelShader);
+  } else {
+    m_instanceModelShader->SetBool("material.use_diffuse_map", false);
+    m_instanceModelShader->SetBool("material.use_specular_map", false);
+    m_instanceModelShader->SetVec3("material.diffuse", glm::vec3(0.8f));
+    m_instanceModelShader->SetVec3("material.specular", glm::vec3(0.5f));
+    m_instanceModelShader->SetFloat("material.shininess", 32.0f);
+  }
 
   model.DrawInstanced(*m_instanceModelShader, instances);
+  glBindBuffer(GL_ARRAY_BUFFER, 0);
+  glBindVertexArray(0);
+  m_instanceModelShader->Unbind();
+
 }
 
 void Renderer::DrawModelWithMaterial(
@@ -168,10 +171,8 @@ void Renderer::DrawModelWithMaterial(
   modelmat = glm::translate(modelmat, position);
   modelmat = glm::scale(modelmat, scale);
 
-  // 2. Биндим шейдер и устанавливаем uniform'ы
   m_modelShader->Bind();
 
-  // ДОБАВЬ ПРОВЕРКУ:
   m_modelShader->SetMat4("u_model", modelmat);
   m_modelShader->SetMat4("u_view", m_viewMat);
   m_modelShader->SetMat4("u_projection", m_projectionMat);
@@ -183,18 +184,16 @@ void Renderer::DrawModelWithMaterial(
   m_modelShader->SetVec3("light.diffuse", glm::vec3(0.8f));
   m_modelShader->SetVec3("light.specular", glm::vec3(1.0f));
 
-  // 4. Биндим материал (если он есть)
   if (material) {
     material->Bind(*m_modelShader);
   } else {
-    m_modelShader->SetBool("material.use_diffuse_map", false);
-    m_modelShader->SetBool("material.use_specular_map", false);
     m_modelShader->SetVec3("material.diffuse", glm::vec3(0.8f));
     m_modelShader->SetVec3("material.specular", glm::vec3(0.5f));
     m_modelShader->SetFloat("material.shininess", 32.0f);
   }
 
   model.DrawGeometryOnly(*m_modelShader);
+
 }
 
 void Renderer::BeginScene(const glm::mat4 &view, const glm::mat4 &projection) {
@@ -284,7 +283,7 @@ void Renderer::RenderWithGeometryShader(const glm::vec3 &wind_force) {
    if (m_particleData.empty()) return;
     
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);  // ← ДОБАВЬ ЭТУ СТРОКУ!
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
 
     glDepthMask(GL_FALSE);
 
@@ -316,7 +315,6 @@ void Renderer::RenderWithGeometryShader(const glm::vec3 &wind_force) {
     m_universalParticleShader->SetInt("u_ash_texture", 3);
     m_universalParticleShader->SetInt("u_heat_texture", 4);
     
-    // ОДИН вызов отрисовки для всех эффектов
     m_particleVAO->Bind();
     glDrawArrays(GL_POINTS, 0, m_particleData.size());
     m_particleVAO->Unbind();
@@ -326,16 +324,23 @@ void Renderer::RenderWithGeometryShader(const glm::vec3 &wind_force) {
     glDepthMask(GL_TRUE);
     glDisable(GL_BLEND);
 }
-
 void Renderer::DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
-                           const glm::vec3 &terrainPos) {
+                           const glm::vec3 &terrainPos,
+                           std::shared_ptr<Texture> terrainTexture) { 
   if (!vao || !m_terrainShader)
     return;
 
   auto ib = vao->GetIndexBuffer();
   uint32_t count = ib ? ib->GetCount() : 0;
   glm::mat4 model = glm::translate(glm::mat4(1.0f), terrainPos);
+  
   m_terrainShader->Bind();
+  
+  if (terrainTexture) {
+    terrainTexture->Bind(0); 
+    m_terrainShader->SetInt("u_DiffuseMap", 0);
+  }
+  
   m_terrainShader->SetMat4("u_View", m_viewMat);
   m_terrainShader->SetMat4("u_Projection", m_projectionMat);
   m_terrainShader->SetMat4("u_Model", model);
@@ -345,6 +350,11 @@ void Renderer::DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
 
   vao->Bind();
   glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
+  vao->Unbind();
+  
+  m_terrainShader->Unbind();
+  
+  glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void Renderer::SetEffectParams(const std::string &uniformName, const FireParams::EffectParams &params)
@@ -362,7 +372,6 @@ void Renderer::SetEffectParams(const std::string &uniformName, const FireParams:
     m_universalParticleShader->SetVec3(uniformName + ".endColor", params.endColor);
     m_universalParticleShader->SetFloat(uniformName + ".colorVariation", params.colorVariation);
     
-    // Fragment шейдер параметры
     m_universalParticleShader->SetFloat(uniformName + ".redIntensity", params.redIntensity);
     m_universalParticleShader->SetFloat(uniformName + ".yellowReduction", params.yellowReduction);
     m_universalParticleShader->SetFloat(uniformName + ".alphaMultiplier", params.alphaMultiplier);
@@ -371,8 +380,6 @@ void Renderer::SetEffectParams(const std::string &uniformName, const FireParams:
 
 void Renderer::SetFireParams(const FireParams &params) {
     m_fireParams = params;
-
-    // ЗАГРУЖАЕМ ВСЕ ТЕКСТУРЫ ТОЛЬКО ЗДЕСЬ
     try {
         m_fireTexture = Texture::Create(params.fireTexturePath);
     } catch (const std::exception &e) {

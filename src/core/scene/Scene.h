@@ -91,6 +91,10 @@ private:
                         const std::string &normal_path,
                         const std::string &burning_path,
                         const std::string &burned_path);
+  void RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>>& instanceData);
+
+  Model* GetModelForState(const ObjectModels* models, AgentType state);
+  glm::mat4 CalculateModelMatrix(const glm::vec3& position, const glm::vec3& scale) const;
   AgentManager m_agentManager;
   std::vector<std::shared_ptr<ParticleSystem>> m_particleSystems;
 

@@ -33,7 +33,7 @@ public:
   void DrawModel(Model &model, const glm::vec3 &position,
                  const glm::vec3 &scale, const glm::vec3 &camPos);
   void DrawModelInstanced(Model &model, const std::vector<glm::mat4> &instances,
-                          const glm::vec3 &camPos);
+                          const glm::vec3 &camPos, std::shared_ptr<Material> material);
   void DrawModelWithMaterial(Model &model, const glm::vec3 &position,
                              const glm::vec3 &scale, const glm::vec3 &camPos,
                              const std::shared_ptr<Material> &material);
@@ -42,7 +42,7 @@ public:
   void RenderWithGeometryShader(const glm::vec3 &wind_force);
   void EndScene();
   void DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
-                   const glm::vec3 &terrainPos);
+                   const glm::vec3 &terrainPos, std::shared_ptr<Texture> terrainTexture);
   void SetFireParams(const FireParams &params);
   void SetEffectParams(const std::string &uniformName,
                        const FireParams::EffectParams &params);
@@ -88,7 +88,7 @@ private:
   std::shared_ptr<VertexArrayObject> m_vao;
   std::shared_ptr<VertexBuffer> m_vbo;
   std::shared_ptr<IndexBuffer> m_ebo;
-  std::shared_ptr<VertexBuffer> m_instanceBuffer;
+  std::shared_ptr<VertexBuffer> m_instanceVBO;
   std::shared_ptr<VertexArrayObject> m_instanceVAO;
   std::unordered_map<Model *, std::vector<glm::mat4>> m_instanceBatch;
 };
