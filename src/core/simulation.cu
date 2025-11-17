@@ -129,21 +129,28 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt, float3 
   }
 
   // 2. Распространение огня между агентами с ПРАВИЛЬНЫМ учетом ветра
-  for (int i = 0; i < agent->fire_collider.point_count; i++) {
-    if (agent->fire_collider.intensities[i] > 0.3f) {
-      glm::vec3 point_pos =
-          glm::vec3(agent->fire_collider.heat_points[i].x, agent->fire_collider.heat_points[i].y,
-                    agent->fire_collider.heat_points[i].z);
+for (int i = 0; i < agent->fire_collider.point_count; i++) {
+  if (agent->fire_collider.intensities[i] > 0.3f) {
+    glm::vec3 point_pos =
+        glm::vec3(agent->fire_collider.heat_points[i].x,
+                  agent->fire_collider.heat_points[i].y,
+                  agent->fire_collider.heat_points[i].z);
 
-      for (int n = 0; n < MAX_NEIGHBORS; n++) {
-        int other_idx = (idx + n * 37) % count;
-        if (other_idx == idx)
-          continue;
+    // --- ВАЖНО: локальное соседство по индексам вместо псевдослучайного по всему count ---
+    const int NEIGHBOR_RADIUS = MAX_NEIGHBORS;  // можно 32/64/128 по вкусу
+    int start = idx - NEIGHBOR_RADIUS;
+    if (start < 0) start = 0;
+    int end = idx + NEIGHBOR_RADIUS + 1;
+    if (end > count) end = count;
+
+    for (int other_idx = start; other_idx < end; ++other_idx) {
+      if (other_idx == idx)
+        continue;
 
         Agent* other_agent = &agents[other_idx];
 
         // БАЗОВАЯ дистанция проверки (без влияния ветра)
-        float base_check_distance = 15.0f;
+        float base_check_distance = params.m_base_check_distance;
 
         // Вычисляем направление к другому агенту
         float3 agent_center = {
@@ -238,20 +245,25 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt, float3 
 
                   float src_moisture = agent->fire_collider.moisture[i];
 
-                  float heat = compute_heat_transfer(Tsrc, Tdst, point_dist, conductivity, wind_dot,
-                                                     src_moisture, params);
+                  float heat = compute_heat_transfer(Tsrc, Tdst, point_dist,
+                                   conductivity, wind_dot,
+                                   src_moisture, params);
 
-                  heat *= distance_factor * wind_spread_bias * dt;
+// Усиливаем перенос между агентами
+heat *= distance_factor * wind_spread_bias
+        * params.m_cross_agent_spread_strength
+        * dt;
 
-                  if (heat > 0.0f) {
-                    other_agent->fire_collider.temperatures[j] += heat;
+if (heat > 0.0f) {
+  other_agent->fire_collider.temperatures[j] += heat;
 
-                    apply_ignition(other_agent->fire_collider.intensities[j],
-                                   other_agent->fire_collider.temperatures[j],
-                                   other_agent->fire_collider.fuels[j],
-                                   other_agent->fire_collider.moisture[j],
-                                   other_agent->fire_collider.ignition_temp, params);
-                  }
+  apply_ignition(other_agent->fire_collider.intensities[j],
+                 other_agent->fire_collider.temperatures[j],
+                 other_agent->fire_collider.fuels[j],
+                 other_agent->fire_collider.moisture[j],
+                 other_agent->fire_collider.ignition_temp, params);
+}
+
                 }
               }
             }
@@ -341,14 +353,13 @@ __global__ void update_agents_kernel(Agent* agents, int count, float dt, float3 
 void SimulationStep(Agent* agents, int count, float dt, const glm::vec3& wind_force,
                     const FireSimulationParams& params) {
   cudaDeviceSynchronize();
-  dt *= 0.1f;
+  // dt НЕ трогаем
 
   const int block_size = 256;
   const int grid_size = (count + block_size - 1) / block_size;
 
   float3 f = {wind_force.x, wind_force.y, wind_force.z};
 
-  // Передаём params в ядро (пока оно его внутри не использует)
   update_agents_kernel<<<grid_size, block_size>>>(agents, count, dt, f, params);
   cudaDeviceSynchronize();
 
@@ -357,3 +368,4 @@ void SimulationStep(Agent* agents, int count, float dt, const glm::vec3& wind_fo
     printf("CUDA error: %s\n", cudaGetErrorString(err));
   }
 }
+

@@ -343,6 +343,11 @@ void Scene::AddFire(float x, float z, float intensity) {
 }
 
 void Scene::AddFireAt(const glm::vec3& world, float intensity) {
+    std::cout << "[Fire] AddFireAt world = ("
+            << world.x << ", "
+            << world.y << ", "
+            << world.z << "), intensity = "
+            << intensity << '\n';
   m_agentManager.AddFireAt(Float3{world.x, world.y, world.z}, intensity);
 
   Entity fireEntity = CreateEntity("fire_emitter");

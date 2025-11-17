@@ -148,21 +148,26 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
           engine::MouseButton::Left, engine::InputState::Pressed))
     return;
 
-  // 6a) террейн (если есть) — ставим точно по земле
   glm::vec3 hitTerrain{};
   bool hitT = false;
   float anchorY = 0.0f;
+
   if (ctx.m_scene->GetTerrain() != nullptr) {
-    if (!ctx.State().m_selectedPrefab.empty()) {
+    // Якорь только для префаба, для огня anchorY = 0
+    if (ctx.State().m_placeKind == EditorState::PlaceKind::PREFAB &&
+        !ctx.State().m_selectedPrefab.empty()) {
       const auto &prefab = ctx.m_scene->GetPrefabSystem().GetPrefab(
           ctx.State().m_selectedPrefab);
       anchorY = -prefab.m_bounds_min.y * prefab.m_modelScale.y;
     }
-    hitT =
-        RaycastTerrain(*ctx.m_scene->GetTerrain(), ro, rd, anchorY, hitTerrain);
+
+    hitT = RaycastTerrain(*ctx.m_scene->GetTerrain(), ro, rd, anchorY, hitTerrain);
   }
+
   if (hitT) {
     if (ctx.State().m_placeKind == EditorState::PlaceKind::FIRE) {
+      // гарантируем, что огонь стоит ровно на земле
+      hitTerrain.y = ctx.m_scene->GetGroundHeight(hitTerrain.x, hitTerrain.z);
       ctx.m_scene->AddFireAt(hitTerrain, ctx.State().m_fireIntensity);
     } else {
       ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hitTerrain.x,
@@ -171,8 +176,9 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
     return;
   }
 
+
   // 6b) фолбек: Y=0 (как у вас было)
-  glm::vec3 hitPlane{};
+  glm::vec3 hitPlane{}; 
   if (!RaycastPlaneY0(ro, rd, hitPlane)) {
     return;
   }
