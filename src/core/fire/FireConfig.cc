@@ -59,6 +59,7 @@ void BuildSimulationParams(const FireConfig& cfg, FireSimulationParams& out_para
   out_params.m_humidity_heat_dampen = cfg.m_env.m_humidity_dampen_coeff;
   out_params.m_humidity_ignition_factor = cfg.m_env.m_humidity_ignition_mult;
   out_params.m_air_humidity_factor = cfg.m_env.m_air_humidity;
+  out_params.m_global_moisture_scale   = cfg.m_env.m_global_moisture_scale;
 
   // Температура окружающей среды
   out_params.m_ambient_temperature = cfg.m_env.m_ambient_temperature;

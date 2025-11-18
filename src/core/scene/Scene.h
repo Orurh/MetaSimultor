@@ -66,6 +66,8 @@ public:
 
   WindConfig &GetWindConfig() { return m_windConfig; }
   const WindConfig &GetWindConfig() const { return m_windConfig; }
+  
+  
   float GetWindTime() const { return m_windTime; }
   void ReloadModelForPrefab(const std::string &prefab_id,
                             const engine::data::AgentPrefab &prefab);
@@ -105,6 +107,7 @@ private:
   ObjectModelStore m_objectModels;
   Camera m_camera;
   WindConfig m_windConfig;
+  FireConfig m_fireConfig;
   float m_windTime = 0.0F;
   float m_fireIntensity{1.0F};
   std::shared_ptr<ParticleSystem> m_firePrototype;

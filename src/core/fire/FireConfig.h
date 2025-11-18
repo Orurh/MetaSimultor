@@ -23,6 +23,7 @@ struct FireEnvironmentConfig {
   float m_humidity_dampen_coeff  = 0.8F;    // как влажность гасит теплопередачу
   float m_humidity_ignition_mult = 0.5F;    // как влажность поднимает порог
   float m_wind_speed             = 5.0F;    // м/с, условно
+  float m_global_moisture_scale  = 1.0F;
 };
 
 // Общий конфиг огня на CPU

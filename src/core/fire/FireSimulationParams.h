@@ -34,6 +34,7 @@ struct FireSimulationParams {
   float m_max_heat_distance = 8.0F;         // макс. расстояние для теплопередачи
   float m_air_humidity_factor = 0.3F;       // глоб влажность воздуха
   float m_ambient_temperature = 293.15F;    // ~20°C по умолчанию
+  float m_global_moisture_scale = 1.0F;     // глобальный множитель сырости
 
   // параметры горения / охлаждения
   // Порог, выше которого точка считается "горящей"

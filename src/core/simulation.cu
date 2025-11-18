@@ -402,11 +402,13 @@ __device__ void SpreadBetweenAgents(Agent* agents,
                     : params.m_base_conductivity;
 
             const float src_moisture = self.fire_collider.moisture[i];
+            const float global_moist = Clamp01(params.m_global_moisture_scale);
+            const float eff_moisture = Clamp01(src_moisture * global_moist);
 
             float heat = ComputeHeatTransfer(
                 Tsrc, Tdst, point_dist, conductivity,
                 wind_dot,
-                src_moisture,
+                eff_moisture,
                 other->fire_collider.ignition_temp,
                 params);
 
@@ -465,11 +467,13 @@ __device__ void SpreadWithinAgent(Agent& agent, float dt, const FireSimulationPa
                                      : params.m_base_conductivity;
 
       const float src_moisture = agent.fire_collider.moisture[i];
+      const float global_moist = Clamp01(params.m_global_moisture_scale);
+      const float eff_moisture = Clamp01(src_moisture * global_moist);
 
       float heat =
           ComputeHeatTransfer(Tsrc, Tdst, point_dist, conductivity,
                               /*wind_factor=*/0.0f,  // внутри агента ветер не учитываем
-                              src_moisture,
+                              eff_moisture,
                               agent.fire_collider.ignition_temp,  // порог этого же материала
                               params);
 
@@ -541,6 +545,8 @@ __device__ void IgnitePoints(Agent& agent, float dt, const FireSimulationParams&
     float& F = agent.fire_collider.fuels[i];
     float& T = agent.fire_collider.temperatures[i];
     float  M = agent.fire_collider.moisture[i];
+    const float global_moist = Clamp01(params.m_global_moisture_scale);
+    M = Clamp01(M * global_moist);
 
     // уже горит или топлива нет — ignition не нужен
     if (I > fire_eps || F <= 0.0f) {
