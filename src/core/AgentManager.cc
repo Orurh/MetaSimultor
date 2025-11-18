@@ -42,7 +42,7 @@ void AgentManager::AddFireAt(const Float3& world, float intensity) {
 
   fire.fire_collider.point_count = 1;
   fire.fire_collider.heat_points[0] = world;  // мировая точка источника
-  fire.fire_collider.fuels[0] = 100.0F;
+  fire.fire_collider.fuels[0] = 200.0F;
   fire.fire_collider.intensities[0] = intensity;
 
   const float HALF_HEIGHT = FIRE_SOURCE_HEIGHT * 0.5F;

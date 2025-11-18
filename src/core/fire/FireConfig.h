@@ -13,12 +13,13 @@ struct FireMaterialParams {
   float m_fuel_density         = 100.0F; // условный запас топлива на точку
   float m_conductivity         = 0.1F;   // теплопроводность материала
   float m_base_moisture        = 0.3F;   // типичная влажность 0..1
+  float m_max_temperature      = 1300.0F;
 };
 
 // Параметры окружающей среды (глобальные, одна на всю сцену)
 struct FireEnvironmentConfig {
   float m_ambient_temperature    = 293.15F; // ~20°C
-  float m_air_humidity           = 0.3F;    // влажность воздуха 0..1
+  float m_air_humidity           = 0.5F;    // влажность воздуха 0..1
   float m_humidity_dampen_coeff  = 0.8F;    // как влажность гасит теплопередачу
   float m_humidity_ignition_mult = 0.5F;    // как влажность поднимает порог
   float m_wind_speed             = 5.0F;    // м/с, условно

@@ -13,6 +13,7 @@ void FireMaterialLibrary::ApplyToCollider(FireCollider& f_collider,
 
   f_collider.conductivity  = m.m_conductivity;
   f_collider.ignition_temp = m.m_ignition_temperature;
+  f_collider.max_temperature = m.m_max_temperature;
 
   for (int i = 0; i < f_collider.point_count; ++i) {
     f_collider.fuels[i]        = m.m_fuel_density;
