@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include "core/agent.h"
 #include "graphics/TextureCache.h"
 
 namespace fs = std::filesystem;
@@ -203,7 +204,7 @@ Agent PrefabSystem::CreateAgentFromPrefab(const AgentPrefab& prefab, const glm::
   // 3) Иначе – автогенерация по типу
 
   // Тип 0 в UI – "Tree", в enum это твой NORMAL
-  if (prefab.m_type == AgentType::NORMAL) {
+  if (prefab.m_type == FireAgentState::Normal) {
     GenerateTreeFirePointsFromBounds(prefab, position, scale, c);
   } else {
     // простой fallback: одна точка в центре объёма
@@ -252,7 +253,7 @@ std::vector<std::string> PrefabSystem::GetPrefabNames() const {
                          [](const auto& pair) { return pair.first; });
   return result;
 }
-std::vector<std::string> PrefabSystem::GetPrefabsByType(AgentType type) const {
+std::vector<std::string> PrefabSystem::GetPrefabsByType(FireAgentState type) const {
   std::vector<std::string> prefabs;
 
   for (auto [name, prefab] : m_prefabs) {
@@ -313,9 +314,9 @@ AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
 
   // type
   if (auto t = node["type"]) {
-    prefab.m_type = static_cast<AgentType>(t.as<int>());
+    prefab.m_type = static_cast<FireAgentState>(t.as<int>());
   } else {
-    prefab.m_type = AgentType::NORMAL;
+    prefab.m_type = FireAgentState::Normal;
   }
 
   // model_path

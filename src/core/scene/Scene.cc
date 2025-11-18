@@ -144,18 +144,18 @@ void Scene::Render() {
     const Agent& agent = agents[link.gpu_index];
     const auto& prefab = m_prefabSystem.GetPrefab(link.prefab_id);
 
-    AgentType state = AgentType::NORMAL;
-    if (agent.type == AgentType::BURNED)
-      state = AgentType::BURNED;
-    else if (agent.isBurning() || agent.type == AgentType::BURNING)
-      state = AgentType::BURNING;
+    FireAgentState state = FireAgentState::Normal;
+    if (agent.type == FireAgentState::Burned)
+      state = FireAgentState::Burned;
+    else if (agent.isBurning() || agent.type == FireAgentState::Burning)
+      state = FireAgentState::Burning;
 
     auto& particleComp = m_registry.get<ParticleSystemComponent>(entity);
 
-    if (state == AgentType::BURNING && !particleComp.isActive) {
+    if (state == FireAgentState::Burning && !particleComp.isActive) {
       particleComp.isActive = true;
       particleComp.system->Play();
-    } else if (state != AgentType::BURNING && particleComp.isActive) {
+    } else if (state != FireAgentState::Burning && particleComp.isActive) {
       particleComp.isActive = false;
       particleComp.system->Stop();
     }
@@ -166,9 +166,9 @@ void Scene::Render() {
       continue;
 
     auto* draw_model = model->m_normal.get();
-    if (state == AgentType::BURNING && model->m_burning)
+    if (state == FireAgentState::Burning && model->m_burning)
       draw_model = model->m_burning.get();
-    if (state == AgentType::BURNED && model->m_burned)
+    if (state == FireAgentState::Burned && model->m_burned)
       draw_model = model->m_burned.get();
 
     if (draw_model && material) {
@@ -186,8 +186,6 @@ void Scene::Render() {
       particleComp.system->Render(view, projection);
     }
   }
-
-
 
   for (auto& system : m_particleSystems) {
     system->Render(view, projection);

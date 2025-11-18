@@ -1,4 +1,5 @@
 #include "SceneSerializer.h"
+#include "core/agent.h"
 #include "core/scene/Scene.h"
 #include <fstream>
 
@@ -288,7 +289,7 @@ SceneSerializer::DeserializeFireCollider(const YAML::Node &collider_node) {
 Agent SceneSerializer::DeserializeAgent(const YAML::Node &agent_node) {
   Agent agent;
 
-  agent.type = static_cast<AgentType>(agent_node["type"].as<int>());
+  agent.type = static_cast<FireAgentState>(agent_node["type"].as<int>());
   agent.object_id = agent_node["object_id"].as<int>();
   agent.intensity = agent_node["intensity"].as<float>();
 

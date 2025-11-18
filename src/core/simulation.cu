@@ -1,3 +1,4 @@
+#include "agent.h"
 #include "simulation.cuh"
 
 #include <cuda_runtime.h>
@@ -103,7 +104,7 @@ __device__ float ComputeHeatTransfer(float Tsrc, float Tdst, float distance, flo
 
 // Проверка воспламенения точки по температуре
 __device__ void ApplyIgnition(float& intensity, float T, float fuel, float moisture,
-                              float ignition_temp, const FireSimulationParams& p) {
+                              float ignition_temp, const FireSimulationParams& p, float dt) {
   if (fuel <= 0.0F) {
     return;
   }
@@ -120,18 +121,15 @@ __device__ void ApplyIgnition(float& intensity, float T, float fuel, float moist
 
     const float TARGET_INTENSITY = 0.2F + (0.8F * k);
 
-    // --- NEW: плавно подтягиваемся к цели, а не телепортируемся ---
     // скорость "подъёма" к целевой интенсивности
-    const float ignite_rate = 3.0f;  // можно вынести в FireSimulationParams
+    const float ignite_rate = 3.0f;  // можно потом вынести в FireSimulationParams
 
-    // вместо instant set: intensity = TARGET_INTENSITY
     float delta = TARGET_INTENSITY - intensity;
     if (delta > 0.0f) {
-      intensity += delta * Clamp01(ignite_rate * 0.016f);
-      // 0.016f ≈ 1/60, можно заменить на реальный dt, если протащишь его сюда
+      // ТЕПЕРЬ используем настоящий dt, а не захардкоженный 0.016
+      intensity += delta * Clamp01(ignite_rate * dt);
     }
 
-    // гарантируем минимум "живого" огня
     if (intensity < p.m_fire_intensity_min) {
       intensity = p.m_fire_intensity_min;
     }
@@ -222,7 +220,7 @@ __device__ void SpreadBetweenAgents(Agent* agents, int self_index, int count, co
       }
 
       Agent* other = &agents[other_idx];
-      if (other->type == BURNED) {
+      if (other->type == FireAgentState::Burned) {
         continue;
       }
 
@@ -344,10 +342,6 @@ __device__ void SpreadBetweenAgents(Agent* agents, int self_index, int count, co
 
         if (heat > 0.0f) {
           Tdst += heat;
-
-          ApplyIgnition(other->fire_collider.intensities[j], other->fire_collider.temperatures[j],
-                        other->fire_collider.fuels[j], other->fire_collider.moisture[j],
-                        other->fire_collider.ignition_temp, params);
         }
       }
     }
@@ -407,10 +401,6 @@ __device__ void SpreadWithinAgent(Agent& agent, float dt, const FireSimulationPa
 
       if (heat > 0.0f) {
         Tdst += heat;
-
-        ApplyIgnition(agent.fire_collider.intensities[j], agent.fire_collider.temperatures[j],
-                      agent.fire_collider.fuels[j], agent.fire_collider.moisture[j],
-                      agent.fire_collider.ignition_temp, params);
       }
     }
   }
@@ -432,10 +422,10 @@ __device__ void UpdateAgentType(Agent& agent, const FireSimulationParams& params
 
   if (has_fire) {
     // Как только где-то загорелось — помечаем агент как горящий
-    agent.type = BURNING;
+    agent.type = FireAgentState::Burning;
   } else if (!has_fire && !has_fuel) {
     // Топлива нет и нигде не горит — всё, агент сгорел окончательно
-    agent.type = BURNED;
+    agent.type = FireAgentState::Burned;
   }
   // Иначе:
   //  - есть топливо, но прямо сейчас вспышек нет → оставляем type как был
@@ -463,6 +453,25 @@ __device__ void CoolBurnedAgent(Agent& agent, float dt, const FireSimulationPara
   }
 }
 
+
+__device__ void IgnitePoints(Agent& agent, float dt, const FireSimulationParams& params) {
+  const float fire_eps = params.m_fire_intensity_min;
+
+  for (int i = 0; i < agent.fire_collider.point_count; ++i) {
+    float& I = agent.fire_collider.intensities[i];
+    float& F = agent.fire_collider.fuels[i];
+    float& T = agent.fire_collider.temperatures[i];
+    float  M = agent.fire_collider.moisture[i];
+
+    // уже горит или топлива нет — ignition не нужен
+    if (I > fire_eps || F <= 0.0f) {
+      continue;
+    }
+
+    ApplyIgnition(I, T, F, M, agent.fire_collider.ignition_temp, params, dt);
+  }
+}
+
 // -----------------------------------------------------------------------------
 // CUDA kernel
 // -----------------------------------------------------------------------------
@@ -475,21 +484,24 @@ __global__ void UpdateAgentsKernel(Agent* agents, int count, float dt, float3 wi
   }
 
   Agent& agent = agents[IDX];
-  if (agent.type == BURNED) {
+  if (agent.type == FireAgentState::Burned) {
     CoolBurnedAgent(agent, dt, params);
     return;
   }
 
-  const WindData wind = MakeWindData(wind_force);
+  const WindData WIND = MakeWindData(wind_force);
 
   // 1. Обновляем горение с учетом ветра и температуры
-  UpdateBurningPoints(agent, wind, dt, params);
+  UpdateBurningPoints(agent, WIND, dt, params);
 
   // 2. Распространение огня между агентами
-  SpreadBetweenAgents(agents, IDX, count, wind, dt, params);
+  SpreadBetweenAgents(agents, IDX, count, WIND, dt, params);
 
   // 3. Теплопередача внутри одного агента (крона/ствол)
   SpreadWithinAgent(agent, dt, params);
+
+  // 3.5. ОТДЕЛЬНЫЙ шаг воспламенения точек на основе финальной температуры
+  IgnitePoints(agent, dt, params);
 
   // 4. Обновляем тип агента
   UpdateAgentType(agent, params);

@@ -18,8 +18,8 @@ void FireSimulationSystem::Step(Agent* agents_gpu, int count, float dt) {
   glm::vec3 wind = m_wind;
 
   // Пример: усиливаем прогрев по направлению ветра в зависимости от скорости
-  const float wind_speed = glm::length(wind);
-  params.m_wind_heat_bonus = 1.0f + wind_speed * 0.1f;
+  const float WIND_SPEED = glm::length(wind);
+  params.m_wind_heat_bonus = 1.0F + WIND_SPEED * 0.1F;
 
   // Вызываем уже существующую CUDA-функцию
   SimulationStep(agents_gpu, count, dt, wind, params);

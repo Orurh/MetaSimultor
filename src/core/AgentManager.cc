@@ -3,6 +3,7 @@
 #include <iostream>
 #include <print>
 #include <random>
+#include "core/agent.h"
 
 namespace {
 constexpr float FIRE_SOURCE_BASE_RADIUS = 0.5F;  // "радиус" источника огня по XZ
@@ -36,7 +37,7 @@ void AgentManager::AddFireAt(const Float3& world, float intensity) {
     return;
 
   Agent fire{};
-  fire.type = BURNING;
+  fire.type = FireAgentState::Burning;
   fire.object_id = -1;
   fire.position = world;
 

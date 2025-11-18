@@ -3,6 +3,7 @@
 #include "Terrain.h"
 #include "configs/WindConfig.h"
 #include "core/AgentManager.h"
+#include "core/fire/FireConfig.h"
 #include "data/PrefabSystem.h"
 #include "graphics/ParticleSystem.h"
 #include <memory>
@@ -93,7 +94,7 @@ private:
                         const std::string &burned_path);
   void RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>>& instanceData);
 
-  Model* GetModelForState(const ObjectModels* models, AgentType state);
+  Model* GetModelForState(const ObjectModels* models, FireMaterialParams state);
   glm::mat4 CalculateModelMatrix(const glm::vec3& position, const glm::vec3& scale) const;
   AgentManager m_agentManager;
   std::vector<std::shared_ptr<ParticleSystem>> m_particleSystems;

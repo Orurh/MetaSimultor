@@ -2,7 +2,6 @@
 #pragma once
 
 #include "FireConfig.h"
-#include "FireSimulationParams.h"
 #include "core/agent.h" // Agent*
 #include <glm/glm.hpp>
 

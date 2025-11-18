@@ -1,4 +1,5 @@
 #include "ui/panels/PrefabBrowserPanel.h"
+#include "core/agent.h"
 #include "core/scene/Scene.h"
 #include "data/PrefabSystem.h"
 #include "graphics/Material.h"
@@ -187,7 +188,7 @@ void PrefabBrowserPanel::DrawType(AgentPrefab &P) {
   int t = (int)P.m_type;
   const char *types[] = {"Tree", "Burned", "Fire", "House"};
   if (ImGui::Combo("Type", &t, types, IM_ARRAYSIZE(types))) {
-    P.m_type = static_cast<AgentType>(t);
+    P.m_type = static_cast<FireAgentState>(t);
   }
 }
 
