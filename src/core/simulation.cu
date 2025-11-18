@@ -7,8 +7,55 @@
 #include <cmath>
 #include <iostream>
 
-// NOTE: Device-side helpers живут в анонимном namespace, чтобы не светиться наружу.
 namespace {
+
+  struct GridIndex {
+  int x;
+  int z;
+};
+
+__device__ int GetCellIndexDevice(float x, float z, const FireGridParams& grid, GridIndex* out_gi) {
+  int cell_x = static_cast<int>((x - grid.world_min_x) / grid.cell_size);
+  int cell_z = static_cast<int>((z - grid.world_min_z) / grid.cell_size);
+
+  // за пределами мира – вываливаемся
+  if (cell_x < 0 || cell_x >= grid.grid_size_x ||
+      cell_z < 0 || cell_z >= grid.grid_size_z) {
+    if (out_gi) {
+      out_gi->x = -1;
+      out_gi->z = -1;
+    }
+    return -1;
+  }
+
+  if (out_gi) {
+    out_gi->x = cell_x;
+    out_gi->z = cell_z;
+  }
+
+  return (cell_z * grid.grid_size_x) + cell_x; // row-major
+}
+
+
+__global__ void BuildGridKernel(const Agent* agents, int count,
+                                const FireGridParams grid,
+                                int* cell_heads, int* cell_next) {
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (idx >= count) return;
+
+  const Float3 pos = agents[idx].position;
+
+  GridIndex gi;
+  int cell_idx = GetCellIndexDevice(pos.x, pos.z, grid, &gi);
+  if (cell_idx < 0) {
+    cell_next[idx] = -1;
+    return;
+  }
+
+  // Вставляем агента в голову списка ячейки через atomicExch
+  int old_head = atomicExch(&cell_heads[cell_idx], idx);
+  cell_next[idx] = old_head; // -1, если в ячейке никого не было
+}
 
 // -----------------------------------------------------------------------------
 // Small math helpers
@@ -23,6 +70,13 @@ __device__ float Distance3d(float x1, float y1, float z1, float x2, float y2, fl
   const float dy = y1 - y2;
   const float dz = z1 - z2;
   return sqrtf((dx * dx) + (dy * dy) + (dz * dz));
+}
+
+__device__ int ClampedPointCount(const FireCollider& c) {
+  int n = c.point_count;
+  if (n < 0)  n = 0;
+  if (n > 64) n = 64;
+  return n;
 }
 
 struct WindData {
@@ -159,7 +213,8 @@ __device__ void UpdateBurningPoints(Agent& agent, const WindData& wind, float dt
 
   const float local_max_T = base_max_T * wind_boost;
 
-  for (int i = 0; i < agent.fire_collider.point_count; ++i) {
+  const int point_count = ClampedPointCount(agent.fire_collider);
+  for (int i = 0; i < point_count; ++i) {
     float& I = agent.fire_collider.intensities[i];
     float& F = agent.fire_collider.fuels[i];
     float& T = agent.fire_collider.temperatures[i];
@@ -194,18 +249,32 @@ __device__ void UpdateBurningPoints(Agent& agent, const WindData& wind, float dt
 }
 
 // Распространение огня между агентами с учётом ветра (по позициям, а не индексам)
-__device__ void SpreadBetweenAgents(Agent* agents, int self_index, int count, const WindData& wind,
-                                    float dt, const FireSimulationParams& params) {
+__device__ void SpreadBetweenAgents(Agent* agents,
+                                    int self_index,
+                                    int agent_count,
+                                    const FireGridParams& grid,
+                                    const int* cell_heads,
+                                    const int* cell_next,
+                                    const WindData& wind,
+                                    float dt,
+                                    const FireSimulationParams& params) {
   Agent& self = agents[self_index];
 
-  // Центр текущего агента по его позиции
   const Float3 self_pos = self.position;
   const float3 self_center{self_pos.x, self_pos.y, self_pos.z};
 
   const float spread_threshold = params.m_spread_intensity_threshold;
-  const float fire_eps = params.m_fire_intensity_min;
+  const float fire_eps         = params.m_fire_intensity_min;
 
-  for (int i = 0; i < self.fire_collider.point_count; ++i) {
+  // определяем ячейку текущего агента
+  GridIndex self_gi;
+  int self_cell_idx = GetCellIndexDevice(self_pos.x, self_pos.z, grid, &self_gi);
+  if (self_cell_idx < 0) {
+    return;
+  }
+
+  const int self_points = ClampedPointCount(self.fire_collider);
+  for (int i = 0; i < self_points; ++i) {
     if (self.fire_collider.intensities[i] <= spread_threshold) {
       continue;
     }
@@ -214,148 +283,155 @@ __device__ void SpreadBetweenAgents(Agent* agents, int self_index, int count, co
                               self.fire_collider.heat_points[i].y,
                               self.fire_collider.heat_points[i].z);
 
-    for (int other_idx = 0; other_idx < count; ++other_idx) {
-      if (other_idx == self_index) {
-        continue;
-      }
-
-      Agent* other = &agents[other_idx];
-      if (other->type == FireAgentState::Burned) {
-        continue;
-      }
-
-      // БАЗОВАЯ дистанция проверки (без влияния ветра)
-      const float base_check_distance = params.m_base_check_distance;
-
-      // Центр другого агента по позиции
-      const Float3 other_pos = other->position;
-      const float3 other_center{other_pos.x, other_pos.y, other_pos.z};
-
-      float3 to_other_dir{other_center.x - self_center.x, other_center.y - self_center.y,
-                          other_center.z - self_center.z};
-
-      float to_other_length =
-          sqrtf(to_other_dir.x * to_other_dir.x + to_other_dir.y * to_other_dir.y +
-                to_other_dir.z * to_other_dir.z);
-
-      if (to_other_length <= 0.001f) {
-        continue;
-      }
-
-      // Нормируем
-      to_other_dir.x /= to_other_length;
-      to_other_dir.y /= to_other_length;
-      to_other_dir.z /= to_other_length;
-
-      // Влияние ветра на дистанцию проверки
-      const float wind_dot = to_other_dir.x * wind.m_dir.x + to_other_dir.y * wind.m_dir.y +
-                             to_other_dir.z * wind.m_dir.z;
-
-      // Увеличиваем дистанцию ТОЛЬКО по направлению ветра
-      // и немного уменьшаем против ветра
-      float wind_distance_effect = 1.0f;
-      if (wind_dot > 0.3f) {
-        // По ветру: сильно увеличиваем
-        wind_distance_effect = 1.0f + wind.m_strength * 2.0f * wind_dot;
-      } else if (wind_dot < -0.3f) {
-        // Против ветра: немного уменьшаем
-        wind_distance_effect = 0.7f;
-      }
-
-      const float max_check_distance = base_check_distance * wind_distance_effect;
-      const float box_dist = to_other_length;
-
-      if (box_dist >= max_check_distance) {
-        continue;
-      }
-
-      // NEW: дополнительный макро-фактор по дистанции между центрами агентов
-      float agent_distance_factor = 1.0f - (box_dist / max_check_distance);
-      // agent_distance_factor: 1.0f при близко стоящих, 0.0f на границе max_check_distance
-      if (agent_distance_factor < 0.0f) {
-        agent_distance_factor = 0.0f;
-      }
-      // --- детальный перебор точек в другом агенте ---
-      for (int j = 0; j < other->fire_collider.point_count; ++j) {
-        if (other->fire_collider.intensities[j] > fire_eps) {
+    // перебираем соседние ячейки (3x3 по XZ)
+    for (int dz = -1; dz <= 1; ++dz) {
+      for (int dx = -1; dx <= 1; ++dx) {
+        int nx = self_gi.x + dx;
+        int nz = self_gi.z + dz;
+        if (nx < 0 || nx >= grid.grid_size_x || nz < 0 || nz >= grid.grid_size_z) {
           continue;
         }
 
-        const glm::vec3 other_point_pos(other->fire_collider.heat_points[j].x,
-                                        other->fire_collider.heat_points[j].y,
-                                        other->fire_collider.heat_points[j].z);
+        int cell_idx = nz * grid.grid_size_x + nx;
 
-        const float point_dist =
-            Distance3d(point_pos.x, point_pos.y, point_pos.z, other_point_pos.x, other_point_pos.y,
-                       other_point_pos.z);
+        // пробегаем связный список агентов в этой ячейке
+        for (int other_idx = cell_heads[cell_idx]; other_idx != -1; other_idx = cell_next[other_idx]) {
+          if (other_idx < 0 || other_idx >= agent_count) {
+            break;
+          }
+          if (other_idx == self_index) continue;
 
-        // Влияние ветра на расстояние распространения
-        float wind_spread_effect = 1.0f;
-        if (wind_dot > 0.3f) {
-          wind_spread_effect = 1.0f + wind.m_strength * 1.5f * wind_dot;
-        } else if (wind_dot < -0.3f) {
-          wind_spread_effect = 0.5f;  // сильно уменьшаем против ветра
-        }
+          Agent* other = &agents[other_idx];
+          if (other->type == FireAgentState::Burned) {
+            continue;
+          }
 
-        const float max_spread_distance = params.m_base_spread_distance * wind_spread_effect;
+          const Float3 other_pos = other->position;
+          const float3 other_center{other_pos.x, other_pos.y, other_pos.z};
 
-        if (point_dist >= max_spread_distance) {
-          continue;
-        }
+          float3 to_other_dir{other_center.x - self_center.x,
+                              other_center.y - self_center.y,
+                              other_center.z - self_center.z};
 
-        float distance_factor = 1.0f - point_dist / max_spread_distance;
-        if (distance_factor < 0.0f) {
-          distance_factor = 0.0f;
-        }
+          float to_other_length =
+              sqrtf(to_other_dir.x * to_other_dir.x +
+                    to_other_dir.y * to_other_dir.y +
+                    to_other_dir.z * to_other_dir.z);
 
-        // Влияние ветра на силу распространения
-        float wind_spread_bias = 1.0f;
-        if (wind_dot > 0.1f) {
-          wind_spread_bias = 1.0f + wind.m_strength * 2.0f * wind_dot;
-        } else if (wind_dot < -0.1f) {
-          wind_spread_bias = 0.5f;  // сильно гасим против ветра
-        }
+          if (to_other_length <= 0.001f) {
+            continue;
+          }
 
-        // Берём температуры как источник/приёмник
-        const float Tsrc = self.fire_collider.temperatures[i];
-        float& Tdst = other->fire_collider.temperatures[j];
+          // Нормализуем
+          to_other_dir.x /= to_other_length;
+          to_other_dir.y /= to_other_length;
+          to_other_dir.z /= to_other_length;
 
-        if (Tsrc <= Tdst) {
-          continue;
-        }
+          const float base_check_distance = params.m_base_check_distance;
 
-        const float conductivity = other->fire_collider.conductivity > 0.0f
-                                       ? other->fire_collider.conductivity
-                                       : params.m_base_conductivity;
+          const float wind_dot =
+              to_other_dir.x * wind.m_dir.x +
+              to_other_dir.y * wind.m_dir.y +
+              to_other_dir.z * wind.m_dir.z;
 
-        const float src_moisture = self.fire_collider.moisture[i];
+          float wind_distance_effect = 1.0f;
+          if (wind_dot > 0.3f) {
+            wind_distance_effect = 1.0f + wind.m_strength * 2.0f * wind_dot;
+          } else if (wind_dot < -0.3f) {
+            wind_distance_effect = 0.7f;
+          }
 
-        float heat = ComputeHeatTransfer(
-            Tsrc, Tdst, point_dist, conductivity,
-            wind_dot,  // <-- учитываем ветер
-            src_moisture,
-            other->fire_collider.ignition_temp,  // <-- порог материала другого агента
-            params);
+          const float max_check_distance = base_check_distance * wind_distance_effect;
+          const float box_dist = to_other_length;
 
-        // Усиливаем перенос между агентами
-        heat *= distance_factor * wind_spread_bias * params.m_cross_agent_spread_strength * dt;
+          if (box_dist >= max_check_distance) {
+            continue;
+          }
 
-        if (heat > 0.0f) {
-          Tdst += heat;
-        }
-      }
-    }
-  }
+          float agent_distance_factor = 1.0f - (box_dist / max_check_distance);
+          if (agent_distance_factor < 0.0f) agent_distance_factor = 0.0f;
+
+          // --- перебор точек другого агента ---
+          const int other_points = ClampedPointCount(other->fire_collider);
+          for (int j = 0; j < other_points; ++j) {
+            if (other->fire_collider.intensities[j] > fire_eps) {
+              continue;
+            }
+
+            const glm::vec3 other_point_pos(other->fire_collider.heat_points[j].x,
+                                            other->fire_collider.heat_points[j].y,
+                                            other->fire_collider.heat_points[j].z);
+
+            const float point_dist =
+                Distance3d(point_pos.x, point_pos.y, point_pos.z,
+                           other_point_pos.x, other_point_pos.y, other_point_pos.z);
+
+            float wind_spread_effect = 1.0f;
+            if (wind_dot > 0.3f) {
+              wind_spread_effect = 1.0f + wind.m_strength * 1.5f * wind_dot;
+            } else if (wind_dot < -0.3f) {
+              wind_spread_effect = 0.5f;
+            }
+
+            const float max_spread_distance = params.m_base_spread_distance * wind_spread_effect;
+
+            if (point_dist >= max_spread_distance) {
+              continue;
+            }
+
+            float distance_factor = 1.0f - point_dist / max_spread_distance;
+            if (distance_factor < 0.0f) distance_factor = 0.0f;
+
+            float wind_spread_bias = 1.0f;
+            if (wind_dot > 0.1f) {
+              wind_spread_bias = 1.0f + wind.m_strength * 2.0f * wind_dot;
+            } else if (wind_dot < -0.1f) {
+              wind_spread_bias = 0.5f;
+            }
+
+            const float Tsrc = self.fire_collider.temperatures[i];
+            float&      Tdst = other->fire_collider.temperatures[j];
+
+            if (Tsrc <= Tdst) {
+              continue;
+            }
+
+            const float conductivity =
+                other->fire_collider.conductivity > 0.0f
+                    ? other->fire_collider.conductivity
+                    : params.m_base_conductivity;
+
+            const float src_moisture = self.fire_collider.moisture[i];
+
+            float heat = ComputeHeatTransfer(
+                Tsrc, Tdst, point_dist, conductivity,
+                wind_dot,
+                src_moisture,
+                other->fire_collider.ignition_temp,
+                params);
+
+            heat *= distance_factor * wind_spread_bias *
+                    params.m_cross_agent_spread_strength * dt;
+
+            if (heat > 0.0f) {
+              Tdst += heat;
+            }
+          } // for each point j
+        }   // for each agent in cell
+      }     // dx
+    }       // dz
+  }         // for each source point i
 }
 
 // Теплопередача внутри одного агента (крона/ствол)
 __device__ void SpreadWithinAgent(Agent& agent, float dt, const FireSimulationParams& params) {
-  for (int i = 0; i < agent.fire_collider.point_count; ++i) {
+  const int point_count = ClampedPointCount(agent.fire_collider);
+  for (int i = 0; i < point_count; ++i) {
     const glm::vec3 point_pos(agent.fire_collider.heat_points[i].x,
                               agent.fire_collider.heat_points[i].y,
                               agent.fire_collider.heat_points[i].z);
 
-    for (int j = 0; j < agent.fire_collider.point_count; ++j) {
+    for (int j = 0; j < point_count; ++j) {
       if (i == j) {
         continue;
       }
@@ -411,7 +487,8 @@ __device__ void UpdateAgentType(Agent& agent, const FireSimulationParams& params
   bool has_fire = false;
   bool has_fuel = false;
 
-  for (int i = 0; i < agent.fire_collider.point_count; ++i) {
+  const int point_count = ClampedPointCount(agent.fire_collider);
+  for (int i = 0; i < point_count; ++i) {
     if (agent.fire_collider.intensities[i] > params.m_fire_intensity_min) {
       has_fire = true;
     }
@@ -438,7 +515,8 @@ __device__ void UpdateAgentType(Agent& agent, const FireSimulationParams& params
 __device__ void CoolBurnedAgent(Agent& agent, float dt, const FireSimulationParams& params) {
   const float ambient = params.m_ambient_temperature;
 
-  for (int i = 0; i < agent.fire_collider.point_count; ++i) {
+  const int point_count = ClampedPointCount(agent.fire_collider);
+  for (int i = 0; i < point_count; ++i) {
     float& T = agent.fire_collider.temperatures[i];
 
     // экспоненциальное охлаждение к окружающей
@@ -457,7 +535,8 @@ __device__ void CoolBurnedAgent(Agent& agent, float dt, const FireSimulationPara
 __device__ void IgnitePoints(Agent& agent, float dt, const FireSimulationParams& params) {
   const float fire_eps = params.m_fire_intensity_min;
 
-  for (int i = 0; i < agent.fire_collider.point_count; ++i) {
+  const int point_count = ClampedPointCount(agent.fire_collider);
+  for (int i = 0; i < point_count; ++i) {
     float& I = agent.fire_collider.intensities[i];
     float& F = agent.fire_collider.fuels[i];
     float& T = agent.fire_collider.temperatures[i];
@@ -476,8 +555,14 @@ __device__ void IgnitePoints(Agent& agent, float dt, const FireSimulationParams&
 // CUDA kernel
 // -----------------------------------------------------------------------------
 
-__global__ void UpdateAgentsKernel(Agent* agents, int count, float dt, float3 wind_force,
-                                   FireSimulationParams params) {
+__global__ void UpdateAgentsKernel(Agent* agents,
+                                   int count,
+                                   float dt,
+                                   float3 wind_force,
+                                   FireSimulationParams params,
+                                   FireGridParams grid,
+                                   const int* cell_heads,
+                                   const int* cell_next) {
   const int IDX = threadIdx.x + (blockIdx.x * blockDim.x);
   if (IDX >= count) {
     return;
@@ -494,8 +579,8 @@ __global__ void UpdateAgentsKernel(Agent* agents, int count, float dt, float3 wi
   // 1. Обновляем горение с учетом ветра и температуры
   UpdateBurningPoints(agent, WIND, dt, params);
 
-  // 2. Распространение огня между агентами
-  SpreadBetweenAgents(agents, IDX, count, WIND, dt, params);
+  // 2. Распространение огня между агентами (через грид)
+  SpreadBetweenAgents(agents, IDX, count, grid, cell_heads, cell_next, WIND, dt, params);
 
   // 3. Теплопередача внутри одного агента (крона/ствол)
   SpreadWithinAgent(agent, dt, params);
@@ -507,19 +592,52 @@ __global__ void UpdateAgentsKernel(Agent* agents, int count, float dt, float3 wi
   UpdateAgentType(agent, params);
 }
 
+
 // -----------------------------------------------------------------------------
 // Host API
 // -----------------------------------------------------------------------------
 
-void SimulationStep(Agent* agents, int count, float dt, const glm::vec3& wind_force,
-                    const FireSimulationParams& params) {
-
+void SimulationStep(Agent* agents, int count, float dt,
+                    const glm::vec3& wind_force,
+                    const FireSimulationParams& params,
+                    const FireGridParams& grid) {
   constexpr int K_BLOCK_SIZE = 256;
   const int GRID_SIZE = (count + K_BLOCK_SIZE - 1) / K_BLOCK_SIZE;
 
   const float3 f{wind_force.x, wind_force.y, wind_force.z};
 
-  UpdateAgentsKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(agents, count, dt, f, params);
+  // ---------------------------
+  // 1) Выделяем/переиспользуем память под grid
+  // ---------------------------
+  static int* d_cell_heads = nullptr;
+  static int* d_cell_next  = nullptr;
+  static int  allocated_agents = 0;
+  static int  allocated_cells  = 0;
+
+  const int num_cells = grid.grid_size_x * grid.grid_size_z;
+
+  if (allocated_agents < count) {
+    if (d_cell_next) cudaFree(d_cell_next);
+    cudaMalloc(&d_cell_next, count * sizeof(int));
+    allocated_agents = count;
+  }
+
+  if (allocated_cells < num_cells) {
+    if (d_cell_heads) cudaFree(d_cell_heads);
+    cudaMalloc(&d_cell_heads, num_cells * sizeof(int));
+    allocated_cells = num_cells;
+  }
+
+  // 2) Заполняем cell_heads = -1
+  cudaMemset(d_cell_heads, 0xFF, num_cells * sizeof(int)); // 0xFF -> -1 для int
+
+  // 3) Строим grid на GPU
+  BuildGridKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(agents, count, grid, d_cell_heads, d_cell_next);
+
+  // 4) Основной шаг симуляции, уже пользуясь grid
+  UpdateAgentsKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(
+      agents, count, dt, f, params, grid, d_cell_heads, d_cell_next);
+
   cudaDeviceSynchronize();
 
   const cudaError_t ERR = cudaGetLastError();
