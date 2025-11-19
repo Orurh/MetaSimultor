@@ -1,7 +1,7 @@
 #pragma once
 
 #include "FireConfig.h"
-#include "core/agent.h"  // FireCollider
+#include "../agent.h"  // FireCollider
 
 #include <string>
 #include <string_view>

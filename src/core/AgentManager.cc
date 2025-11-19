@@ -10,8 +10,15 @@ constexpr float FIRE_SOURCE_BASE_RADIUS = 0.5F;  // "радиус" источн�
 constexpr float FIRE_SOURCE_HEIGHT = 2.0F;       // высота по Y
 }  // namespace
 
-AgentManager::AgentManager(int max_agents) : m_capacity(max_agents), m_count(0) {
-  cudaMalloc(&m_agents, max_agents * sizeof(Agent));
+AgentManager::AgentManager(int max_agents) : m_capacity(max_agents), m_count(0), m_agents(nullptr) {
+  if (m_capacity > 0) {
+    cudaError_t err = cudaMalloc(&m_agents, m_capacity * sizeof(Agent));
+    if (err != cudaSuccess) {
+      std::cerr << "AgentManager: cudaMalloc failed: " << cudaGetErrorString(err) << '\n';
+      m_agents = nullptr;
+      m_capacity = 0;
+    }
+  }
 }
 
 AgentManager::~AgentManager() {
@@ -19,22 +26,29 @@ AgentManager::~AgentManager() {
 }
 
 std::vector<Agent> AgentManager::LoadAgentsFromGPU() {
-  size_t currentCount = GetAgentCount();
-  std::vector<Agent> agents(currentCount);
+  const size_t CURRENT_COUNT = GetAgentCount();
+  std::vector<Agent> agents(CURRENT_COUNT);
 
-  cudaMemcpy(agents.data(), GetDeviceAgents(), currentCount * sizeof(Agent),
-             cudaMemcpyDeviceToHost);
-
-  cudaError_t err = cudaGetLastError();
-  if (err != cudaSuccess) {
-    std::println("CUDA memcpy error: {}", cudaGetErrorString(err));
+  // если нечего читать или буфер не выделен — сразу выходим
+  if (CURRENT_COUNT == 0 || m_agents == nullptr) {
+    return agents;
   }
+
+  cudaError_t err = cudaMemcpy(agents.data(), m_agents, CURRENT_COUNT * sizeof(Agent), cudaMemcpyDeviceToHost);
+
+  if (err != cudaSuccess) {
+    std::println("CUDA memcpy (D2H) error: {}", cudaGetErrorString(err));
+  }
+
   return agents;
 }
 
 void AgentManager::AddFireAt(const Float3& world, float intensity) {
-  if (m_count >= m_capacity)
+  if (m_count >= m_capacity || m_agents == nullptr) {
+    std::cerr << "AgentManager::AddFireAt: no capacity or device buffer\n";
+
     return;
+  }
 
   Agent fire{};
   fire.type = FireAgentState::Burning;
@@ -48,49 +62,66 @@ void AgentManager::AddFireAt(const Float3& world, float intensity) {
 
   const float HALF_HEIGHT = FIRE_SOURCE_HEIGHT * 0.5F;
 
-  fire.fire_collider.bounds_min = Float3(world.x - FIRE_SOURCE_BASE_RADIUS, world.y - HALF_HEIGHT,
-                                         world.z - FIRE_SOURCE_BASE_RADIUS);
+  fire.fire_collider.bounds_min = Float3(world.x - FIRE_SOURCE_BASE_RADIUS, world.y - HALF_HEIGHT, world.z - FIRE_SOURCE_BASE_RADIUS);
 
-  fire.fire_collider.bounds_max = Float3(world.x + FIRE_SOURCE_BASE_RADIUS, world.y + HALF_HEIGHT,
-                                         world.z + FIRE_SOURCE_BASE_RADIUS);
+  fire.fire_collider.bounds_max = Float3(world.x + FIRE_SOURCE_BASE_RADIUS, world.y + HALF_HEIGHT, world.z + FIRE_SOURCE_BASE_RADIUS);
 
   AddAgent(fire);
 }
 
 int AgentManager::AddAgent(const Agent& agent) {
-  if (m_count >= m_capacity) {
-    std::cerr << "AgentManager: capacity exceeded!" << std::endl;
+  if (m_count >= m_capacity || m_agents == nullptr) {
+    std::cerr << "AgentManager::AddAgent: capacity exceeded or no device buffer!\n";
     return -1;
   }
 
-  cudaMemcpy(m_agents + m_count, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
+  cudaError_t err = cudaMemcpy(m_agents + m_count, &agent, sizeof(Agent), cudaMemcpyHostToDevice);
+
+  if (err != cudaSuccess) {
+    std::cerr << "AgentManager::AddAgent: cudaMemcpy (H2D) failed: " << cudaGetErrorString(err) << '\n';
+    return -1;
+  }
   return m_count++;
 }
+
 void AgentManager::Clear() {
   m_count = 0;
-  cudaMemset(m_agents, 0, m_capacity * sizeof(Agent));
+  if ((m_agents != nullptr) && m_capacity > 0) {
+    cudaError_t err = cudaMemset(m_agents, 0, m_capacity * sizeof(Agent));
+    if (err != cudaSuccess) {
+      std::cerr << "AgentManager::Clear: cudaMemset failed: " << cudaGetErrorString(err) << '\n';
+    }
+  }
 }
 
-
 bool AgentManager::RemoveAgentAt(int idx, int* outSwappedFrom, int* outSwappedTo) {
-  if (idx < 0 || (size_t)idx >= m_count)
+  if (idx < 0 || static_cast<size_t>(idx) >= m_count || m_agents == nullptr) {
     return false;
-  const int last = (int)m_count - 1;
-  if (outSwappedFrom)
+  }
+
+  const int LAST = m_count - 1;
+  if (outSwappedFrom != nullptr) {
     *outSwappedFrom = -1;
-  if (outSwappedTo)
+  }
+  if (outSwappedTo != nullptr)
     *outSwappedTo = -1;
 
-  if (idx != last) {
-    // копируем последнего агента на место удаляемого
-    cudaMemcpy(m_agents + idx, m_agents + last, sizeof(Agent), cudaMemcpyDeviceToDevice);
-    if (outSwappedFrom)
-      *outSwappedFrom = last;
-    if (outSwappedTo)
+  if (idx != LAST) {
+    cudaError_t err = cudaMemcpy(m_agents + idx, m_agents + LAST, sizeof(Agent), cudaMemcpyDeviceToDevice);
+
+    if (err != cudaSuccess) {
+      std::cerr << "AgentManager::RemoveAgentAt: cudaMemcpy (D2D) failed: " << cudaGetErrorString(err) << '\n';
+      return false;
+    }
+
+    if (outSwappedFrom != nullptr) {
+      *outSwappedFrom = LAST;
+    }
+    if (outSwappedTo != nullptr) {
       *outSwappedTo = idx;
+    }
   }
-  // просто уменьшаем "логическое" количество
+
   --m_count;
-  // (опционально) cudaGetLastError проверка
   return true;
 }

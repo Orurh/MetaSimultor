@@ -1,8 +1,7 @@
 #pragma once
-
+#include "agent.h"
 #include <cuda_runtime.h>
 #include <glm/glm.hpp>
-#include "agent.h"
 #include "fire/FireSimulationParams.h"
 
 // Простые структуры для будущего spatial hashing (пока не используются).
@@ -24,15 +23,13 @@ struct FireGridParams {
   float world_min_x;
   float world_min_z;
   float cell_size;
-  int   grid_size_x;
-  int   grid_size_z;
+  int grid_size_x;
+  int grid_size_z;
 };
 
 // Выполняет один шаг симуляции огня для массива агентов на GPU.
-void SimulationStep(Agent* agents, int count, float dt,
-                    const glm::vec3& wind_force,
-                    const FireSimulationParams& params,
-                    const FireGridParams& grid);
+void SimulationStep(Agent* agents, int count, float dt, const glm::vec3& wind_force,
+                    const FireSimulationParams& params, const FireGridParams& grid);
 
 // // Упрощённый вариант с параметрами по умолчанию.
 // inline void SimulationStep(Agent* agents, int count, float dt, const glm::vec3& wind_force) {

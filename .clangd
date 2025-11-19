@@ -5,14 +5,16 @@ CompileFlags:
   Add: [
     # --- локальные third_party ---
     "-Ilibs/glad/include",
-    "-Ilibs/imgui",
+    "-Ilibs/imgui", 
     "-Ilibs/imgui/backends",
-
-    # --- твои инклюды проекта ---
-    "-Iinclude",
+    "-Iinclude",                   
     "-Isrc",
     "-Isrc/ui",
 
+    # --- твои инклюды проекта ---
+    "-I${workspaceFolder}/include",
+    "-I${workspaceFolder}/src",
+  
     # --- системные, как у тебя ---
     "-I/usr/include/x86_64-linux-gnu/qt6",
     "-I/usr/include/x86_64-linux-gnu/qt6/QtCore",

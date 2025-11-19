@@ -38,25 +38,47 @@ __device__ int GetCellIndexDevice(float x, float z, const FireGridParams& grid, 
 }
 
 
-__global__ void BuildGridKernel(const Agent* agents, int count,
-                                const FireGridParams grid,
-                                int* cell_heads, int* cell_next) {
-  int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx >= count) return;
+__global__ void BuildGridKernel(const Agent* agents,
+                                int count,
+                                FireGridParams grid,
+                                int* cell_heads,
+                                int* cell_next)
+{
+  const int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (idx < 0 || idx >= count) {
+    return;
+  }
+
+  // На всякий случай — защита от нулевых указателей
+  if (!agents || !cell_heads || !cell_next) {
+    return;
+  }
 
   const Float3 pos = agents[idx].position;
 
-  GridIndex gi;
+  GridIndex gi{};
   int cell_idx = GetCellIndexDevice(pos.x, pos.z, grid, &gi);
+
+  // Агент вне мира → просто помечаем его как "нет ячейки"
   if (cell_idx < 0) {
     cell_next[idx] = -1;
     return;
   }
 
-  // Вставляем агента в голову списка ячейки через atomicExch
+  // Сверх-защита: проверяем, что индекс ячейки не выходит за пределы грида.
+  // (Если FireGridParams на устройстве битый — мы хотя бы не полезем за память.)
+  const int max_cells = grid.grid_size_x * grid.grid_size_z;
+  if (cell_idx < 0 || cell_idx >= max_cells) {
+    // Что-то не так с grid — лучше безопасно вывалиться
+    cell_next[idx] = -1;
+    return;
+  }
+
+  // Вставляем агента в односвязный список этой ячейки
   int old_head = atomicExch(&cell_heads[cell_idx], idx);
-  cell_next[idx] = old_head; // -1, если в ячейке никого не было
+  cell_next[idx] = old_head;   // -1, если там никого не было
 }
+
 
 // -----------------------------------------------------------------------------
 // Small math helpers
@@ -604,51 +626,71 @@ __global__ void UpdateAgentsKernel(Agent* agents,
 // Host API
 // -----------------------------------------------------------------------------
 
-void SimulationStep(Agent* agents, int count, float dt,
+void SimulationStep(Agent* agents,
+                    int count,
+                    float dt,
                     const glm::vec3& wind_force,
                     const FireSimulationParams& params,
-                    const FireGridParams& grid) {
+                    const FireGridParams& grid)
+{
+  if (!agents || count <= 0) {
+    return;
+  }
+
   constexpr int K_BLOCK_SIZE = 256;
   const int GRID_SIZE = (count + K_BLOCK_SIZE - 1) / K_BLOCK_SIZE;
 
   const float3 f{wind_force.x, wind_force.y, wind_force.z};
 
-  // ---------------------------
-  // 1) Выделяем/переиспользуем память под grid
-  // ---------------------------
-  static int* d_cell_heads = nullptr;
-  static int* d_cell_next  = nullptr;
-  static int  allocated_agents = 0;
-  static int  allocated_cells  = 0;
+  static int* d_cell_heads      = nullptr;
+  static int* d_cell_next       = nullptr;
+  static int  allocated_agents  = 0;
+  static int  allocated_cells   = 0;
 
   const int num_cells = grid.grid_size_x * grid.grid_size_z;
 
+  // --- защита от странного грида ---
+  if (grid.grid_size_x <= 0 || grid.grid_size_z <= 0 || num_cells <= 0) {
+    // просто обновляем ядром без грида (если нужно — можно сделать fallback)
+    // или вообще return; чтобы не падать
+    return;
+  }
+
+  // d_cell_next: по числу агентов
   if (allocated_agents < count) {
     if (d_cell_next) cudaFree(d_cell_next);
     cudaMalloc(&d_cell_next, count * sizeof(int));
     allocated_agents = count;
   }
 
+  // d_cell_heads: по числу ячеек
   if (allocated_cells < num_cells) {
     if (d_cell_heads) cudaFree(d_cell_heads);
     cudaMalloc(&d_cell_heads, num_cells * sizeof(int));
     allocated_cells = num_cells;
   }
 
-  // 2) Заполняем cell_heads = -1
-  cudaMemset(d_cell_heads, 0xFF, num_cells * sizeof(int)); // 0xFF -> -1 для int
+  // Обнуляем (и next, и heads), чтобы не тащить мусор между кадрами
+  cudaMemset(d_cell_heads, 0xFF, num_cells * sizeof(int));     // -1
+  cudaMemset(d_cell_next,  0xFF, allocated_agents * sizeof(int));
 
-  // 3) Строим grid на GPU
-  BuildGridKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(agents, count, grid, d_cell_heads, d_cell_next);
+  cudaError_t err;
 
-  // 4) Основной шаг симуляции, уже пользуясь grid
+  // 1) строим грид
+  BuildGridKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(agents, count, grid,
+                                               d_cell_heads, d_cell_next);
+  err = cudaDeviceSynchronize();
+  if (err != cudaSuccess) {
+    printf("BuildGridKernel launch error: %s\n", cudaGetErrorString(err));
+    return; // дальше идти смысла нет
+  }
+
+  // 2) основное ядро
   UpdateAgentsKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(
       agents, count, dt, f, params, grid, d_cell_heads, d_cell_next);
-
-  cudaDeviceSynchronize();
-
-  const cudaError_t ERR = cudaGetLastError();
-  if (ERR != cudaSuccess) {
-    printf("CUDA error: %s\n", cudaGetErrorString(ERR));
+  err = cudaDeviceSynchronize();
+  if (err != cudaSuccess) {
+    printf("UpdateAgentsKernel launch error: %s\n", cudaGetErrorString(err));
   }
 }
+
