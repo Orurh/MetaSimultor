@@ -14,7 +14,7 @@ void WindPanel::Draw(EditorContext& ctx) {
     auto& fireConfig = scene.GetFireModule();
     auto& env        = fireConfig.Config().m_env; // FireEnvironmentConfig
     
-    ImGui::Begin("Wind & Environment", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::Begin("Wind, Temp & Environment", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     
     // -----------------------
     // WIND

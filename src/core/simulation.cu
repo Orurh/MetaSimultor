@@ -137,7 +137,7 @@ __device__ float ComputeHeatTransfer(float Tsrc, float Tdst, float distance, flo
   // --- NEW: мягко усиливаем начальный нагрев для холодных материалов ---
   // ignition_temp > 0 — нормальная ситуация; если вдруг нет, не трогаем.
   if (ignition_temp > 0.0f && heat > 0.0f) {
-    const float half_ign = 0.5f * ignition_temp;
+    // const float half_ign = 0.5f * ignition_temp;
 
     if (Tdst < ignition_temp) {
       // Нормируем на 0..1 в диапазоне [0 .. ignition_temp]

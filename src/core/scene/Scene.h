@@ -29,6 +29,7 @@ public:
   void AddFire(float x, float z, float intensity = 1.0F);
 
   void AddFireAt(const glm::vec3 &world, float intensity = 1.0F);
+  void IgniteNearest(const glm::vec3& worldPos, float maxDist);
   void Generate();
   void Clear();
   void Shutdown();

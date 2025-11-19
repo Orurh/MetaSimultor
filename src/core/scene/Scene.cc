@@ -52,7 +52,7 @@ void Scene::EnsureModelsForPrefab(const std::string& id, const engine::data::Age
 }
 
 void Scene::Update(float dt) {
-    auto startTime = std::chrono::high_resolution_clock::now();
+  auto startTime = std::chrono::high_resolution_clock::now();
 
   m_windTime += dt;
   glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
@@ -118,7 +118,6 @@ void Scene::Update(float dt) {
     system->SetWind(currentWind);
     system->Update();
   }
-
 }
 
 void Scene::Render() {
@@ -133,13 +132,14 @@ void Scene::Render() {
   Renderer::Instance().BeginScene(view, projection);
 
   auto agents = LoadAgentsFromGPU();
-  
+
   std::unordered_map<std::string, std::vector<glm::mat4>> instanceData;
-  
+
   auto render_view = m_registry.view<TransformComponent, RenderComponent, AgentLinkComponent>();
 
   for (auto [entity, transform, render, link] : render_view.each()) {
-    if (!render.is_visible) continue;
+    if (!render.is_visible)
+      continue;
 
     const Agent& agent = agents[link.gpu_index];
     const auto& prefab = m_prefabSystem.GetPrefab(link.prefab_id);
@@ -178,7 +178,8 @@ void Scene::Render() {
   }
 
   Renderer::Instance().UploadAgentsData(agents);
-  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
+  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(),
+                                   m_terrain->GetDiffuseTexture());
   auto particleView = m_registry.view<ParticleSystemComponent, TransformComponent>();
   for (auto [entity, particleComp, transform] : particleView.each()) {
     if (particleComp.isActive) {
@@ -192,7 +193,6 @@ void Scene::Render() {
   }
 
   Renderer::Instance().EndScene();
-
 }
 
 void Scene::AddParticleSystem(const std::shared_ptr<ParticleSystem>& system) {
@@ -271,7 +271,7 @@ void Scene::AddPrefab(const std::string& prefab_id, float x, float z, float scal
   // moisture — массив по точкам
   for (int i = 0; i < coll.point_count; ++i) {
     coll.moisture[i] += prefab.m_fireMoistureOffset;
-    coll.fuels[i]    *= prefab.m_fireFuelMult; // добавил множитель топлива
+    coll.fuels[i] *= prefab.m_fireFuelMult;  // добавил множитель топлива
   }
 
   int gpu_index = m_agentManager.AddAgent(agent);
@@ -341,11 +341,8 @@ void Scene::AddFire(float x, float z, float intensity) {
 }
 
 void Scene::AddFireAt(const glm::vec3& world, float intensity) {
-    std::cout << "[Fire] AddFireAt world = ("
-            << world.x << ", "
-            << world.y << ", "
-            << world.z << "), intensity = "
-            << intensity << '\n';
+  std::cout << "[Fire] AddFireAt world = (" << world.x << ", " << world.y << ", " << world.z
+            << "), intensity = " << intensity << '\n';
   m_agentManager.AddFireAt(Float3{world.x, world.y, world.z}, intensity);
 
   Entity fireEntity = CreateEntity("fire_emitter");
@@ -409,4 +406,41 @@ bool Scene::RemoveNearestAt(const glm::vec3& world, float maxXZDist) {
 
   return true;
 }
+
+// воспламеняет агента
+void Scene::IgniteNearest(const glm::vec3& worldPos, float maxDist) {
+  auto agents = LoadAgentsFromGPU();
+
+  int best = -1;
+  float bestDist2 = maxDist * maxDist;
+
+  // найдём ближайшего агента
+  auto view = m_registry.view<TransformComponent, AgentLinkComponent>();
+  for (auto [entity, transform, link] : view.each()) {
+    float dx = transform.position.x - worldPos.x;
+    float dz = transform.position.z - worldPos.z;
+    float d2 = dx * dx + dz * dz;
+    if (d2 < bestDist2) {
+      bestDist2 = d2;
+      best = link.gpu_index;
+    }
+  }
+
+  if (best == -1)
+    return;
+
+  Agent& ag = agents[best];
+  auto& coll = ag.fire_collider;
+
+  // воспламеняем все точки
+  for (int i = 0; i < coll.point_count; i++) {
+    coll.temperatures[i] = coll.ignition_temp + 50.0f;  // чуть выше порога
+    coll.intensities[i] = 1.0f;                         // максимум
+    coll.fuels[i] = std::max(coll.fuels[i], 50.0f);
+  }
+
+  ag.type = FireAgentState::Burning;
+  m_agentManager.SetAgents(agents);
+}
+
 }  // namespace engine

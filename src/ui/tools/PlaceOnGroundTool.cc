@@ -119,6 +119,7 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
           engine::MouseButton::Left, engine::InputState::Pressed)) {
     return;
   }
+  if (!ctx.m_scene) return;
 
   // 1) курсор окна
   const glm::dvec2 MOUSE_WIN = ReadMouseWindow(ctx.m_window);
@@ -139,7 +140,7 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
   glm::vec3 rd{};
   BuildScreenRay(ctx, PX, ro, rd);
 
-  // 5) сначала — попытка удаления (ПКМ или Ctrl+ЛКМ)
+  // 5) сначала — попытка удаления (ПКМ или Space+ЛКМ)
   if (HandleDeleteClick(ctx, ro, rd))
     return;
 
@@ -152,12 +153,15 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
   bool hitT = false;
   float anchorY = 0.0f;
 
+  auto &state = ctx.State();
+  using PlaceKind = EditorState::PlaceKind;
+
   if (ctx.m_scene->GetTerrain() != nullptr) {
-    // Якорь только для префаба, для огня anchorY = 0
-    if (ctx.State().m_placeKind == EditorState::PlaceKind::PREFAB &&
-        !ctx.State().m_selectedPrefab.empty()) {
+    // Якорь только для префаба, для огня/IGNITE anchorY = 0
+    if (state.m_placeKind == PlaceKind::PREFAB &&
+        !state.m_selectedPrefab.empty()) {
       const auto &prefab = ctx.m_scene->GetPrefabSystem().GetPrefab(
-          ctx.State().m_selectedPrefab);
+          state.m_selectedPrefab);
       anchorY = -prefab.m_bounds_min.y * prefab.m_modelScale.y;
     }
 
@@ -165,17 +169,27 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
   }
 
   if (hitT) {
-    if (ctx.State().m_placeKind == EditorState::PlaceKind::FIRE) {
-      // гарантируем, что огонь стоит ровно на земле
-      hitTerrain.y = ctx.m_scene->GetGroundHeight(hitTerrain.x, hitTerrain.z);
-      ctx.m_scene->AddFireAt(hitTerrain, ctx.State().m_fireIntensity);
-    } else {
-      ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hitTerrain.x,
-                             hitTerrain.z, 1);
+    switch (state.m_placeKind) {
+      case PlaceKind::FIRE: {
+        // гарантируем, что огонь стоит ровно на земле
+        hitTerrain.y = ctx.m_scene->GetGroundHeight(hitTerrain.x, hitTerrain.z);
+        ctx.m_scene->AddFireAt(hitTerrain, state.m_fireIntensity);
+        break;
+      }
+      case PlaceKind::PREFAB: {
+        ctx.m_scene->AddPrefab(state.m_selectedPrefab, hitTerrain.x,
+                               hitTerrain.z, 1.0f);
+        break;
+      }
+      case PlaceKind::IGNITE: {
+        // поджечь ближайший объект к точке попадания
+        // используем тот же радиус, что и для RemoveNearestAt (kPickRadiusXZ)
+        ctx.m_scene->IgniteNearest(hitTerrain, kPickRadiusXZ);
+        break;
+      }
     }
     return;
   }
-
 
   // 6b) фолбек: Y=0 (как у вас было)
   glm::vec3 hitPlane{}; 
@@ -183,13 +197,23 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
     return;
   }
 
-  if (ctx.State().m_placeKind == EditorState::PlaceKind::FIRE) {
-    ctx.m_scene->AddFire(hitPlane.x, hitPlane.z, ctx.State().m_fireIntensity);
-  } else {
-    ctx.m_scene->AddPrefab(ctx.State().m_selectedPrefab, hitPlane.x, hitPlane.z,
-                           1);
+  switch (state.m_placeKind) {
+    case PlaceKind::FIRE: {
+      ctx.m_scene->AddFire(hitPlane.x, hitPlane.z, state.m_fireIntensity);
+      break;
+    }
+    case PlaceKind::PREFAB: {
+      ctx.m_scene->AddPrefab(state.m_selectedPrefab, hitPlane.x, hitPlane.z,
+                             1.0f);
+      break;
+    }
+    case PlaceKind::IGNITE: {
+      ctx.m_scene->IgniteNearest(hitPlane, kPickRadiusXZ);
+      break;
+    }
   }
 }
+
 
 bool PlaceOnGroundTool::IsDeleteGesture() noexcept {
   using engine::InputState;
