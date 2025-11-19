@@ -12,6 +12,9 @@
 #include "core/fire/FireModule.h"
 #include "entt.hpp"
 #include "sceneObj/ObjectModelStore.h"
+
+#include "SimulationTime.h"
+
 namespace engine {
 class Model;
 class Entity;
@@ -79,6 +82,13 @@ class Scene {
   FireModule &GetFireModule() { return m_fire; }
   const FireModule &GetFireModule() const { return m_fire; }
 
+
+  SimulationTime &GetTime() { return m_time; }
+  const SimulationTime &GetTime() const { return m_time; }
+
+  double GetSimTimeSeconds() const { return m_time.GetSimTime(); }
+  double GetRealTimeSeconds() const { return m_time.GetRealTimeSinceStart(); }
+
   private:
   void EnsureModelsForPrefab(const std::string &id, const engine::data::AgentPrefab &prefab);
   void LoadObjectModels(const std::string &object_name, const std::string &normal_path, const std::string &burning_path,
@@ -111,5 +121,6 @@ class Scene {
   float m_vpScaleX{1.0F}, m_vpScaleY{1.0F};
 
   FireModule m_fire;
+  SimulationTime m_time;
 };
 }  // namespace engine
