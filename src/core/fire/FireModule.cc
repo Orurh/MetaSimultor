@@ -10,7 +10,7 @@ void FireModule::Step(AgentManager &manager, float dt, const glm::vec3 &wind) {
   m_sim.SetWind(wind);
 
   // 2) конфиг мог поменяться из UI -> обновляем библиотеку материалов
-  m_materials.SetConfig(m_sim.Config());
+  // m_materials.SetConfig(m_sim.Config()); 
 
   // 3) запускаем CUDA ядро
   m_sim.Step(manager.GetDeviceAgents(), manager.GetAgentCount(), dt);
@@ -19,6 +19,6 @@ void FireModule::Step(AgentManager &manager, float dt, const glm::vec3 &wind) {
 void FireModule::ApplyMaterialToAgent(Agent &agent,
                                       std::string_view material_id) {
   // На всякий случай держим конфиги в синхроне
-  m_materials.SetConfig(m_sim.Config());
+  // m_materials.SetConfig(m_sim.Config());
   m_materials.ApplyToCollider(agent.fire_collider, material_id);
 }

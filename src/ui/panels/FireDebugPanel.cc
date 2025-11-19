@@ -12,6 +12,53 @@
 
 namespace ui {
 
+namespace {
+
+// простой raycast по террейну без anchorY
+bool RaycastTerrainSimple(const engine::Terrain& T,
+                          const glm::vec3& ro,
+                          const glm::vec3& rd,
+                          glm::vec3& outHit) {
+  auto f = [&](float t) {
+    glm::vec3 p = ro + rd * t;
+    return p.y - T.GetHeightAt(p.x, p.z);
+  };
+
+  const float T_MAX = 5000.0f;
+  const float STEP  = 2.0f;
+
+  float t0 = 0.0f;
+  float v0 = f(t0);
+
+  for (float t = STEP; t <= T_MAX; t += STEP) {
+    float v1 = f(t);
+    bool signChange = (v0 > 0.0f && v1 <= 0.0f) || (v0 < 0.0f && v1 >= 0.0f);
+    if (signChange) {
+      float a = t - STEP;
+      float b = t;
+      // бинпоиск
+      for (int i = 0; i < 24; ++i) {
+        float m  = 0.5f * (a + b);
+        float vm = f(m);
+        if ((v0 > 0.0f && vm > 0.0f) || (v0 < 0.0f && vm < 0.0f)) {
+          a = m;
+          v0 = vm;
+        } else {
+          b = m;
+        }
+      }
+      float thit = 0.5f * (a + b);
+      outHit = ro + rd * thit;
+      return true;
+    }
+    t0 = t;
+    v0 = v1;
+  }
+  return false;
+}
+
+} // namespace
+
 void FireDebugPanel::Draw(EditorContext &ctx) {
   // 0) Всегда слушаем жест Ctrl+ЛКМ — он может открыть панель
   HandlePick(ctx);
@@ -67,9 +114,7 @@ void FireDebugPanel::Draw(EditorContext &ctx) {
 
 void FireDebugPanel::HandlePick(EditorContext &ctx) {
   using engine::InputSystem;
-  using engine::KeyCode;
 
-  // 0) если мышь захвачена UI — не трогаем
   if (InputSystem::Instance().UIMouseCaptured()) {
     return;
   }
@@ -87,59 +132,60 @@ void FireDebugPanel::HandlePick(EditorContext &ctx) {
   if (!CTRL_DOWN || !LMB_PRESSED)
     return;
 
-  // 2) Позиция курсора в окне (как в PlaceOnGroundTool)
+  // Позиция курсора в окне
   double mx = 0.0;
   double my = 0.0;
   glfwGetCursorPos(ctx.m_window, &mx, &my);
 
-  // 3) окно -> логические координаты вьюпорта
-  const glm::vec2 VP_LOGICAL = ctx.WindowToViewportLogical(
-      static_cast<float>(mx), static_cast<float>(my));
+  // окно -> координаты фреймбуфера (готовая хелпер-функция)
+  const glm::vec2 fb = ctx.WindowToViewportFB(static_cast<float>(mx),
+                                              static_cast<float>(my));
 
-  const bool INSIDE = (VP_LOGICAL.x >= 0.F && VP_LOGICAL.y >= 0.F &&
-                       VP_LOGICAL.x < static_cast<float>(ctx.vpW) &&
-                       VP_LOGICAL.y < static_cast<float>(ctx.vpH));
-
-  if (!INSIDE)
-    return;
-
-  // 4) логические -> framebuffer px (ровно как в
-  // PlaceOnGroundTool::ToFramebufferPx)
-  const glm::vec2 px = {
-      VP_LOGICAL.x * ctx.m_vpScaleX,
-      VP_LOGICAL.y * ctx.m_vpScaleY,
-  };
-
-  // 5) луч из пикселя FB
-  glm::vec3 ro{};
-  glm::vec3 rd{};
-  const auto FB_W = static_cast<float>(ctx.m_viewportW);
-  const auto FB_H = static_cast<float>(ctx.m_viewportH);
-  math::ScreenPointToRay(px.x, px.y, FB_W, FB_H, ctx.m_proj, ctx.m_view, ro,
-                         rd);
-
-  // 6) пересечение с плоскостью Y=0
-  glm::vec3 hit{};
-  if (!math::IntersectRayPlaneY0(ro, rd, hit)) {
+  // проверка, что внутри вьюпорта
+  if (fb.x < 0.f || fb.y < 0.f ||
+      fb.x >= static_cast<float>(ctx.vpW) ||
+      fb.y >= static_cast<float>(ctx.vpH)) {
     return;
   }
 
-  // 7) если есть террейн — подтягиваем Y по высоте
-  if (auto *T = ctx.m_scene->GetTerrain()) {
+  // луч из пикселя FB
+  glm::vec3 ro{};
+  glm::vec3 rd{};
+  const float FB_W = static_cast<float>(ctx.m_viewportW);
+  const float FB_H = static_cast<float>(ctx.m_viewportH);
+  math::ScreenPointToRay(fb.x, fb.y, FB_W, FB_H, ctx.m_proj, ctx.m_view,
+                         ro, rd);
+
+  glm::vec3 hit{};
+  bool got = false;
+
+  const auto* T = ctx.m_scene->GetTerrain();
+  if (T) {
+    got = RaycastTerrainSimple(*T, ro, rd, hit);
+  }
+  if (!got) {
+    got = math::IntersectRayPlaneY0(ro, rd, hit);
+  }
+  if (!got) {
+    return;
+  }
+
+  // если есть террейн — подправим Y ещё раз (на случай фолбека по плоскости)
+  if (T) {
     hit.y = T->GetHeightAt(hit.x, hit.z);
   }
 
-  // 8) ищем ближайший объект по XZ (радиус ~2 метра)
+  // поиск ближайшего агента по XZ
   float bestDist2 = 4.0f; // 2^2
-  int bestGpuIndex = -1;
+  int   bestGpuIndex = -1;
 
   auto view = ctx.m_scene->GetSceneObjectsView();
   for (auto [entity, transform, render, link] : view.each()) {
-    const float DX = transform.position.x - hit.x;
-    const float DZ = transform.position.z - hit.z;
-    const float DIST2 = (DX * DX) + (DZ * DZ);
-    if (DIST2 < bestDist2) {
-      bestDist2 = DIST2;
+    const float dx = transform.position.x - hit.x;
+    const float dz = transform.position.z - hit.z;
+    const float dist2 = dx * dx + dz * dz;
+    if (dist2 < bestDist2) {
+      bestDist2  = dist2;
       bestGpuIndex = link.gpu_index;
     }
   }
@@ -147,17 +193,17 @@ void FireDebugPanel::HandlePick(EditorContext &ctx) {
   if (bestGpuIndex < 0)
     return;
 
-  // 9) Загружаем агентов с GPU и берём нужного
   auto agents = ctx.m_scene->LoadAgentsFromGPU();
-  if (bestGpuIndex >= 0 && bestGpuIndex < static_cast<int>(agents.size())) {
-    m_agentSnapshot = agents[bestGpuIndex];
+  if (bestGpuIndex >= 0 &&
+      bestGpuIndex < static_cast<int>(agents.size())) {
+    m_agentSnapshot    = agents[bestGpuIndex];
     m_selectedGpuIndex = bestGpuIndex;
-    m_hasSelection = true;
-    m_pointIndex = 0;
-
-    m_visible = true;
+    m_hasSelection     = true;
+    m_pointIndex       = 0;
+    m_visible          = true;
   }
 }
+
 
 void FireDebugPanel::DrawAgentInfo() {
   const Agent &a = m_agentSnapshot;

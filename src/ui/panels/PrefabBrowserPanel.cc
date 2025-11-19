@@ -1,4 +1,5 @@
 #include "ui/panels/PrefabBrowserPanel.h"
+#include "core/agent.h"
 #include "core/scene/Scene.h"
 #include "data/PrefabSystem.h"
 #include "graphics/Material.h"
@@ -187,7 +188,7 @@ void PrefabBrowserPanel::DrawType(AgentPrefab &P) {
   int t = (int)P.m_type;
   const char *types[] = {"Tree", "Burned", "Fire", "House"};
   if (ImGui::Combo("Type", &t, types, IM_ARRAYSIZE(types))) {
-    P.m_type = static_cast<AgentType>(t);
+    P.m_type = static_cast<FireAgentState>(t);
   }
 }
 
@@ -230,6 +231,9 @@ void PrefabBrowserPanel::DrawFireSection(AgentPrefab &P) {
   // Смещение влажности (от -1 до 1)
   ImGui::DragFloat("Moisture offset", &P.m_fireMoistureOffset,
                    0.01f, -1.0f, 1.0f);
+  // Множитель топлива
+  ImGui::DragFloat("Fuel mult", &P.m_fireFuelMult,
+                 0.01f, 0.5f, 2.0f);
 }
 
 

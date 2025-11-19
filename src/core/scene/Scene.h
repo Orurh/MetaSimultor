@@ -3,6 +3,7 @@
 #include "Terrain.h"
 #include "configs/WindConfig.h"
 #include "core/AgentManager.h"
+#include "core/fire/FireConfig.h"
 #include "data/PrefabSystem.h"
 #include "graphics/ParticleSystem/ParticleSystem.h"
 #include <memory>
@@ -27,6 +28,7 @@ class Scene {
   void AddFire(float x, float z, float intensity = 1.0F);
 
   void AddFireAt(const glm::vec3 &world, float intensity = 1.0F);
+  void IgniteNearest(const glm::vec3 &worldPos, float maxDist);
   void Generate();
   void Clear();
   void Shutdown();
@@ -61,6 +63,7 @@ class Scene {
 
   WindConfig &GetWindConfig() { return m_windConfig; }
   const WindConfig &GetWindConfig() const { return m_windConfig; }
+
   float GetWindTime() const { return m_windTime; }
   void ReloadModelForPrefab(const std::string &prefab_id, const engine::data::AgentPrefab &prefab);
   void GenerateTerrain(const TerrainGenerationSettings &s);
@@ -82,7 +85,7 @@ class Scene {
                         const std::string &burned_path);
   void RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>> &instanceData);
 
-  Model *GetModelForState(const ObjectModels *models, AgentType state);
+  Model *GetModelForState(const ObjectModels *models, FireAgentState state);
   glm::mat4 CalculateModelMatrix(const glm::vec3 &position, const glm::vec3 &scale) const;
   AgentManager m_agentManager;
   std::vector<std::shared_ptr<ParticleSystem>> m_particleSystems;
@@ -93,6 +96,7 @@ class Scene {
   ObjectModelStore m_objectModels;
   Camera m_camera;
   WindConfig m_windConfig;
+  FireConfig m_fireConfig;
   float m_windTime = 0.0F;
   float m_fireIntensity{1.0F};
   std::shared_ptr<ParticleSystem> m_firePrototype;

@@ -2,10 +2,10 @@
 #include <glm/glm.hpp>
 
 #include "cuda_include.h"
-enum AgentType {
-    NORMAL = 0,
-    BURNING = 1,   
-    BURNED = 2
+enum class FireAgentState : uint8_t {
+    Normal  = 0,
+    Burning = 1,
+    Burned  = 2,
 };
 
 struct Float3 {
@@ -35,12 +35,13 @@ struct FireCollider {
     float intensities[64];   // "мощность" горения (визуал/источник тепла)
     float temperatures[64];  // температура точки (K или °C — главное, везде одинаково)
     float moisture[64];      // локальная влажность (0..1), пока не используем, но пригодится
+    float max_temperature; // максимальная температура
 
         // Материал / физические свойства
     float conductivity;      // базовая теплопроводность коллайдера (дерево/трава)
     float ignition_temp;     // базовый порог воспламенения материала
 
-    int point_count;
+    int point_count;            
 
     __host__ __device__
     FireCollider()
@@ -63,7 +64,7 @@ struct FireCollider {
 
 struct Agent {
     Float3 position;
-    AgentType type;
+    FireAgentState type;   
     float intensity{};
     int object_id; 
     
@@ -71,10 +72,10 @@ struct Agent {
     FireCollider fire_collider;
     
     __host__ __device__
-    Agent() : position(), type(NORMAL), object_id(-1) {}
+    Agent() : position(), type(FireAgentState::Normal), object_id(-1) {}
     
     __host__ __device__
-    Agent(float x, float y, float z, AgentType type, int id) 
+    Agent(float x, float y, float z, FireAgentState type, int id) 
         : position(x, y, z), type(type), object_id(id) {}
     
     __host__ __device__

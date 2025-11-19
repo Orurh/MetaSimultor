@@ -1,15 +1,12 @@
 #include "PrefabSystem.h"
-#include "graphics/TextureCache.h"
 #include <algorithm>
+#include <cmath>  // наверху файла, если ещё нет
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
-#include <cmath> // наверху файла, если ещё нет
-
-
-
-
+#include "core/agent.h"
+#include "graphics/TextureCache.h"
 
 namespace fs = std::filesystem;
 namespace engine::data {
@@ -17,10 +14,8 @@ namespace engine::data {
 namespace {
 
 // Генерация точек огня для "дерева" по bounds и scale
-void GenerateTreeFirePointsFromBounds(const AgentPrefab& prefab,
-                                      const glm::vec3& position,
-                                      float scale,
-                                      FireCollider& c) {
+void GenerateTreeFirePointsFromBounds(const AgentPrefab& prefab, const glm::vec3& position,
+                                      float scale, FireCollider& c) {
   const glm::vec3 scaled_min = prefab.m_bounds_min * scale;
   const glm::vec3 scaled_max = prefab.m_bounds_max * scale;
 
@@ -31,9 +26,9 @@ void GenerateTreeFirePointsFromBounds(const AgentPrefab& prefab,
   if (height <= 0.0f) {
     // вырожденный объём – одна точка в центре
     const glm::vec3 center = 0.5f * (world_min + world_max);
-    c.point_count    = 1;
+    c.point_count = 1;
     c.heat_points[0] = Float3::fromGlm(center);
-    c.fuels[0]       = 100.0f;
+    c.fuels[0] = 100.0f;
     c.intensities[0] = 0.0f;
     return;
   }
@@ -44,12 +39,12 @@ void GenerateTreeFirePointsFromBounds(const AgentPrefab& prefab,
   // --- ствол: несколько точек по высоте в центре
   const int trunkSegments = 6;
   for (int i = 0; i < trunkSegments && c.point_count < MAX_POINTS; ++i) {
-    const float t      = (i + 0.5f) / trunkSegments; // 0..1
+    const float t = (i + 0.5f) / trunkSegments;  // 0..1
     const float yLocal = scaled_min.y + t * height;
     glm::vec3 world_pos = position + glm::vec3(0.0f, yLocal, 0.0f);
 
     c.heat_points[c.point_count] = Float3::fromGlm(world_pos);
-    c.fuels[c.point_count]       = 30.0f;
+    c.fuels[c.point_count] = 30.0f;
     c.intensities[c.point_count] = 0.0f;
     ++c.point_count;
   }
@@ -59,25 +54,25 @@ void GenerateTreeFirePointsFromBounds(const AgentPrefab& prefab,
   const float radiusZ = 0.5f * (scaled_max.z - scaled_min.z);
   const float baseRadius = std::max(radiusX, radiusZ);
 
-  constexpr int   crownLevels      = 3;
-  const float     levelHeights[crownLevels]   = {0.3f, 0.6f, 0.85f}; // доли высоты
-  const float     levelRadiusMul[crownLevels] = {0.4f, 0.8f, 0.6f};
+  constexpr int crownLevels = 3;
+  const float levelHeights[crownLevels] = {0.3f, 0.6f, 0.85f};  // доли высоты
+  const float levelRadiusMul[crownLevels] = {0.4f, 0.8f, 0.6f};
   constexpr float PI = 3.1415926535f;
 
   for (int li = 0; li < crownLevels && c.point_count < MAX_POINTS; ++li) {
     const float hLocal = scaled_min.y + levelHeights[li] * height;
-    const float r      = baseRadius * levelRadiusMul[li];
-    const int   numPts = 8 + li * 4; // 8, 12, 16
+    const float r = baseRadius * levelRadiusMul[li];
+    const int numPts = 8 + li * 4;  // 8, 12, 16
 
     for (int i = 0; i < numPts && c.point_count < MAX_POINTS; ++i) {
-      const float a  = 2.0f * PI * (static_cast<float>(i) / numPts);
+      const float a = 2.0f * PI * (static_cast<float>(i) / numPts);
       const float cx = std::cos(a) * r;
       const float cz = std::sin(a) * r;
 
       glm::vec3 world_pos = position + glm::vec3(cx, hLocal, cz);
 
       c.heat_points[c.point_count] = Float3::fromGlm(world_pos);
-      c.fuels[c.point_count]       = 20.0f;
+      c.fuels[c.point_count] = 20.0f;
       c.intensities[c.point_count] = 0.0f;
       ++c.point_count;
     }
@@ -86,36 +81,32 @@ void GenerateTreeFirePointsFromBounds(const AgentPrefab& prefab,
   // на всякий случай – если что-то пошло не так
   if (c.point_count == 0) {
     const glm::vec3 center = 0.5f * (world_min + world_max);
-    c.point_count    = 1;
+    c.point_count = 1;
     c.heat_points[0] = Float3::fromGlm(center);
-    c.fuels[0]       = 100.0f;
+    c.fuels[0] = 100.0f;
     c.intensities[0] = 0.0f;
   }
 }
 
-} // namespace
+}  // namespace
 
-
-  
-static void PushUnique(std::vector<std::string> &v, const std::string &id) {
+static void PushUnique(std::vector<std::string>& v, const std::string& id) {
   if (std::ranges::find(v, id) == v.end()) {
     v.push_back(id);
   }
 }
 
-void PrefabSystem::SavePrefab(const std::string &name,
-                              const AgentPrefab &prefab) {
+void PrefabSystem::SavePrefab(const std::string& name, const AgentPrefab& prefab) {
   m_prefabs[name] = prefab;
   PushUnique(m_idsInLoadOrder, name);
 }
 
-void PrefabSystem::SavePrefabToFile(const std::string &prefab_name,
-                                    const std::string &file_path) {
+void PrefabSystem::SavePrefabToFile(const std::string& prefab_name, const std::string& file_path) {
   if (!PrefabExists(prefab_name)) {
     throw std::runtime_error("Prefab not found:3 " + prefab_name);
   }
 
-  const AgentPrefab &prefab = GetPrefab(prefab_name);
+  const AgentPrefab& prefab = GetPrefab(prefab_name);
 
   YAML::Node root;
   root["name"] = prefab_name;
@@ -129,7 +120,7 @@ void PrefabSystem::SavePrefabToFile(const std::string &prefab_name,
   PushUnique(m_idsInLoadOrder, prefab_name);
   std::cout << "Saved prefab '" << prefab_name << "' to " << file_path << '\n';
 }
-void PrefabSystem::LoadPrefabFromFile(const std::string &file_path) {
+void PrefabSystem::LoadPrefabFromFile(const std::string& file_path) {
   if (!fs::exists(file_path)) {
     throw std::runtime_error("File not found: " + file_path);
   }
@@ -145,13 +136,13 @@ void PrefabSystem::LoadPrefabFromFile(const std::string &file_path) {
   }
 
   AgentPrefab prefab = DeserializePrefab(root);
-  prefab.m_name = name; // <<< ВАЖНО: заполняем поле структуры
+  prefab.m_name = name;  // <<< ВАЖНО: заполняем поле структуры
 
   // защита от дубликатов (как минимум лог и замена/пропуск)
   auto it = m_prefabs.find(name);
   if (it != m_prefabs.end()) {
-    std::cerr << "[PrefabSystem] duplicate name '" << name << "' from "
-              << file_path << " — replacing previous.\n";
+    std::cerr << "[PrefabSystem] duplicate name '" << name << "' from " << file_path
+              << " — replacing previous.\n";
   }
 
   m_prefabs[name] = std::move(prefab);
@@ -159,33 +150,31 @@ void PrefabSystem::LoadPrefabFromFile(const std::string &file_path) {
   std::cout << "Loaded prefab '" << name << "' from " << file_path << '\n';
 }
 
-const AgentPrefab &PrefabSystem::GetPrefab(const std::string &name) const {
+const AgentPrefab& PrefabSystem::GetPrefab(const std::string& name) const {
   auto it = m_prefabs.find(name);
   if (it == m_prefabs.end()) {
     throw std::runtime_error("Prefab not found:2 " + name);
   }
   return it->second;
 }
-bool PrefabSystem::PrefabExists(const std::string &name) const {
+bool PrefabSystem::PrefabExists(const std::string& name) const {
   return m_prefabs.contains(name);
 }
 
-Agent PrefabSystem::CreateAgentFromPrefab(const std::string &prefab_name,
-                                          const glm::vec3 &position,
+Agent PrefabSystem::CreateAgentFromPrefab(const std::string& prefab_name, const glm::vec3& position,
                                           float scale) {
-  const AgentPrefab &prefab = GetPrefab(prefab_name);
+  const AgentPrefab& prefab = GetPrefab(prefab_name);
   return CreateAgentFromPrefab(prefab, position, scale);
 }
 
-Agent PrefabSystem::CreateAgentFromPrefab(const AgentPrefab &prefab,
-                                          const glm::vec3 &position,
+Agent PrefabSystem::CreateAgentFromPrefab(const AgentPrefab& prefab, const glm::vec3& position,
                                           float scale) {
   Agent agent{};
-  agent.position  = Float3::fromGlm(position);
-  agent.type      = prefab.m_type;
+  agent.position = Float3::fromGlm(position);
+  agent.type = prefab.m_type;
   agent.intensity = prefab.m_physics.m_intencity;
 
-  FireCollider &c = agent.fire_collider;
+  FireCollider& c = agent.fire_collider;
 
   // 1) Масштабируем bounds относительно позиции
   glm::vec3 scaled_min = prefab.m_bounds_min * scale;
@@ -199,14 +188,14 @@ Agent PrefabSystem::CreateAgentFromPrefab(const AgentPrefab &prefab,
     c.point_count = std::min<int>(prefab.m_firePoints.size(), 64);
 
     for (int i = 0; i < c.point_count; ++i) {
-      const auto &fp = prefab.m_firePoints[i];
+      const auto& fp = prefab.m_firePoints[i];
 
       glm::vec3 scaled_local_pos = fp.m_position * scale;
-      glm::vec3 world_pos        = position + scaled_local_pos;
+      glm::vec3 world_pos = position + scaled_local_pos;
 
-      c.heat_points[i]   = Float3::fromGlm(world_pos);
-      c.fuels[i]         = fp.m_initialFuel;
-      c.intensities[i]   = 0.0f;
+      c.heat_points[i] = Float3::fromGlm(world_pos);
+      c.fuels[i] = fp.m_initialFuel;
+      c.intensities[i] = 0.0f;
     }
 
     return agent;
@@ -215,28 +204,25 @@ Agent PrefabSystem::CreateAgentFromPrefab(const AgentPrefab &prefab,
   // 3) Иначе – автогенерация по типу
 
   // Тип 0 в UI – "Tree", в enum это твой NORMAL
-  if (prefab.m_type == AgentType::NORMAL) {
+  if (prefab.m_type == FireAgentState::Normal) {
     GenerateTreeFirePointsFromBounds(prefab, position, scale, c);
   } else {
     // простой fallback: одна точка в центре объёма
     const glm::vec3 world_min = position + scaled_min;
     const glm::vec3 world_max = position + scaled_max;
-    const glm::vec3 center    = 0.5f * (world_min + world_max);
+    const glm::vec3 center = 0.5f * (world_min + world_max);
 
-    c.point_count    = 1;
+    c.point_count = 1;
     c.heat_points[0] = Float3::fromGlm(center);
-    c.fuels[0]       = 100.0f;
+    c.fuels[0] = 100.0f;
     c.intensities[0] = 0.0f;
   }
 
   return agent;
 }
 
-
-void PrefabSystem::CreatePrefabFromAgent(const std::string &name,
-                                         const Agent &agent,
-                                         const std::string &model_path,
-                                         const glm::vec3 &scale) {
+void PrefabSystem::CreatePrefabFromAgent(const std::string& name, const Agent& agent,
+                                         const std::string& model_path, const glm::vec3& scale) {
   AgentPrefab prefab;
   prefab.m_name = name;
   prefab.m_type = agent.type;
@@ -247,10 +233,9 @@ void PrefabSystem::CreatePrefabFromAgent(const std::string &name,
 
   for (int i = 0; i < agent.fire_collider.point_count; i++) {
     AgentPrefab::FirePoint fp;
-    fp.m_position =
-        glm::vec3(agent.fire_collider.heat_points[i].x - agent.position.x,
-                  agent.fire_collider.heat_points[i].y - agent.position.y,
-                  agent.fire_collider.heat_points[i].z - agent.position.z);
+    fp.m_position = glm::vec3(agent.fire_collider.heat_points[i].x - agent.position.x,
+                              agent.fire_collider.heat_points[i].y - agent.position.y,
+                              agent.fire_collider.heat_points[i].z - agent.position.z);
     fp.m_initialFuel = agent.fire_collider.fuels[i];
     prefab.m_firePoints.push_back(fp);
   }
@@ -265,10 +250,10 @@ std::vector<std::string> PrefabSystem::GetPrefabNames() const {
   std::vector<std::string> result;
   result.reserve(m_prefabs.size());
   std::ranges::transform(m_prefabs, std::back_inserter(result),
-                         [](const auto &pair) { return pair.first; });
+                         [](const auto& pair) { return pair.first; });
   return result;
 }
-std::vector<std::string> PrefabSystem::GetPrefabsByType(AgentType type) const {
+std::vector<std::string> PrefabSystem::GetPrefabsByType(FireAgentState type) const {
   std::vector<std::string> prefabs;
 
   for (auto [name, prefab] : m_prefabs) {
@@ -279,33 +264,33 @@ std::vector<std::string> PrefabSystem::GetPrefabsByType(AgentType type) const {
 
   return prefabs;
 }
-void PrefabSystem::SerializePrefab(const AgentPrefab &prefab,
-                                   YAML::Node &node) const {
+void PrefabSystem::SerializePrefab(const AgentPrefab& prefab, YAML::Node& node) const {
   node["type"] = static_cast<int>(prefab.m_type);
   node["model_path"] = prefab.m_modelPath;
-  node["model_scale"] = std::vector<float>{
-      prefab.m_modelScale.x, prefab.m_modelScale.y, prefab.m_modelScale.z};
-  node["bounds_min"] = std::vector<float>{
-      prefab.m_bounds_min.x, prefab.m_bounds_min.y, prefab.m_bounds_min.z};
-  node["bounds_max"] = std::vector<float>{
-      prefab.m_bounds_max.x, prefab.m_bounds_max.y, prefab.m_bounds_max.z};
+  node["model_scale"] =
+      std::vector<float>{prefab.m_modelScale.x, prefab.m_modelScale.y, prefab.m_modelScale.z};
+  node["bounds_min"] =
+      std::vector<float>{prefab.m_bounds_min.x, prefab.m_bounds_min.y, prefab.m_bounds_min.z};
+  node["bounds_max"] =
+      std::vector<float>{prefab.m_bounds_max.x, prefab.m_bounds_max.y, prefab.m_bounds_max.z};
 
   node["physics"]["intensity"] = prefab.m_physics.m_intencity;
 
   // 🔥 fire
   {
     YAML::Node fire;
-    fire["material"]        = prefab.m_fireMaterialId;
-    fire["ignition_mult"]   = prefab.m_fireIgnitionMult;
+    fire["material"] = prefab.m_fireMaterialId;
+    fire["ignition_mult"] = prefab.m_fireIgnitionMult;
     fire["humidity_offset"] = prefab.m_fireMoistureOffset;
+    fire["moisture_offset"] = prefab.m_fireMoistureOffset;
+    fire["fuel_mult"] = prefab.m_fireFuelMult;
     node["fire"] = fire;
   }
 
   // fire_points
-  for (const auto &fp : prefab.m_firePoints) {
+  for (const auto& fp : prefab.m_firePoints) {
     YAML::Node fp_node;
-    fp_node["position"] =
-        std::vector<float>{fp.m_position.x, fp.m_position.y, fp.m_position.z};
+    fp_node["position"] = std::vector<float>{fp.m_position.x, fp.m_position.y, fp.m_position.z};
     fp_node["initial_fuel"] = fp.m_initialFuel;
     node["fire_points"].push_back(fp_node);
   }
@@ -318,11 +303,10 @@ void PrefabSystem::SerializePrefab(const AgentPrefab &prefab,
   SerializeMaterialInfo(prefab.burning_material, burning_node);
   SerializeMaterialInfo(prefab.burned_material, burned_node);
 
-  node["materials"]["normal"]  = normal_node;
+  node["materials"]["normal"] = normal_node;
   node["materials"]["burning"] = burning_node;
-  node["materials"]["burned"]  = burned_node;
+  node["materials"]["burned"] = burned_node;
 }
-
 
 // устойчивый к неполным файлам
 AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
@@ -330,9 +314,9 @@ AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
 
   // type
   if (auto t = node["type"]) {
-    prefab.m_type = static_cast<AgentType>(t.as<int>());
+    prefab.m_type = static_cast<FireAgentState>(t.as<int>());
   } else {
-    prefab.m_type = AgentType::NORMAL;
+    prefab.m_type = FireAgentState::Normal;
   }
 
   // model_path
@@ -396,22 +380,29 @@ AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
   }
 
   // 🔥 fire: секция для физических параметров огня — максимально безопасно
- prefab.m_fireMaterialId     = "wood";
- prefab.m_fireIgnitionMult   = 1.0F;
- prefab.m_fireMoistureOffset = 0.0F;
+  prefab.m_fireMaterialId = "wood";
+  prefab.m_fireIgnitionMult = 1.0F;
+  prefab.m_fireMoistureOffset = 0.0F;
+  prefab.m_fireFuelMult = 1.0F;
 
-
-  if (node["fire"] && node["fire"].IsMap()) {
-    YAML::Node fire = node["fire"];
-
+  if (auto fire = node["fire"]; fire && fire.IsMap()) {
     if (auto mat = fire["material"]) {
       prefab.m_fireMaterialId = mat.as<std::string>();
     }
     if (auto ign_mult = fire["ignition_mult"]) {
       prefab.m_fireIgnitionMult = ign_mult.as<float>();
     }
-    if (auto hum_off = fire["humidity_offset"]) {
+
+    // moisture_offset: сначала новое имя, потом — старый humidity_offset для совместимости
+    if (auto moist_off = fire["moisture_offset"]) {
+      prefab.m_fireMoistureOffset = moist_off.as<float>();
+    } else if (auto hum_off = fire["humidity_offset"]) {
       prefab.m_fireMoistureOffset = hum_off.as<float>();
+    }
+
+    // fuel_mult (опционален, если нет — останется 1.0)
+    if (auto fuel_mult = fire["fuel_mult"]) {
+      prefab.m_fireFuelMult = fuel_mult.as<float>();
     }
   }
 
@@ -431,13 +422,12 @@ AgentPrefab PrefabSystem::DeserializePrefab(const YAML::Node& node) const {
   return prefab;
 }
 
-
 void PrefabSystem::Clear() {
   m_prefabs.clear();
   m_idsInLoadOrder.clear();
 }
 
-void PrefabSystem::LoadAllFromDirectory(const std::string &dir) {
+void PrefabSystem::LoadAllFromDirectory(const std::string& dir) {
   namespace fs = std::filesystem;
   Clear();
 
@@ -445,7 +435,7 @@ void PrefabSystem::LoadAllFromDirectory(const std::string &dir) {
   if (!fs::exists(root))
     return;
 
-  for (auto &e : fs::directory_iterator(root)) {
+  for (auto& e : fs::directory_iterator(root)) {
     if (!e.is_regular_file())
       continue;
     const auto ext = e.path().extension().string();
@@ -454,12 +444,11 @@ void PrefabSystem::LoadAllFromDirectory(const std::string &dir) {
 
     try {
       LoadPrefabFromFile(e.path().string());
-    } catch (const std::exception &ex) {
-      std::cerr << "[PrefabSystem] skip " << e.path() << " : " << ex.what()
-                << "\n";
+    } catch (const std::exception& ex) {
+      std::cerr << "[PrefabSystem] skip " << e.path() << " : " << ex.what() << "\n";
       continue;
     }
   }
 }
 
-} // namespace engine::data
+}  // namespace engine::data

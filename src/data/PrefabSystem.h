@@ -10,7 +10,7 @@ namespace engine::data {
 
 struct AgentPrefab {
   std::string m_name;
-  AgentType m_type = AgentType::NORMAL;
+  FireAgentState m_type = FireAgentState::Normal;
 
   glm::vec3 m_modelScale = glm::vec3(1.0F);
 
@@ -29,6 +29,7 @@ struct AgentPrefab {
   std::string m_fireMaterialId   = "wood"; // id в FireConfig / FireMaterialLibrary
   float       m_fireIgnitionMult = 1.0F;   // множитель к ignition_temp
   float       m_fireMoistureOffset = 0.0F; // добавка к moisture[i]
+  float       m_fireFuelMult = 1.0f;
 
   struct Phisics {
     float m_intencity;
@@ -62,11 +63,11 @@ struct AgentPrefab {
     burningMaterial = burning_material.CreateMaterial();
     burnedMaterial = burned_material.CreateMaterial();
   }
-  std::shared_ptr<Material> GetMaterialForState(AgentType state) const {
+  std::shared_ptr<Material> GetMaterialForState(FireAgentState state) const {
     switch (state) {
-    case AgentType::BURNED:
+    case FireAgentState::Burned:
       return burnedMaterial;
-    case AgentType::BURNING:
+    case FireAgentState::Burning:
       return burningMaterial;
     default:
       return normalMaterial;
@@ -92,7 +93,7 @@ public:
                              const glm::vec3 &scale = glm::vec3(1.0F));
 
   std::vector<std::string> GetPrefabNames() const;
-  std::vector<std::string> GetPrefabsByType(AgentType type) const;
+  std::vector<std::string> GetPrefabsByType(FireAgentState type) const;
   const std::vector<std::string> &ListIds() const { return m_idsInLoadOrder; }
 
   void LoadAllFromDirectory(const std::string &dir);

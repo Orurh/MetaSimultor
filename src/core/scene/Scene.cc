@@ -51,17 +51,13 @@ void Scene::EnsureModelsForPrefab(const std::string &id, const engine::data::Age
 }
 
 void Scene::Update(float dt) {
-  auto startTime = std::chrono::high_resolution_clock::now();
 
   m_windTime += dt;
   glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
-
-  // Шаг симуляции через FireModule
-  auto simStart = std::chrono::high_resolution_clock::now();
-  if (m_agentManager.GetAgentCount() > 0) {
-    m_fire.Step(m_agentManager, dt, currentWind);
-  }
-  auto simTime = std::chrono::high_resolution_clock::now();
+  // if (m_agentManager.GetAgentCount() > 0) {
+  //   ScopeTimer timer("Simulation step profiling");
+  //   m_fire.Step(m_agentManager, dt, currentWind);
+  // }
 
   const bool UI_MOUSE = engine::InputSystem::Instance().UIMouseCaptured();
   const bool UI_KBD = engine::InputSystem::Instance().UIKeyboardCaptured();
@@ -95,6 +91,23 @@ void Scene::Update(float dt) {
       // zoom / fov, если нужно
     }
   }
+  auto agents = LoadAgentsFromGPU();
+
+  auto particleAgentView = m_registry.view<ParticleSystemComponent, AgentLinkComponent>();
+  for (auto [entity, particleComp, link] : particleAgentView.each()) {
+    if (link.gpu_index < agents.size()) {
+      const Agent &agent = agents[link.gpu_index];
+
+      if ((agent.isBurning() || agent.type == FireAgentState::Burning) && !particleComp.isActive) {
+        particleComp.isActive = true;
+        particleComp.system->Play();
+        particleComp.activationTimer = 2.0f;
+      } else if (!agent.isBurning() && agent.type != FireAgentState::Burning && particleComp.isActive) {
+        particleComp.isActive = false;
+        particleComp.system->Stop();
+      }
+    }
+  }
 
   // Частицы используют тот же ветер
   auto particleView = m_registry.view<ParticleSystemComponent>();
@@ -119,6 +132,8 @@ void Scene::Update(float dt) {
 }
 
 void Scene::Render() {
+  ScopeTimer timer("Render Time:");
+
   const int FB_W = static_cast<int>(m_vpW * m_vpScaleX);
   const int FB_H = static_cast<int>(m_vpH * m_vpScaleY);
   glViewport(m_vpX, m_vpY, FB_W, FB_H);
@@ -128,55 +143,32 @@ void Scene::Render() {
   auto view = m_camera.GetViewMatrix();
 
   Renderer::Instance().BeginScene(view, projection);
-
   auto agents = LoadAgentsFromGPU();
 
   std::unordered_map<std::string, std::vector<glm::mat4>> instanceData;
 
   auto render_view = m_registry.view<TransformComponent, RenderComponent, AgentLinkComponent>();
-
   for (auto [entity, transform, render, link] : render_view.each()) {
     if (!render.is_visible)
       continue;
 
     const Agent &agent = agents[link.gpu_index];
-    const auto &prefab = m_prefabSystem.GetPrefab(link.prefab_id);
 
-    AgentType state = AgentType::NORMAL;
-    if (agent.type == AgentType::BURNED)
-      state = AgentType::BURNED;
-    else if (agent.isBurning() || agent.type == AgentType::BURNING)
-      state = AgentType::BURNING;
+    FireAgentState state = FireAgentState::Normal;
+    if (agent.type == FireAgentState::Burned)
+      state = FireAgentState::Burned;
+    else if (agent.isBurning() || agent.type == FireAgentState::Burning)
+      state = FireAgentState::Burning;
 
-    auto &particleComp = m_registry.get<ParticleSystemComponent>(entity);
+    glm::mat4 modelMatrix = CalculateModelMatrix(transform.position, render.scale);
+    std::string instanceKey = link.prefab_id + "_" + std::to_string(static_cast<int>(state));
 
-    if (state == AgentType::BURNING && !particleComp.isActive) {
-      particleComp.isActive = true;
-      particleComp.system->Play();
-    } else if (state != AgentType::BURNING && particleComp.isActive) {
-      particleComp.isActive = false;
-      particleComp.system->Stop();
-    }
-
-    auto material = prefab.GetMaterialForState(state);
-    auto model = m_objectModels.Find(link.prefab_id);
-    if (!model || !model->m_normal)
-      continue;
-
-    auto *draw_model = model->m_normal.get();
-    if (state == AgentType::BURNING && model->m_burning)
-      draw_model = model->m_burning.get();
-    if (state == AgentType::BURNED && model->m_burned)
-      draw_model = model->m_burned.get();
-
-    if (draw_model && material) {
-      Renderer::Instance().DrawModelWithMaterial(*draw_model, transform.position, render.scale, m_camera.GetPosition(),
-                                                 material);
-    }
+    instanceData[instanceKey].push_back(modelMatrix);
   }
 
+  RenderInstancedModels(instanceData);
+
   Renderer::Instance().UploadAgentsData(agents);
-  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
   auto particleView = m_registry.view<ParticleSystemComponent, TransformComponent>();
   {
     ScopeTimer timer("ParticleSystem::Render All Systems");
@@ -191,6 +183,7 @@ void Scene::Render() {
   for (auto &system : m_particleSystems) {
     system->Render(view, projection);
   }
+  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
 
   Renderer::Instance().EndScene();
 }
@@ -266,6 +259,7 @@ void Scene::AddPrefab(const std::string &prefab_id, float x, float z, float scal
   // moisture — массив по точкам
   for (int i = 0; i < coll.point_count; ++i) {
     coll.moisture[i] += prefab.m_fireMoistureOffset;
+    coll.fuels[i] *= prefab.m_fireFuelMult;  // добавил множитель топлива
   }
 
   int gpu_index = m_agentManager.AddAgent(agent);
@@ -328,6 +322,8 @@ void Scene::AddFire(float x, float z, float intensity) {
 }
 
 void Scene::AddFireAt(const glm::vec3 &world, float intensity) {
+  std::cout << "[Fire] AddFireAt world = (" << world.x << ", " << world.y << ", " << world.z
+            << "), intensity = " << intensity << '\n';
   m_agentManager.AddFireAt(Float3{world.x, world.y, world.z}, intensity);
 
   Entity fireEntity = CreateEntity("fire_emitter");
@@ -390,4 +386,67 @@ bool Scene::RemoveNearestAt(const glm::vec3 &world, float maxXZDist) {
 
   return true;
 }
+
+// воспламеняет агента
+void Scene::IgniteNearest(const glm::vec3 &worldPos, float maxDist) {
+  auto agents = LoadAgentsFromGPU();
+
+  for (Agent &ag : agents) {
+    auto &coll = ag.fire_collider;
+
+    // воспламеняем все точки
+    for (int i = 0; i < coll.point_count; i++) {
+      coll.temperatures[i] = coll.ignition_temp + 50.0f;  // чуть выше порога
+      coll.intensities[i] = 1.0f;                         // максимум
+      coll.fuels[i] = std::max(coll.fuels[i], 50.0f);
+    }
+
+    ag.type = FireAgentState::Burning;
+  }
+
+  m_agentManager.SetAgents(agents);
+}
+void Scene::RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>> &instanceData) {
+  for (const auto &[key, matrices] : instanceData) {
+    // Разбираем ключ на prefab_id и состояние
+    size_t underscorePos = key.find_last_of('_');
+    std::string prefabId = key.substr(0, underscorePos);
+    FireAgentState state = static_cast<FireAgentState>(std::stoi(key.substr(underscorePos + 1)));
+
+    auto model = m_objectModels.Find(prefabId);
+    auto material = m_prefabSystem.GetPrefab(prefabId).GetMaterialForState(state);
+
+    if (model && material) {
+      auto *draw_model = GetModelForState(model, state);
+      if (draw_model) {
+        Renderer::Instance().DrawModelInstanced(*draw_model, matrices, m_camera.GetPosition(), material);
+      }
+    }
+  }
+}
+
+Model *Scene::GetModelForState(const ObjectModels *models, FireAgentState state) {
+  if (!models)
+    return nullptr;
+
+  switch (state) {
+  case FireAgentState::Burning:
+    if (models->m_burning)
+      return models->m_burning.get();
+  case FireAgentState::Burned:
+    if (models->m_burned)
+      return models->m_burned.get();
+  case FireAgentState::Normal:
+  default:
+    return models->m_normal ? models->m_normal.get() : nullptr;
+  }
+}
+
+glm::mat4 Scene::CalculateModelMatrix(const glm::vec3 &position, const glm::vec3 &scale) const {
+  glm::mat4 modelMatrix = glm::mat4(1.0f);
+  modelMatrix = glm::translate(modelMatrix, position);
+  modelMatrix = glm::scale(modelMatrix, scale);
+  return modelMatrix;
+}
+
 }  // namespace engine

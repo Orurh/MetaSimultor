@@ -16,7 +16,7 @@ struct AgentComponents {
   float scale = 1.0f;
 };
 class AgentManager {
-public:
+  public:
   AgentManager(int max_agents);
   ~AgentManager();
   // точечный источник огня
@@ -33,30 +33,9 @@ public:
   }
   std::vector<Agent> LoadAgentsFromGPU();
 
-
   Agent *GetDeviceAgents() { return m_agents; }
 
-  // Agent CreateAgent(AgentType type, Float3 position,
-  //                   const AgentComponents &components = AgentComponents());
-
-  // Agent AddTree(int tree_id, float base_x, float base_z, float scale);
-  // void AddFire(float x, float y, float intensity);
-
-
-
-
-  // void IgniteRandomPoint(int agent_index);
-
-
-
-
-
-private:
-  // void generateTreeHeatPoints(FireCollider &collider, float base_x,
-  //                             float base_z, float scale);
-  // void setupTreeFireCollider(Agent &tree, float base_x, float base_z, float scale);
-  // void setupFireSourceCollider(Agent &fire, float x, float y);
-
+  private:
   Agent *m_agents{};
   int m_capacity;
   int m_count;
