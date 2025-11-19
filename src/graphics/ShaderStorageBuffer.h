@@ -17,7 +17,7 @@ class ShaderStorageBuffer {
 
   void SetData(const void *data, uint32_t size, uint32_t offset = 0);
   void SetSubData(const void *data, size_t offset, size_t size);
-  void GetData(void *data, uint32_t size, uint32_t offset = 0);
+  void GetData(void *data, uint32_t size, uint32_t offset = 0) const;
 
   void *Map(uint32_t access = GL_READ_WRITE);
   void Unmap();

@@ -9,10 +9,21 @@
 #include <memory>
 
 namespace engine {
-
+struct GPUParticle {
+  glm::vec4 position;  // xyz + lifetime
+  glm::vec4 velocity;  // xyz + startLifetime
+  glm::vec4 color;
+  glm::vec4 size;
+};
+struct ParticleInstanceData {
+  glm::vec3 worldPosition;
+  glm::vec4 particleData;  // xyz = position, w = size
+  glm::vec4 color;
+  // Можно добавить больше данных если нужно
+};
 class ParticleSystem {
 
-public:
+  public:
   ParticleSystem();
   ~ParticleSystem();
   struct FireInstance {
@@ -30,27 +41,28 @@ public:
   bool IsPlaying() const { return m_playing; }
   uint32_t GetParticleCount() const { return m_aliveCount; }
   auto GetEffect() const { return m_effect; }
-  void SetTexture(const std::shared_ptr<Texture> &texture) {
-    m_particleTexture = texture;
-  }
+  void SetTexture(const std::shared_ptr<Texture> &texture) { m_particleTexture = texture; }
 
-  void LoadTexture(const std::string &path) {
-    m_particleTexture = Texture::Create(path);
-  }
+  void LoadTexture(const std::string &path) { m_particleTexture = Texture::Create(path); }
 
   void SetPosition(const glm::vec3 &position) { m_position = position; }
   void UpdateInstances(const std::vector<FireInstance> &instances);
   void RenderInstanced(const glm::mat4 &view, const glm::mat4 &projection);
   void SetWind(const glm::vec3 &wind) { m_wind = wind; }
+  std::vector<GPUParticle> GetParticlesData() const {
+    std::vector<GPUParticle> particles(m_aliveCount);
+    m_particleBuffer->GetData(particles.data(), m_aliveCount * sizeof(GPUParticle));
+    return particles;
+  }
 
-private:
-  struct GPUParticle {
-    glm::vec4 position; // xyz + lifetime
-    glm::vec4 velocity; // xyz + startLifetime
-    glm::vec4 color;
-    glm::vec4 size;
-  };
+  std::shared_ptr<Texture> GetTexture() const { return m_particleTexture; }
+  auto GetAliveCount() const { return m_aliveCount; }
+  std::vector<ParticleInstanceData> GetInstanceData() const;
+  void SetWorldPosition(const glm::vec3 &pos) { m_position = pos; }
+  auto GetPosition() { return m_position; }
+  ShaderStorageBuffer &GetParticleBuffer() { return *m_particleBuffer; }
 
+  private:
   void InitializeBuffers();
   void InitializeRenderData();
   void DispatchComputeShader();
@@ -88,4 +100,4 @@ private:
   float m_emitTimer = 0.0f;
 };
 
-} // namespace engine
+}  // namespace engine

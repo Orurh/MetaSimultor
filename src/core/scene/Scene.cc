@@ -24,6 +24,8 @@ void Scene::Init() {
   GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
   engine::Renderer::Instance().Init();
   ParticleSystemPool::Initialize(1000);
+  m_instancedParticleRenderer = std::make_unique<InstancedParticleRenderer>();
+  m_instancedParticleRenderer->Initialize();
 }
 
 auto Scene::CreateEntity(const std::string &id) -> Entity {
@@ -51,13 +53,14 @@ void Scene::EnsureModelsForPrefab(const std::string &id, const engine::data::Age
 }
 
 void Scene::Update(float dt) {
+  ScopeTimer timer("Update Time:");
 
   m_windTime += dt;
   glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
-  // if (m_agentManager.GetAgentCount() > 0) {
-  //   ScopeTimer timer("Simulation step profiling");
-  //   m_fire.Step(m_agentManager, dt, currentWind);
-  // }
+  if (m_agentManager.GetAgentCount() > 0) {
+    ScopeTimer timer("Simulation step profiling");
+    m_fire.Step(m_agentManager, dt, currentWind);
+  }
 
   const bool UI_MOUSE = engine::InputSystem::Instance().UIMouseCaptured();
   const bool UI_KBD = engine::InputSystem::Instance().UIKeyboardCaptured();
@@ -93,41 +96,41 @@ void Scene::Update(float dt) {
   }
   auto agents = LoadAgentsFromGPU();
 
-  auto particleAgentView = m_registry.view<ParticleSystemComponent, AgentLinkComponent>();
-  for (auto [entity, particleComp, link] : particleAgentView.each()) {
-    if (link.gpu_index < agents.size()) {
-      const Agent &agent = agents[link.gpu_index];
+  auto particleView = m_registry.view<ParticleSystemComponent, TransformComponent, AgentLinkComponent>();
+  for (auto [entity, particleComp, transform, link] : particleView.each()) {
+    particleComp.system->SetWind(currentWind);
+    particleComp.system->SetPosition(transform.position);
 
-      if ((agent.isBurning() || agent.type == FireAgentState::Burning) && !particleComp.isActive) {
+    if (!agents.empty() && link.gpu_index < agents.size()) {
+      const Agent &agent = agents[link.gpu_index];
+      bool shouldBeActive = (agent.isBurning() || agent.type == FireAgentState::Burning);
+
+      if (shouldBeActive && !particleComp.isActive) {
         particleComp.isActive = true;
         particleComp.system->Play();
         particleComp.activationTimer = 2.0f;
-      } else if (!agent.isBurning() && agent.type != FireAgentState::Burning && particleComp.isActive) {
+      } else if (!shouldBeActive && particleComp.isActive) {
         particleComp.isActive = false;
         particleComp.system->Stop();
       }
     }
   }
+  {
+    ScopeTimer agentTimer("update systems timer: ");
+    // Этап 2: Обновляем только активные системы
+    for (auto [entity, particleComp, transform, link] : particleView.each()) {
+      if (particleComp.isActive) {
+        particleComp.system->Update();
 
-  // Частицы используют тот же ветер
-  auto particleView = m_registry.view<ParticleSystemComponent>();
-  for (auto [entity, particleComp] : particleView.each()) {
-    if (particleComp.isActive) {
-      particleComp.system->Update();
-      particleComp.system->SetWind(currentWind);
-      // Автоматическое выключение через некоторое время после деактивации
-      if (!particleComp.system->IsPlaying() && particleComp.activationTimer > 0.0f) {
-        particleComp.activationTimer -= dt;
-        if (particleComp.activationTimer <= 0.0f) {
-          particleComp.isActive = false;
+        // Проверяем таймер деактивации
+        if (!particleComp.system->IsPlaying() && particleComp.activationTimer > 0.0f) {
+          particleComp.activationTimer -= dt;
+          if (particleComp.activationTimer <= 0.0f) {
+            particleComp.isActive = false;
+          }
         }
       }
     }
-  }
-
-  for (auto &system : m_particleSystems) {
-    system->SetWind(currentWind);
-    system->Update();
   }
 }
 
@@ -203,7 +206,10 @@ void Scene::Generate() {
   }
 }
 
-std::vector<Agent> Scene::LoadAgentsFromGPU() { return m_agentManager.LoadAgentsFromGPU(); }
+std::vector<Agent> Scene::LoadAgentsFromGPU() {
+  ScopeTimer timer("Load Agents from gpu time:");
+  return m_agentManager.LoadAgentsFromGPU();
+}
 void Scene::LoadObjectModels(const std::string &object_name, const std::string &normal_path,
                              const std::string &burning_path, const std::string &burned_path) {
   try {

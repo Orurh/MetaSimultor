@@ -5,6 +5,7 @@
 #include "core/AgentManager.h"
 #include "core/fire/FireConfig.h"
 #include "data/PrefabSystem.h"
+#include "graphics/ParticleSystem/InstancedParticleRenderer.h"
 #include "graphics/ParticleSystem/ParticleSystem.h"
 #include <memory>
 
@@ -12,6 +13,7 @@
 #include "core/fire/FireModule.h"
 #include "entt.hpp"
 #include "sceneObj/ObjectModelStore.h"
+
 namespace engine {
 class Model;
 class Entity;
@@ -100,7 +102,7 @@ class Scene {
   float m_windTime = 0.0F;
   float m_fireIntensity{1.0F};
   std::shared_ptr<ParticleSystem> m_firePrototype;
-
+  std::unique_ptr<InstancedParticleRenderer> m_instancedParticleRenderer;
   void InitializeParticlePrototypes() {
     m_firePrototype = std::make_shared<ParticleSystem>();
     m_firePrototype->SetFireEffect();

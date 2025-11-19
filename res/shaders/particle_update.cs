@@ -1,5 +1,4 @@
 #version 430 core
-
 layout(local_size_x = 64) in;
 
 struct Particle {
@@ -17,15 +16,33 @@ layout(std430, binding = 1) buffer CounterBuffer {
     uint aliveCount;
     uint deadCount; 
 };
-uniform vec3 u_windForce;
 
+// === EMIT UNIFORMS ===
+uniform uint u_maxParticles;  
+uniform uint u_emitCount;
+uniform vec3 u_emitterPosition;
+uniform vec3 u_startVelocity;
+uniform float u_startLifetime;
+uniform vec4 u_startColor;
+uniform vec3 u_startSize;
+
+uniform int u_shapeType;
+uniform float u_shapeRadius;
+uniform float u_shapeAngle;
+uniform vec3 u_shapeBoxSize;
+uniform float u_shapeArc;
+uniform float u_shapeRandomDirection;
+uniform bool u_shapeAlignToDirection;
+
+uniform vec3 u_startRotation;
+uniform bool u_use3DRotation;
+
+// === UPDATE UNIFORMS ===
 uniform float u_deltaTime;
 uniform uint u_aliveCount;
 uniform float u_gravity;
 uniform float u_simulationSpeed;
-
-// Lifetime modules
-uniform vec3 u_emitterPosition;
+uniform vec3 u_windForce;
 
 // Velocity over lifetime
 uniform int u_velocityOverLifetimeEnabled;
@@ -56,6 +73,63 @@ uniform int u_sizeOverLifetimeEnabled;
 uniform vec3 u_sizeOverLifetimeCurve[4];
 uniform float u_sizeOverLifetimeTimes[4];
 
+// === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
+float rand(inout uint seed) {
+    seed = (seed ^ 61u) ^ (seed >> 16u);
+    seed *= 9u;
+    seed = seed ^ (seed >> 4u);
+    seed *= 0x27d4eb2du;
+    seed = seed ^ (seed >> 15u);
+    return float(seed) / 4294967295.0;
+}
+
+vec3 GetSpawnPosition(inout uint seed, int shapeType) {
+    if (shapeType == 1) { // Cone
+        float angleRad = radians(u_shapeAngle);
+        float distance = u_shapeRadius * rand(seed);
+        float arcRad = radians(u_shapeArc);
+        float randomAngle = rand(seed) * arcRad;
+        
+        return vec3(
+            cos(randomAngle) * distance * tan(angleRad),
+            sin(randomAngle) * distance * tan(angleRad),
+            -distance
+        );
+    } else if (shapeType == 2) { // Box
+        return vec3(
+            (rand(seed) - 0.5) * u_shapeBoxSize.x,
+            (rand(seed) - 0.5) * u_shapeBoxSize.y, 
+            (rand(seed) - 0.5) * u_shapeBoxSize.z
+        );
+    } else { // Sphere (default)
+        float theta = rand(seed) * radians(u_shapeArc);
+        float phi = acos(1.0 - 2.0 * rand(seed));
+        float r = u_shapeRadius * pow(rand(seed), 1.0/3.0);
+        
+        return vec3(
+            r * sin(phi) * cos(theta),
+            r * sin(phi) * sin(theta), 
+            r * cos(phi)
+        );
+    }
+}
+
+vec3 ApplyRandomDirection(inout uint seed, vec3 baseDirection, vec3 spawnPosition) {
+    if (u_shapeRandomDirection > 0.0) {
+        float randomAngle = rand(seed) * radians(360.0) * u_shapeRandomDirection;
+        float randomStrength = rand(seed) * u_shapeRandomDirection;
+        
+        vec3 randomOffset = vec3(
+            cos(randomAngle) * randomStrength,
+            sin(randomAngle) * randomStrength,
+            (rand(seed) - 0.5) * randomStrength * 2.0
+        );
+        
+        return normalize(baseDirection + randomOffset);
+    }
+    return baseDirection;
+}
+
 vec4 GetColorFromGradient(float t) {
     for (int i = 0; i < 3; i++) {
         if (t >= u_colorOverLifetimeTimes[i] && t <= u_colorOverLifetimeTimes[i+1]) {
@@ -80,8 +154,50 @@ vec3 GetSizeFromCurve(float t) {
     return u_sizeOverLifetimeCurve[3];
 }
 
-void main() {
-    uint id = gl_GlobalInvocationID.x;
+// === EMIT ФУНКЦИЯ ===
+void emitParticle(uint id) {
+    if (id >= u_emitCount) return;
+    
+    uint index = atomicAdd(aliveCount, 1) % u_maxParticles; 
+    uint seed = uint(index * 7919 + id * 137);
+    
+    vec3 spawnOffset = GetSpawnPosition(seed, u_shapeType);
+    
+    vec3 initialVelocity = u_startVelocity;
+    if (u_shapeAlignToDirection && length(spawnOffset) > 0.001) {
+        initialVelocity = normalize(spawnOffset) * length(u_startVelocity);
+    }
+    
+    initialVelocity = ApplyRandomDirection(seed, initialVelocity, spawnOffset);
+    
+    float sizeVariation = 0.5 + 0.5 * rand(seed);
+    float lifetimeVariation = 0.7 + 0.6 * rand(seed);
+    float speedVariation = 0.8 + 0.4 * rand(seed);
+    
+    vec4 startColor = u_startColor;
+    startColor.rgb *= (0.9 + 0.2 * rand(seed));
+    
+    particles[index].position = vec4(
+        u_emitterPosition + spawnOffset,
+        u_startLifetime * lifetimeVariation
+    );
+    
+    particles[index].velocity = vec4(
+        initialVelocity * speedVariation,
+        u_startLifetime * lifetimeVariation
+    );
+    
+    particles[index].color = startColor;
+    
+    if (u_use3DRotation) {
+        particles[index].size = vec4(u_startSize * sizeVariation, 0.0);
+    } else {
+        particles[index].size = vec4(u_startSize.x * sizeVariation, 0.0, 0.0, 0.0);
+    }
+}
+
+// === UPDATE ФУНКЦИЯ ===
+void updateParticle(uint id) {
     if (id >= u_aliveCount) return;
     
     Particle p = particles[id];
@@ -96,6 +212,7 @@ void main() {
         // ОСНОВНАЯ ФИЗИКА
         p.velocity.y += u_gravity * deltaTime;
         p.velocity.xyz += u_windForce * deltaTime;
+        
         // FORCE OVER LIFETIME
         if (u_forceOverLifetimeEnabled == 1) {
             p.velocity.xyz += u_forceOverLifetime * deltaTime;
@@ -140,8 +257,27 @@ void main() {
         if (u_rotationOverLifetimeEnabled == 1) {
             p.size.w += u_rotationOverLifetime.z * deltaTime;
         }
-
     }
     
     particles[id] = p;
+}
+
+// === ОСНОВНАЯ ФУНКЦИЯ ===
+void main() {
+    uint globalIndex = gl_GlobalInvocationID.x;
+    uint totalWorkItems = gl_NumWorkGroups.x * gl_WorkGroupSize.x;
+    
+    // EMIT: обрабатываем новые частицы
+    if (globalIndex < u_emitCount) {
+        emitParticle(globalIndex);
+    }
+    
+    // UPDATE: обрабатываем существующие частицы
+    // Используем барьер чтобы emit завершился перед update
+    barrier();
+    memoryBarrierBuffer();
+    
+    if (globalIndex < u_aliveCount) {
+        updateParticle(globalIndex);
+    }
 }
