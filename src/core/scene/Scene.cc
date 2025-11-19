@@ -405,6 +405,40 @@ void Scene::IgniteNearest(const glm::vec3 &worldPos, float maxDist) {
   }
 
   m_agentManager.SetAgents(agents);
+
+  // поджечь всё
+  //   auto agents = LoadAgentsFromGPU();
+
+  // int best = -1;
+  // float bestDist2 = maxDist * maxDist;
+
+  // // найдём ближайшего агента
+  // auto view = m_registry.view<TransformComponent, AgentLinkComponent>();
+  // for (auto [entity, transform, link] : view.each()) {
+  //   float dx = transform.position.x - worldPos.x;
+  //   float dz = transform.position.z - worldPos.z;
+  //   float d2 = dx * dx + dz * dz;
+  //   if (d2 < bestDist2) {
+  //     bestDist2 = d2;
+  //     best = link.gpu_index;
+  //   }
+  // }
+
+  // if (best == -1)
+  //   return;
+
+  // Agent& ag = agents[best];
+  // auto& coll = ag.fire_collider;
+
+  // // воспламеняем все точки
+  // for (int i = 0; i < coll.point_count; i++) {
+  //   coll.temperatures[i] = coll.ignition_temp + 50.0f;  // чуть выше порога
+  //   coll.intensities[i] = 1.0f;                         // максимум
+  //   coll.fuels[i] = std::max(coll.fuels[i], 50.0f);
+  // }
+
+  // ag.type = FireAgentState::Burning;
+  // m_agentManager.SetAgents(agents);
 }
 void Scene::RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>> &instanceData) {
   for (const auto &[key, matrices] : instanceData) {
