@@ -1,7 +1,7 @@
 // ResourceCache.h
 #pragma once
 #include "ComputeShader.h"
-#include "ParticleEffect.h"
+#include "ParticleSystem/ParticleEffect.h"
 #include "Shader.h"
 #include "Texture.h"
 #include <iostream>

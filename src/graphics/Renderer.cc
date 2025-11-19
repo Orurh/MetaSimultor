@@ -59,37 +59,35 @@ void Renderer::Init() {
   m_agentVAO->AddVertexBuffer(m_agentVBO);
 
   m_universalParticleShader = Shader::Create("res/shaders/fire_geom.sh");
-  
+
   m_particleVAO = VertexArrayObject::Create();
   m_particleVBO = VertexBuffer::Create(100000 * sizeof(UniversalParticleData));
-  m_particleVBO->SetLayout({
-      {ShaderDataType::Float3, "a_position"},
-      {ShaderDataType::Float, "a_intensity"},
-      {ShaderDataType::Float3, "a_bounds_min"},
-      {ShaderDataType::Float3, "a_bounds_max"},
-      {ShaderDataType::Float, "a_effect_type"}
-  });
+  m_particleVBO->SetLayout({{ShaderDataType::Float3, "a_position"},
+                            {ShaderDataType::Float, "a_intensity"},
+                            {ShaderDataType::Float3, "a_bounds_min"},
+                            {ShaderDataType::Float3, "a_bounds_max"},
+                            {ShaderDataType::Float, "a_effect_type"}});
   m_particleVAO->AddVertexBuffer(m_particleVBO);
   SetFireParams({});
 }
 
 void Renderer::Shutdown() {
   m_vao.reset();
-  m_vbo.reset(); 
+  m_vbo.reset();
   m_ebo.reset();
   m_agentVAO.reset();
   m_agentVBO.reset();
   m_instanceVAO.reset();
   m_particleVAO.reset();
   m_particleVBO.reset();
-  
+
   m_shader.reset();
   m_modelShader.reset();
   m_fireGeometryShader.reset();
   m_instanceModelShader.reset();
   m_terrainShader.reset();
   m_universalParticleShader.reset();
-  
+
   m_fireTexture.reset();
   m_smokeTexture.reset();
   m_sparksTexture.reset();
@@ -132,7 +130,8 @@ void Renderer::DrawModel(Model &model, const glm::vec3 &position,
 }
 void Renderer::DrawModelInstanced(Model &model,
                                   const std::vector<glm::mat4> &instances,
-                                  const glm::vec3 &camPos,  std::shared_ptr<Material> material) {
+                                  const glm::vec3 &camPos,
+                                  std::shared_ptr<Material> material) {
   if (instances.empty())
     return;
 
@@ -159,7 +158,6 @@ void Renderer::DrawModelInstanced(Model &model,
   glBindBuffer(GL_ARRAY_BUFFER, 0);
   glBindVertexArray(0);
   m_instanceModelShader->Unbind();
-
 }
 
 void Renderer::DrawModelWithMaterial(
@@ -193,7 +191,6 @@ void Renderer::DrawModelWithMaterial(
   }
 
   model.DrawGeometryOnly(*m_modelShader);
-
 }
 
 void Renderer::BeginScene(const glm::mat4 &view, const glm::mat4 &projection) {
@@ -209,69 +206,92 @@ void Renderer::BeginScene(const glm::mat4 &view, const glm::mat4 &projection) {
 }
 void Renderer::UploadAgentsData(const std::vector<Agent> &agents) {
   m_particleData.clear();
-    
-    for (const auto &agent : agents) {
-        if (!agent.isBurning()) continue;
-        
-        float intensity = agent.getOverallIntensity();
-        
-        // ОГОНЬ (всегда)
-        if (m_fireParams.fire.enabled) {
-            m_particleData.push_back({
-                glm::vec3(agent.position.x, agent.position.y, agent.position.z),
-                intensity,
-                glm::vec3(agent.fire_collider.bounds_min.x, agent.fire_collider.bounds_min.y, agent.fire_collider.bounds_min.z),
-                glm::vec3(agent.fire_collider.bounds_max.x, agent.fire_collider.bounds_max.y, agent.fire_collider.bounds_max.z),
-                0.0f // fire
-            });
-        }
-            if (m_fireParams.smoke.enabled && intensity > 0.3f) {
-            m_particleData.push_back({
-                glm::vec3(agent.position.x, agent.position.y, agent.position.z),
-                intensity * 0.7f,
-                glm::vec3(agent.fire_collider.bounds_min.x, agent.fire_collider.bounds_min.y, agent.fire_collider.bounds_min.z),
-                glm::vec3(agent.fire_collider.bounds_max.x, agent.fire_collider.bounds_max.y, agent.fire_collider.bounds_max.z),
-                1.0f // smoke
-            });
-        }
-        
-        // ИСКРЫ (при высокой интенсивности)
-        if (m_fireParams.sparks.enabled && intensity > 0.7f) {
-            m_particleData.push_back({
-                glm::vec3(agent.position.x, agent.position.y, agent.position.z),
-                intensity * 0.5f,
-                glm::vec3(agent.fire_collider.bounds_min.x, agent.fire_collider.bounds_min.y, agent.fire_collider.bounds_min.z),
-                glm::vec3(agent.fire_collider.bounds_max.x, agent.fire_collider.bounds_max.y, agent.fire_collider.bounds_max.z),
-                2.0f // sparks
-            });
-        }
-          if (m_fireParams.ash.enabled) {
-            m_particleData.push_back({
-                glm::vec3(agent.position.x, agent.position.y, agent.position.z),
-                intensity * 0.3f,
-                glm::vec3(agent.fire_collider.bounds_min.x, agent.fire_collider.bounds_min.y, agent.fire_collider.bounds_min.z),
-                glm::vec3(agent.fire_collider.bounds_max.x, agent.fire_collider.bounds_max.y, agent.fire_collider.bounds_max.z),
-                3.0f // ash
-            });
-        }
-        
-        // ТЕПЛО (при любой интенсивности)
-        if (m_fireParams.heat.enabled) {
-            m_particleData.push_back({
-                glm::vec3(agent.position.x, agent.position.y, agent.position.z),
-                intensity * 0.2f,
-                glm::vec3(agent.fire_collider.bounds_min.x, agent.fire_collider.bounds_min.y, agent.fire_collider.bounds_min.z),
-                glm::vec3(agent.fire_collider.bounds_max.x, agent.fire_collider.bounds_max.y, agent.fire_collider.bounds_max.z),
-                4.0f // heat
-            });
-        }
+
+  for (const auto &agent : agents) {
+    if (!agent.isBurning())
+      continue;
+
+    float intensity = agent.getOverallIntensity();
+
+    // ОГОНЬ (всегда)
+    if (m_fireParams.fire.enabled) {
+      m_particleData.push_back({
+          glm::vec3(agent.position.x, agent.position.y, agent.position.z),
+          intensity,
+          glm::vec3(agent.fire_collider.bounds_min.x,
+                    agent.fire_collider.bounds_min.y,
+                    agent.fire_collider.bounds_min.z),
+          glm::vec3(agent.fire_collider.bounds_max.x,
+                    agent.fire_collider.bounds_max.y,
+                    agent.fire_collider.bounds_max.z),
+          0.0f // fire
+      });
     }
-    
-    // ОДИН раз загружаем все данные
-    if (!m_particleData.empty()) {
-        m_particleVBO->Bind();
-        m_particleVBO->SetData(m_particleData.data(), m_particleData.size() * sizeof(UniversalParticleData));
+    if (m_fireParams.smoke.enabled && intensity > 0.3f) {
+      m_particleData.push_back({
+          glm::vec3(agent.position.x, agent.position.y, agent.position.z),
+          intensity * 0.7f,
+          glm::vec3(agent.fire_collider.bounds_min.x,
+                    agent.fire_collider.bounds_min.y,
+                    agent.fire_collider.bounds_min.z),
+          glm::vec3(agent.fire_collider.bounds_max.x,
+                    agent.fire_collider.bounds_max.y,
+                    agent.fire_collider.bounds_max.z),
+          1.0f // smoke
+      });
     }
+
+    // ИСКРЫ (при высокой интенсивности)
+    if (m_fireParams.sparks.enabled && intensity > 0.7f) {
+      m_particleData.push_back({
+          glm::vec3(agent.position.x, agent.position.y, agent.position.z),
+          intensity * 0.5f,
+          glm::vec3(agent.fire_collider.bounds_min.x,
+                    agent.fire_collider.bounds_min.y,
+                    agent.fire_collider.bounds_min.z),
+          glm::vec3(agent.fire_collider.bounds_max.x,
+                    agent.fire_collider.bounds_max.y,
+                    agent.fire_collider.bounds_max.z),
+          2.0f // sparks
+      });
+    }
+    if (m_fireParams.ash.enabled) {
+      m_particleData.push_back({
+          glm::vec3(agent.position.x, agent.position.y, agent.position.z),
+          intensity * 0.3f,
+          glm::vec3(agent.fire_collider.bounds_min.x,
+                    agent.fire_collider.bounds_min.y,
+                    agent.fire_collider.bounds_min.z),
+          glm::vec3(agent.fire_collider.bounds_max.x,
+                    agent.fire_collider.bounds_max.y,
+                    agent.fire_collider.bounds_max.z),
+          3.0f // ash
+      });
+    }
+
+    // ТЕПЛО (при любой интенсивности)
+    if (m_fireParams.heat.enabled) {
+      m_particleData.push_back({
+          glm::vec3(agent.position.x, agent.position.y, agent.position.z),
+          intensity * 0.2f,
+          glm::vec3(agent.fire_collider.bounds_min.x,
+                    agent.fire_collider.bounds_min.y,
+                    agent.fire_collider.bounds_min.z),
+          glm::vec3(agent.fire_collider.bounds_max.x,
+                    agent.fire_collider.bounds_max.y,
+                    agent.fire_collider.bounds_max.z),
+          4.0f // heat
+      });
+    }
+  }
+
+  // ОДИН раз загружаем все данные
+  if (!m_particleData.empty()) {
+    m_particleVBO->Bind();
+    m_particleVBO->SetData(m_particleData.data(),
+                           m_particleData.size() *
+                               sizeof(UniversalParticleData));
+  }
 }
 
 void Renderer::EndScene() {
@@ -279,68 +299,23 @@ void Renderer::EndScene() {
   glUseProgram(0);
 }
 
-void Renderer::RenderWithGeometryShader(const glm::vec3 &wind_force) {
-   if (m_particleData.empty()) return;
-    
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-
-    glDepthMask(GL_FALSE);
-
-    m_universalParticleShader->Bind();
-    
-    // Общие uniform'ы
-    m_universalParticleShader->SetMat4("u_view", m_viewMat);
-    m_universalParticleShader->SetMat4("u_projection", m_projectionMat);
-    m_universalParticleShader->SetFloat("u_time", glfwGetTime());
-    m_universalParticleShader->SetVec3("u_wind_force", wind_force);
-    
-    // Камерные векторы
-    glm::mat4 view = m_viewMat;
-    glm::vec3 camera_right = glm::vec3(view[0][0], view[1][0], view[2][0]);
-    glm::vec3 camera_up = glm::vec3(view[0][1], view[1][1], view[2][1]);
-    m_universalParticleShader->SetVec3("u_camera_right", camera_right);
-    m_universalParticleShader->SetVec3("u_camera_up", camera_up);
-    
-    // БИНДИМ ТЕКСТУРЫ (КОТОРЫЕ УЖЕ ЗАГРУЖЕНЫ В SetFireParams)
-    m_fireTexture->Bind(0);
-    m_smokeTexture->Bind(1);
-    m_sparksTexture->Bind(2);
-    m_ashTexture->Bind(3);
-    m_heatTexture->Bind(4);
-    
-    m_universalParticleShader->SetInt("u_fire_texture", 0);
-    m_universalParticleShader->SetInt("u_smoke_texture", 1);
-    m_universalParticleShader->SetInt("u_sparks_texture", 2);
-    m_universalParticleShader->SetInt("u_ash_texture", 3);
-    m_universalParticleShader->SetInt("u_heat_texture", 4);
-    
-    m_particleVAO->Bind();
-    glDrawArrays(GL_POINTS, 0, m_particleData.size());
-    m_particleVAO->Unbind();
-
-    m_universalParticleShader->Unbind();
-
-    glDepthMask(GL_TRUE);
-    glDisable(GL_BLEND);
-}
 void Renderer::DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
                            const glm::vec3 &terrainPos,
-                           std::shared_ptr<Texture> terrainTexture) { 
+                           std::shared_ptr<Texture> terrainTexture) {
   if (!vao || !m_terrainShader)
     return;
 
   auto ib = vao->GetIndexBuffer();
   uint32_t count = ib ? ib->GetCount() : 0;
   glm::mat4 model = glm::translate(glm::mat4(1.0f), terrainPos);
-  
+
   m_terrainShader->Bind();
-  
+
   if (terrainTexture) {
-    terrainTexture->Bind(0); 
+    terrainTexture->Bind(0);
     m_terrainShader->SetInt("u_DiffuseMap", 0);
   }
-  
+
   m_terrainShader->SetMat4("u_View", m_viewMat);
   m_terrainShader->SetMat4("u_Projection", m_projectionMat);
   m_terrainShader->SetMat4("u_Model", model);
@@ -351,82 +326,97 @@ void Renderer::DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
   vao->Bind();
   glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, nullptr);
   vao->Unbind();
-  
+
   m_terrainShader->Unbind();
-  
+
   glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void Renderer::SetEffectParams(const std::string &uniformName, const FireParams::EffectParams &params)
-{
- m_universalParticleShader->SetFloat(uniformName + ".particleSize", params.particleSize);
-    m_universalParticleShader->SetFloat(uniformName + ".sizeVariation", params.sizeVariation);
-    m_universalParticleShader->SetFloat(uniformName + ".animationSpeed", params.animationSpeed);
-    m_universalParticleShader->SetFloat(uniformName + ".lifetime", params.lifetime);
-    m_universalParticleShader->SetFloat(uniformName + ".spawnRate", params.spawnRate);
-    m_universalParticleShader->SetFloat(uniformName + ".riseSpeed", params.riseSpeed);
-    m_universalParticleShader->SetFloat(uniformName + ".turbulence", params.turbulence);
-    m_universalParticleShader->SetFloat(uniformName + ".windInfluence", params.windInfluence);
-    m_universalParticleShader->SetFloat(uniformName + ".spread", params.spread);
-    m_universalParticleShader->SetVec3(uniformName + ".baseColor", params.baseColor);
-    m_universalParticleShader->SetVec3(uniformName + ".endColor", params.endColor);
-    m_universalParticleShader->SetFloat(uniformName + ".colorVariation", params.colorVariation);
-    
-    m_universalParticleShader->SetFloat(uniformName + ".redIntensity", params.redIntensity);
-    m_universalParticleShader->SetFloat(uniformName + ".yellowReduction", params.yellowReduction);
-    m_universalParticleShader->SetFloat(uniformName + ".alphaMultiplier", params.alphaMultiplier);
-    m_universalParticleShader->SetFloat(uniformName + ".textureInfluence", params.textureInfluence);
- }
+void Renderer::SetEffectParams(const std::string &uniformName,
+                               const FireParams::EffectParams &params) {
+  m_universalParticleShader->SetFloat(uniformName + ".particleSize",
+                                      params.particleSize);
+  m_universalParticleShader->SetFloat(uniformName + ".sizeVariation",
+                                      params.sizeVariation);
+  m_universalParticleShader->SetFloat(uniformName + ".animationSpeed",
+                                      params.animationSpeed);
+  m_universalParticleShader->SetFloat(uniformName + ".lifetime",
+                                      params.lifetime);
+  m_universalParticleShader->SetFloat(uniformName + ".spawnRate",
+                                      params.spawnRate);
+  m_universalParticleShader->SetFloat(uniformName + ".riseSpeed",
+                                      params.riseSpeed);
+  m_universalParticleShader->SetFloat(uniformName + ".turbulence",
+                                      params.turbulence);
+  m_universalParticleShader->SetFloat(uniformName + ".windInfluence",
+                                      params.windInfluence);
+  m_universalParticleShader->SetFloat(uniformName + ".spread", params.spread);
+  m_universalParticleShader->SetVec3(uniformName + ".baseColor",
+                                     params.baseColor);
+  m_universalParticleShader->SetVec3(uniformName + ".endColor",
+                                     params.endColor);
+  m_universalParticleShader->SetFloat(uniformName + ".colorVariation",
+                                      params.colorVariation);
+
+  m_universalParticleShader->SetFloat(uniformName + ".redIntensity",
+                                      params.redIntensity);
+  m_universalParticleShader->SetFloat(uniformName + ".yellowReduction",
+                                      params.yellowReduction);
+  m_universalParticleShader->SetFloat(uniformName + ".alphaMultiplier",
+                                      params.alphaMultiplier);
+  m_universalParticleShader->SetFloat(uniformName + ".textureInfluence",
+                                      params.textureInfluence);
+}
 
 void Renderer::SetFireParams(const FireParams &params) {
-    m_fireParams = params;
-    try {
-        m_fireTexture = Texture::Create(params.fireTexturePath);
-    } catch (const std::exception &e) {
-        std::cout << "Failed to load fire texture: " << e.what() << std::endl;
-        m_fireTexture = Texture::Create("res/textures/fire_texture3.png");
-    }
-    
-    try {
-        m_smokeTexture = Texture::Create(params.smokeTexturePath);
-    } catch (const std::exception &e) {
-        std::cout << "Failed to load smoke texture: " << e.what() << std::endl;
-        m_smokeTexture = Texture::Create("res/textures/smoke_texture.png");
-    }
-    
-    try {
-        m_sparksTexture = Texture::Create(params.sparksTexturePath);
-    } catch (const std::exception &e) {
-        std::cout << "Failed to load sparks texture: " << e.what() << std::endl;
-        m_sparksTexture = Texture::Create("res/textures/sparks_texture.png");
-    }
-    
-    try {
-        m_ashTexture = Texture::Create(params.ashTexturePath);
-    } catch (const std::exception &e) {
-        std::cout << "Failed to load ash texture: " << e.what() << std::endl;
-        m_ashTexture = Texture::Create("res/textures/ash_texture.png");
-    }
-    
-    try {
-        m_heatTexture = Texture::Create(params.heatTexturePath);
-    } catch (const std::exception &e) {
-        std::cout << "Failed to load heat texture: " << e.what() << std::endl;
-        m_heatTexture = Texture::Create("res/textures/heat_texture.png");
-    }
+  m_fireParams = params;
+  try {
+    m_fireTexture = Texture::Create(params.fireTexturePath);
+  } catch (const std::exception &e) {
+    std::cout << "Failed to load fire texture: " << e.what() << std::endl;
+    m_fireTexture = Texture::Create("res/textures/fire_texture3.png");
+  }
 
-    // Устанавливаем параметры в шейдер
-    if (m_universalParticleShader) {
-        m_universalParticleShader->Bind();
-        
-        // Параметры для каждого эффекта
-        SetEffectParams("u_fire_params", m_fireParams.fire);
-        SetEffectParams("u_smoke_params", m_fireParams.smoke);
-        SetEffectParams("u_sparks_params", m_fireParams.sparks);
-        SetEffectParams("u_ash_params", m_fireParams.ash);
-        SetEffectParams("u_heat_params", m_fireParams.heat);
-        
-        m_universalParticleShader->Unbind();
-    }
+  try {
+    m_smokeTexture = Texture::Create(params.smokeTexturePath);
+  } catch (const std::exception &e) {
+    std::cout << "Failed to load smoke texture: " << e.what() << std::endl;
+    m_smokeTexture = Texture::Create("res/textures/smoke_texture.png");
+  }
+
+  try {
+    m_sparksTexture = Texture::Create(params.sparksTexturePath);
+  } catch (const std::exception &e) {
+    std::cout << "Failed to load sparks texture: " << e.what() << std::endl;
+    m_sparksTexture = Texture::Create("res/textures/sparks_texture.png");
+  }
+
+  try {
+    m_ashTexture = Texture::Create(params.ashTexturePath);
+  } catch (const std::exception &e) {
+    std::cout << "Failed to load ash texture: " << e.what() << std::endl;
+    m_ashTexture = Texture::Create("res/textures/ash_texture.png");
+  }
+
+  try {
+    m_heatTexture = Texture::Create(params.heatTexturePath);
+  } catch (const std::exception &e) {
+    std::cout << "Failed to load heat texture: " << e.what() << std::endl;
+    m_heatTexture = Texture::Create("res/textures/heat_texture.png");
+  }
+
+  // Устанавливаем параметры в шейдер
+  if (m_universalParticleShader) {
+    m_universalParticleShader->Bind();
+
+    // Параметры для каждого эффекта
+    SetEffectParams("u_fire_params", m_fireParams.fire);
+    SetEffectParams("u_smoke_params", m_fireParams.smoke);
+    SetEffectParams("u_sparks_params", m_fireParams.sparks);
+    SetEffectParams("u_ash_params", m_fireParams.ash);
+    SetEffectParams("u_heat_params", m_fireParams.heat);
+
+    m_universalParticleShader->Unbind();
+  }
 }
 } // namespace engine

@@ -1,9 +1,13 @@
 #include "simulation.cuh"
 #include <cmath>
+#include <cuda_device_runtime_api.h>
 #include <cuda_runtime.h>
+#include <cuda_runtime_api.h>
 #include <device_launch_parameters.h>
+#include <driver_types.h>
 #include <glm/glm.hpp>
 #include <iostream>
+#include <vector_functions.h>
 const int MAX_NEIGHBORS = 50;
 
 __device__ float clamp01(float x) { return fminf(1.0f, fmaxf(0.0f, x)); }

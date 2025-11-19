@@ -4,7 +4,7 @@
 #include "configs/WindConfig.h"
 #include "core/AgentManager.h"
 #include "data/PrefabSystem.h"
-#include "graphics/ParticleSystem.h"
+#include "graphics/ParticleSystem/ParticleSystem.h"
 #include <memory>
 
 #include "Components.h"
@@ -17,14 +17,13 @@ class Entity;
 class Material;
 class Scene {
 
-public:
+  public:
   Scene();
   void Init();
   void Update(float dt);
   auto CreateEntity(const std::string &id) -> Entity;
   void Render();
-  void AddTree(float x, float z, const std::string &tree_type = "default_tree",
-               float scale = 1.F);
+  void AddTree(float x, float z, const std::string &tree_type = "default_tree", float scale = 1.F);
   void AddFire(float x, float z, float intensity = 1.0F);
 
   void AddFireAt(const glm::vec3 &world, float intensity = 1.0F);
@@ -34,8 +33,7 @@ public:
   void SetFireIntensity(float v) { m_fireIntensity = v; }
   std::vector<Agent> LoadAgentsFromGPU();
   auto GetSceneObjectsView() const {
-    return m_registry
-        .view<TransformComponent, RenderComponent, AgentLinkComponent>();
+    return m_registry.view<TransformComponent, RenderComponent, AgentLinkComponent>();
   }
 
   glm::mat4 GetViewMatrix() { return m_camera.GetViewMatrix(); }
@@ -59,15 +57,12 @@ public:
   const std::vector<std::string> &ListPrefabIds() const;
 
   engine::data::PrefabSystem &GetPrefabSystem() { return m_prefabSystem; }
-  const engine::data::PrefabSystem &GetPrefabSystem() const {
-    return m_prefabSystem;
-  }
+  const engine::data::PrefabSystem &GetPrefabSystem() const { return m_prefabSystem; }
 
   WindConfig &GetWindConfig() { return m_windConfig; }
   const WindConfig &GetWindConfig() const { return m_windConfig; }
   float GetWindTime() const { return m_windTime; }
-  void ReloadModelForPrefab(const std::string &prefab_id,
-                            const engine::data::AgentPrefab &prefab);
+  void ReloadModelForPrefab(const std::string &prefab_id, const engine::data::AgentPrefab &prefab);
   void GenerateTerrain(const TerrainGenerationSettings &s);
 
   Terrain *GetTerrain() { return m_terrain.get(); }
@@ -76,25 +71,19 @@ public:
   size_t GetAgentCount() const { return m_agentManager.GetAgentCount(); }
   void AddParticleSystem(const std::shared_ptr<ParticleSystem> &system);
   void RemoveParticleSystem(const std::shared_ptr<ParticleSystem> &system);
-  const std::vector<std::shared_ptr<ParticleSystem>> &
-  GetParticleSystems() const {
-    return m_particleSystems;
-  }
+  const std::vector<std::shared_ptr<ParticleSystem>> &GetParticleSystems() const { return m_particleSystems; }
 
   FireModule &GetFireModule() { return m_fire; }
   const FireModule &GetFireModule() const { return m_fire; }
 
-private:
-  void EnsureModelsForPrefab(const std::string &id,
-                             const engine::data::AgentPrefab &prefab);
-  void LoadObjectModels(const std::string &object_name,
-                        const std::string &normal_path,
-                        const std::string &burning_path,
+  private:
+  void EnsureModelsForPrefab(const std::string &id, const engine::data::AgentPrefab &prefab);
+  void LoadObjectModels(const std::string &object_name, const std::string &normal_path, const std::string &burning_path,
                         const std::string &burned_path);
-  void RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>>& instanceData);
+  void RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>> &instanceData);
 
-  Model* GetModelForState(const ObjectModels* models, AgentType state);
-  glm::mat4 CalculateModelMatrix(const glm::vec3& position, const glm::vec3& scale) const;
+  Model *GetModelForState(const ObjectModels *models, AgentType state);
+  glm::mat4 CalculateModelMatrix(const glm::vec3 &position, const glm::vec3 &scale) const;
   AgentManager m_agentManager;
   std::vector<std::shared_ptr<ParticleSystem>> m_particleSystems;
 
@@ -119,4 +108,4 @@ private:
 
   FireModule m_fire;
 };
-} // namespace engine
+}  // namespace engine

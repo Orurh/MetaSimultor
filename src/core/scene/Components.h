@@ -1,7 +1,7 @@
 #pragma once
 #include "entt.hpp"
 
-#include "graphics/ParticleSystem.h"
+#include "graphics/ParticleSystem/ParticleSystem.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -14,9 +14,7 @@ struct IDComponent {
   EntityID ID;
   IDComponent(const std::string &id = "") : ID(id) {}
   std::string toString() const { return "IDComponent { ID: " + ID + " }"; }
-  friend std::ostream &operator<<(std::ostream &os, const IDComponent &comp) {
-    return os << comp.toString();
-  }
+  friend std::ostream &operator<<(std::ostream &os, const IDComponent &comp) { return os << comp.toString(); }
 };
 
 struct TransformComponent {
@@ -27,17 +25,16 @@ struct TransformComponent {
   // ДОБАВЬ КОНСТРУКТОРЫ
   TransformComponent() = default;
   TransformComponent(const glm::vec3 &position) : position(position) {}
-  TransformComponent(const glm::vec3 &position, const glm::vec3 &scale)
-      : position(position), scale(scale) {}
+  TransformComponent(const glm::vec3 &position, const glm::vec3 &scale) : position(position), scale(scale) {}
 
   std::string toString() const {
-    return "TransformComponent{Position: " + std::to_string(position.x) + ", " +
-           std::to_string(position.y) + ", " + std::to_string(position.z) + "}";
+    return "TransformComponent{Position: " + std::to_string(position.x) + ", " + std::to_string(position.y) + ", " +
+           std::to_string(position.z) + "}";
   }
 };
 struct ParticleComponent {
   std::shared_ptr<ParticleSystem> system;
-  glm::vec3 offset = glm::vec3(0.0f); // Смещение относительно позиции entity
+  glm::vec3 offset = glm::vec3(0.0f);  // Смещение относительно позиции entity
 
   ParticleComponent() { system = std::make_shared<ParticleSystem>(); }
 
@@ -60,8 +57,7 @@ struct RenderComponent {
   glm::vec3 scale{1, 1, 1};
   bool is_visible = true;
 
-  RenderComponent(const std::string &id = "", const glm::vec3 &s = {1, 1, 1},
-                  bool v = true)
+  RenderComponent(const std::string &id = "", const glm::vec3 &s = {1, 1, 1}, bool v = true)
       : prefab_id(id), scale(s), is_visible(v) {}
 };
 
@@ -69,8 +65,7 @@ struct AgentLinkComponent {
   int gpu_index;
   std::string prefab_id;
 
-  AgentLinkComponent(int idx = -1, const std::string &id = "")
-      : gpu_index(idx), prefab_id(id) {}
+  AgentLinkComponent(int idx = -1, const std::string &id = "") : gpu_index(idx), prefab_id(id) {}
 };
 
 struct FireEmitterComponent {
@@ -86,4 +81,4 @@ struct ParticleSystemComponent {
   float activationTimer = 0.0f;
   glm::vec3 instancePosition;
 };
-} // namespace engine
+}  // namespace engine

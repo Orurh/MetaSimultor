@@ -33,16 +33,17 @@ public:
   void DrawModel(Model &model, const glm::vec3 &position,
                  const glm::vec3 &scale, const glm::vec3 &camPos);
   void DrawModelInstanced(Model &model, const std::vector<glm::mat4> &instances,
-                          const glm::vec3 &camPos, std::shared_ptr<Material> material);
+                          const glm::vec3 &camPos,
+                          std::shared_ptr<Material> material);
   void DrawModelWithMaterial(Model &model, const glm::vec3 &position,
                              const glm::vec3 &scale, const glm::vec3 &camPos,
                              const std::shared_ptr<Material> &material);
   void BeginScene(const glm::mat4 &view, const glm::mat4 &projection);
   void UploadAgentsData(const std::vector<Agent> &agents);
-  void RenderWithGeometryShader(const glm::vec3 &wind_force);
   void EndScene();
   void DrawTerrain(std::shared_ptr<VertexArrayObject> vao,
-                   const glm::vec3 &terrainPos, std::shared_ptr<Texture> terrainTexture);
+                   const glm::vec3 &terrainPos,
+                   std::shared_ptr<Texture> terrainTexture);
   void SetFireParams(const FireParams &params);
   void SetEffectParams(const std::string &uniformName,
                        const FireParams::EffectParams &params);

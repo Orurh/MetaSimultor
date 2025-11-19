@@ -1,5 +1,5 @@
 #pragma once
-#include "graphics/ParticleSystem.h"
+#include "graphics/ParticleSystem/ParticleSystem.h"
 #include "ui/EditorContext.h"
 #include "ui/IPanel.h"
 #include <imgui.h>
@@ -7,12 +7,12 @@
 namespace ui {
 
 class ParticleSystemPanel final : public IPanel {
-public:
+  public:
   ParticleSystemPanel();
   void Draw(EditorContext &ctx) override;
   const char *Id() const override { return "Particle System"; }
 
-private:
+  private:
   void DrawParticleSystemList(EditorContext &ctx);
   void DrawParticleSystemControls(EditorContext &ctx);
   void DrawEffectEditor();
@@ -30,4 +30,4 @@ private:
   std::string m_selectedAsset;
 };
 
-} // namespace ui
+}  // namespace ui

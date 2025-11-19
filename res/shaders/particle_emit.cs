@@ -24,7 +24,6 @@ uniform float u_startLifetime;
 uniform vec4 u_startColor;
 uniform vec3 u_startSize;
 
-// Shape module uniforms
 uniform int u_shapeType;
 uniform float u_shapeRadius;
 uniform float u_shapeAngle;
@@ -33,7 +32,6 @@ uniform float u_shapeArc;
 uniform float u_shapeRandomDirection;
 uniform bool u_shapeAlignToDirection;
 
-// Rotation
 uniform vec3 u_startRotation;
 uniform bool u_use3DRotation;
 
@@ -82,7 +80,6 @@ vec3 ApplyRandomDirection(inout uint seed, vec3 baseDirection, vec3 spawnPositio
         float randomAngle = rand(seed) * radians(360.0) * u_shapeRandomDirection;
         float randomStrength = rand(seed) * u_shapeRandomDirection;
         
-        // Создаем случайное отклонение
         vec3 randomOffset = vec3(
             cos(randomAngle) * randomStrength,
             sin(randomAngle) * randomStrength,
@@ -109,12 +106,10 @@ void main() {
     
     initialVelocity = ApplyRandomDirection(seed, initialVelocity, spawnOffset);
     
-    // Случайные вариации
     float sizeVariation = 0.5 + 0.5 * rand(seed);
     float lifetimeVariation = 0.7 + 0.6 * rand(seed);
     float speedVariation = 0.8 + 0.4 * rand(seed);
     
-    // Начальный цвет с вариацией
     vec4 startColor = u_startColor;
     startColor.rgb *= (0.9 + 0.2 * rand(seed));
     
@@ -130,7 +125,6 @@ void main() {
     
     particles[index].color = startColor;
     
-    // Размер с учетом 3D
     if (u_use3DRotation) {
         particles[index].size = vec4(u_startSize * sizeVariation, 0.0);
     } else {
