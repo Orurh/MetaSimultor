@@ -7,9 +7,10 @@ CompileFlags:
     "-Ilibs/glad/include",
     "-Ilibs/imgui", 
     "-Ilibs/imgui/backends",
-    "-Iinclude",                   
+    "-Iinclude",
+    "-Isrc/ui",              
     "-Isrc",
-    "-Isrc/ui",
+
 
     # --- твои инклюды проекта ---
     "-I${workspaceFolder}/include",

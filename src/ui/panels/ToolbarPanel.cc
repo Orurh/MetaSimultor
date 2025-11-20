@@ -14,22 +14,61 @@
 namespace ui {
 
 void ToolbarPanel::Draw(EditorContext& ctx) {
-  // 1) режимы (Prefab / Fire)
+  // 0) переключатель воркспейса
+  DrawWorkspaceSwitch(ctx);
+
+  ImGui::Separator();
+
+  // 1) режимы (Prefab / Fire / Ignite)
   DrawModeSwitch(ctx);
 
   ImGui::Separator();
 
-  // 2) селектор инструментов (PlaceOnGround / FoliageBrush)
+  // 2) селектор инструментов
   DrawToolSelector(ctx);
 
   ImGui::Separator();
 
-  // 3) панель активного инструмента (например, настройки кисти)
+  // 3) UI активного инструмента
   DrawActiveToolUI(ctx);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// private
+void ToolbarPanel::DrawWorkspaceSwitch(EditorContext& ctx) {
+  auto& st = ctx.State();
+  using W = EditorState::Workspace;
+
+  int current = 0;
+  switch (st.m_workspace) {
+    case W::ALL:    current = 0; break;
+    case W::SCENE:  current = 1; break;
+    case W::PREFAB: current = 2; break;
+    case W::FIRE:   current = 3; break;
+    case W::FX:     current = 4; break;
+    case W::TERRAIN:current = 5; break;
+  }
+
+  const char* labels[] = {
+    "All",
+    "Scene",
+    "Prefabs",
+    "Fire",
+    "FX",
+    "Terrain",
+  };
+
+  if (ImGui::Combo("Workspace", &current, labels, IM_ARRAYSIZE(labels))) {
+    switch (current) {
+      case 0: st.m_workspace = W::ALL;    break;
+      case 1: st.m_workspace = W::SCENE;  break;
+      case 2: st.m_workspace = W::PREFAB; break;
+      case 3: st.m_workspace = W::FIRE;   break;
+      case 4: st.m_workspace = W::FX;     break;
+      case 5: st.m_workspace = W::TERRAIN;break;
+    }
+  }
+}
+
+
 
 void ToolbarPanel::DrawModeSwitch(EditorContext& ctx) {
   auto& st = ctx.State();

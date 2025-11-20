@@ -24,30 +24,30 @@ bool RaycastTerrainSimple(const engine::Terrain& T,
     return p.y - T.GetHeightAt(p.x, p.z);
   };
 
-  const float T_MAX = 5000.0f;
-  const float STEP  = 2.0f;
+  const float T_MAX = 5000.0F;
+  const float STEP  = 2.0F;
 
-  float t0 = 0.0f;
+  float t0 = 0.0F;
   float v0 = f(t0);
 
   for (float t = STEP; t <= T_MAX; t += STEP) {
     float v1 = f(t);
-    bool signChange = (v0 > 0.0f && v1 <= 0.0f) || (v0 < 0.0f && v1 >= 0.0f);
+    bool signChange = (v0 > 0.0F && v1 <= 0.0F) || (v0 < 0.0F && v1 >= 0.0F);
     if (signChange) {
       float a = t - STEP;
       float b = t;
       // бинпоиск
       for (int i = 0; i < 24; ++i) {
-        float m  = 0.5f * (a + b);
+        float m  = 0.5F * (a + b);
         float vm = f(m);
-        if ((v0 > 0.0f && vm > 0.0f) || (v0 < 0.0f && vm < 0.0f)) {
+        if ((v0 > 0.0F && vm > 0.0F) || (v0 < 0.0F && vm < 0.0F)) {
           a = m;
           v0 = vm;
         } else {
           b = m;
         }
       }
-      float thit = 0.5f * (a + b);
+      float thit = 0.5F * (a + b);
       outHit = ro + rd * thit;
       return true;
     }
@@ -78,7 +78,7 @@ void FireDebugPanel::Draw(EditorContext &ctx) {
     return;
   }
 
-  if (!ctx.m_scene) {
+  if (ctx.m_scene == nullptr) {
     ImGui::TextUnformatted("No scene.");
     ImGui::End();
     return;
@@ -118,7 +118,7 @@ void FireDebugPanel::HandlePick(EditorContext &ctx) {
   if (InputSystem::Instance().UIMouseCaptured()) {
     return;
   }
-  if (!ctx.m_window || !ctx.m_scene) {
+  if ((ctx.m_window == nullptr) || (ctx.m_scene == nullptr)) {
     return;
   }
 
@@ -129,8 +129,9 @@ void FireDebugPanel::HandlePick(EditorContext &ctx) {
   const bool LMB_PRESSED = InputSystem::Instance().GetMouseButton(
       engine::MouseButton::Left, engine::InputState::Pressed);
 
-  if (!CTRL_DOWN || !LMB_PRESSED)
+  if (!CTRL_DOWN || !LMB_PRESSED) {
     return;
+}
 
   // Позиция курсора в окне
   double mx = 0.0;
@@ -138,22 +139,22 @@ void FireDebugPanel::HandlePick(EditorContext &ctx) {
   glfwGetCursorPos(ctx.m_window, &mx, &my);
 
   // окно -> координаты фреймбуфера (готовая хелпер-функция)
-  const glm::vec2 fb = ctx.WindowToViewportFB(static_cast<float>(mx),
+  const glm::vec2 FB = ctx.WindowToViewportFB(static_cast<float>(mx),
                                               static_cast<float>(my));
 
   // проверка, что внутри вьюпорта
-  if (fb.x < 0.f || fb.y < 0.f ||
-      fb.x >= static_cast<float>(ctx.vpW) ||
-      fb.y >= static_cast<float>(ctx.vpH)) {
+  if (FB.x < 0.F || FB.y < 0.F ||
+      FB.x >= static_cast<float>(ctx.vpW) ||
+      FB.y >= static_cast<float>(ctx.vpH)) {
     return;
   }
 
   // луч из пикселя FB
   glm::vec3 ro{};
   glm::vec3 rd{};
-  const float FB_W = static_cast<float>(ctx.m_viewportW);
-  const float FB_H = static_cast<float>(ctx.m_viewportH);
-  math::ScreenPointToRay(fb.x, fb.y, FB_W, FB_H, ctx.m_proj, ctx.m_view,
+  const auto FB_W = static_cast<float>(ctx.m_viewportW);
+  const auto FB_H = static_cast<float>(ctx.m_viewportH);
+  math::ScreenPointToRay(FB.x, FB.y, FB_W, FB_H, ctx.m_proj, ctx.m_view,
                          ro, rd);
 
   glm::vec3 hit{};
@@ -190,8 +191,9 @@ void FireDebugPanel::HandlePick(EditorContext &ctx) {
     }
   }
 
-  if (bestGpuIndex < 0)
+  if (bestGpuIndex < 0) {
     return;
+}
 
   auto agents = ctx.m_scene->LoadAgentsFromGPU();
   if (bestGpuIndex >= 0 &&

@@ -71,7 +71,7 @@ void Scene::Update(float dt) {
   const bool UI_MOUSE = engine::InputSystem::Instance().UIMouseCaptured();
   const bool UI_KBD = engine::InputSystem::Instance().UIKeyboardCaptured();
 
-  if (!UI_KBD) {
+  // if (!UI_KBD) {d 
     if (engine::InputSystem::Instance().GetKey(engine::KeyCode::W)) {
       m_camera.ProcessKeyboard(FORWARD, dt);
     }
@@ -84,7 +84,7 @@ void Scene::Update(float dt) {
     if (engine::InputSystem::Instance().GetKey(engine::KeyCode::A)) {
       m_camera.ProcessKeyboard(LEFT, dt);
     }
-  }
+  // }
 
   // Поворот камеры
   const glm::vec2 DELTA = engine::InputSystem::Instance().GetMouseDelta();

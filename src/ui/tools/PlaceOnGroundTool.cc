@@ -184,7 +184,7 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
       case PlaceKind::IGNITE: {
         // поджечь ближайший объект к точке попадания
         // используем тот же радиус, что и для RemoveNearestAt (kPickRadiusXZ)
-        ctx.m_scene->IgniteNearest(hitTerrain, kPickRadiusXZ);
+        ctx.m_scene->IgniteNearest(hitTerrain, K_PICK_RADIUS_XZ);
         break;
       }
     }
@@ -208,7 +208,7 @@ void PlaceOnGroundTool::OnUpdate(EditorContext &ctx) {
       break;
     }
     case PlaceKind::IGNITE: {
-      ctx.m_scene->IgniteNearest(hitPlane, kPickRadiusXZ);
+      ctx.m_scene->IgniteNearest(hitPlane, K_PICK_RADIUS_XZ);
       break;
     }
   }
@@ -256,7 +256,7 @@ bool PlaceOnGroundTool::HandleDeleteClick(EditorContext &ctx,
   // Удаляем ближайший объект (или огонь) рядом с hit.xz
   // ВАЖНО: метод сцены должен существовать (см. нашу предыдущую заготовку
   // RemoveNearestAt)
-  ctx.m_scene->RemoveNearestAt(hit, kPickRadiusXZ);
+  ctx.m_scene->RemoveNearestAt(hit, K_PICK_RADIUS_XZ);
   return true;
 }
 

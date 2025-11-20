@@ -60,7 +60,7 @@ private:
   static bool IsDeleteGesture() noexcept;
 
   // Радиус подбора по XZ при удалении (можете подвинтить)
-  static constexpr float kPickRadiusXZ = 3.0f;                           
+  static constexpr float K_PICK_RADIUS_XZ = 3.0F;                           
 
   bool m_useTerrain{false};
 };

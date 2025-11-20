@@ -14,6 +14,7 @@ public:
   void OnHide(EditorContext& /*ctx*/) override { m_wasVisible = false; }
 
 private:
+  void DrawWorkspaceSwitch(EditorContext& ctx);  // Scene / Prefab / Terrain / Fire / FX
   void DrawModeSwitch(EditorContext& ctx);     // Prefab / Fire
   void DrawToolSelector(EditorContext& ctx);   // Place on ground / Foliage Brush
   void DrawActiveToolUI(EditorContext& ctx);   // UI активного инструмента (в т.ч. кисти)

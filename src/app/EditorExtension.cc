@@ -1,5 +1,5 @@
 // src/editor/EditorExtension.cpp
-#include "app/EditorExtension.h"
+#include "EditorExtension.h"
 #include <GLFW/glfw3.h>
 #include "core/Application.h"
 #include "core/Input.h"
@@ -8,20 +8,27 @@
 #include "ui/Editor.h"
 #include "ui/EditorContext.h"
 #include "ui/backends/ImGuiBackend.h"
-#include "ui/modules/BasicToolsModule.h"
+#include "ui/modules/FireUIModule.h"
+#include "ui/modules/PrefabModule.h"
+#include "ui/modules/SceneModule.h"
+#include "ui/modules/TerrainModule.h"
 
 EditorExtension::~EditorExtension() noexcept = default;
 
 void EditorExtension::OnInit(engine::Application& app) {
   m_imgui = std::make_unique<ui::ImGuiBackend>();
-  m_imgui->Init(static_cast<GLFWwindow*>(app.GetNativeWindow()), "#version 330");
+  m_imgui->Init(app.GetNativeWindow(), "#version 330");
 
   m_editor = std::make_unique<ui::Editor>();
-  m_editor->RegisterModule(std::make_unique<ui::BasicToolsModule>());
-    ui::EditorContext ec{};
-  ec.m_app    = &app;
+  m_editor->RegisterModule(std::make_unique<ui::SceneModule>());
+  m_editor->RegisterModule(std::make_unique<ui::TerrainModule>());
+  m_editor->RegisterModule(std::make_unique<ui::PrefabModule>());
+  m_editor->RegisterModule(std::make_unique<ui::FireUIModule>());
+  
+  ui::EditorContext ec{};
+  ec.m_app = &app;
   ec.m_window = app.GetNativeWindow();
-  ec.m_scene  = &app.GetScene();
+  ec.m_scene = &app.GetScene();
   m_editor->SetActiveTool(ui::ToolType::PLACE_ON_GROUND, ec);
 }
 
@@ -58,15 +65,14 @@ void EditorExtension::OnBeginUI(engine::Application& /*app*/, ui::EditorContext&
 
   // 7) Рендер UI редактора
   m_editor->DrawUI(ctx);
-  
+
   // 8) Обновляем состояние захвата ввода
   const ImGuiIO& io = ImGui::GetIO();
   engine::InputSystem::Instance().SetUICapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
-  
+
   // 9) Обновляем активные инструменты
   m_editor->TickTools(ctx);
 }
-
 
 void EditorExtension::OnEndUI(engine::Application&, ui::EditorContext&) {
   // 3) завершаем кадр ImGui (Render + RenderDrawData + платформенные окна)

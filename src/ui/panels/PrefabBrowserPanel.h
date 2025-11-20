@@ -20,6 +20,12 @@ public:
   PrefabBrowserPanel();
   ~PrefabBrowserPanel();
 
+    bool IsVisibleInWorkspace(EditorContext& ctx) const override {
+    using W = EditorState::Workspace;
+    const auto WS = ctx.State().m_workspace;
+    return WS == W::PREFAB || WS == W::ALL;
+  }
+
 private:
   void UpdatePreviewCamera(const engine::data::AgentPrefab &P);
   const std::string &EnsureSelection(EditorContext &ctx,

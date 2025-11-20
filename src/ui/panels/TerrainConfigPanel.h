@@ -11,7 +11,11 @@ public:
   [[nodiscard]] const char *Id() const override { return "Terrain Config"; }
 
   void Draw(EditorContext &ctx) override;
-
+  bool IsVisibleInWorkspace(EditorContext& ctx) const override {
+    using W = EditorState::Workspace;
+    const auto WS = ctx.State().m_workspace;
+    return WS == W::TERRAIN || WS == W::ALL;
+  }
 private:
   void DrawTextureSettings(EditorContext &ctx);
   void DrawTexturePreview();

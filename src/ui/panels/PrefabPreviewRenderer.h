@@ -19,6 +19,8 @@ public:
   void Zoom(float delta);
   void ResetView();
 
+  
+
 private:
   void UpdateCamera();
   void SetupFBO();
