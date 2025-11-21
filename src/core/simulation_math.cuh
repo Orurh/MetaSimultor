@@ -33,14 +33,25 @@ struct WindData {
 
 __device__ WindData MakeWindData(const float3& wind_force) {
   WindData w{};
-  w.m_strength = sqrtf((wind_force.x * wind_force.x) + (wind_force.y * wind_force.y) + (wind_force.z * wind_force.z));
 
-  if (w.m_strength > 0.001F) {
-    w.m_dir.x = wind_force.x / w.m_strength;
-    w.m_dir.y = wind_force.y / w.m_strength;
-    w.m_dir.z = wind_force.z / w.m_strength;
+  // длина исходного вектора ветра (то, что ты сейчас задаёшь из UI)
+  const float len = sqrtf(
+      (wind_force.x * wind_force.x) +
+      (wind_force.y * wind_force.y) +
+      (wind_force.z * wind_force.z));
+
+  // нормализуем "силу" раза в 3 (я подбирал эмпирически)
+  w.m_strength = len * 5.0f;
+
+  if (len > 0.001f) {
+    w.m_dir.x = wind_force.x / len;
+    w.m_dir.y = wind_force.y / len;
+    w.m_dir.z = wind_force.z / len;
   } else {
-    w.m_dir.x = w.m_dir.y = w.m_dir.z = 0.0F;
+    w.m_dir.x = 0.0f;
+    w.m_dir.y = 0.0f;
+    w.m_dir.z = 0.0f;
+    w.m_strength = 0.0f;
   }
 
   return w;
