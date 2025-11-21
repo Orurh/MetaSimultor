@@ -24,11 +24,11 @@ void FireSimulationSystem::Step(Agent* agents_gpu, int count, float dt) {
 
   if (!m_hasGrid) {
     // Простой дефолт: квадратный мир вокруг нуля
-    grid.cell_size   = params.m_base_check_distance;   // логично брать радиус поиска
-    grid.world_min_x = -1000.0f;
-    grid.world_min_z = -1000.0f;
-    grid.grid_size_x = 256;    // ~ 256 * 15м = 3.8км по X
-    grid.grid_size_z = 256;    // то же по Z
+    grid.m_cell_size   = params.m_base_check_distance;   // логично брать радиус поиска
+    grid.m_world_min_x = -1000.0f;
+    grid.m_world_min_z = -1000.0f;
+    grid.m_grid_size_x = 256;    // ~ 256 * 15м = 3.8км по X
+    grid.m_grid_size_z = 256;    // то же по Z
   }
 
   // Основной CUDA-шаг
