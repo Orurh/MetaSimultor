@@ -16,7 +16,7 @@ class FireDebugPanel final : public IPanel {
   bool IsVisibleInWorkspace(EditorContext& ctx) const override {
     using W = EditorState::Workspace;
     const auto WS = ctx.State().m_workspace;
-    return WS == W::FIRE || WS == W::ALL;
+    return WS == W::FIRE || WS == W::SCENE || WS == W::ALL;
   }
 
  private:

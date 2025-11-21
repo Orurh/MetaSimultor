@@ -10,7 +10,7 @@
 
 namespace {
 
-  struct GridIndex {
+struct GridIndex {
   int x;
   int z;
 };
@@ -20,8 +20,7 @@ __device__ int GetCellIndexDevice(float x, float z, const FireGridParams& grid, 
   int cell_z = static_cast<int>((z - grid.world_min_z) / grid.cell_size);
 
   // за пределами мира – вываливаемся
-  if (cell_x < 0 || cell_x >= grid.grid_size_x ||
-      cell_z < 0 || cell_z >= grid.grid_size_z) {
+  if (cell_x < 0 || cell_x >= grid.grid_size_x || cell_z < 0 || cell_z >= grid.grid_size_z) {
     if (out_gi) {
       out_gi->x = -1;
       out_gi->z = -1;
@@ -34,16 +33,10 @@ __device__ int GetCellIndexDevice(float x, float z, const FireGridParams& grid, 
     out_gi->z = cell_z;
   }
 
-  return (cell_z * grid.grid_size_x) + cell_x; // row-major
+  return (cell_z * grid.grid_size_x) + cell_x;  // row-major
 }
 
-
-__global__ void BuildGridKernel(const Agent* agents,
-                                int count,
-                                FireGridParams grid,
-                                int* cell_heads,
-                                int* cell_next)
-{
+__global__ void BuildGridKernel(const Agent* agents, int count, FireGridParams grid, int* cell_heads, int* cell_next) {
   const int idx = threadIdx.x + blockIdx.x * blockDim.x;
   if (idx < 0 || idx >= count) {
     return;
@@ -76,9 +69,8 @@ __global__ void BuildGridKernel(const Agent* agents,
 
   // Вставляем агента в односвязный список этой ячейки
   int old_head = atomicExch(&cell_heads[cell_idx], idx);
-  cell_next[idx] = old_head;   // -1, если там никого не было
+  cell_next[idx] = old_head;  // -1, если там никого не было
 }
-
 
 // -----------------------------------------------------------------------------
 // Small math helpers
@@ -97,8 +89,10 @@ __device__ float Distance3d(float x1, float y1, float z1, float x2, float y2, fl
 
 __device__ int ClampedPointCount(const FireCollider& c) {
   int n = c.point_count;
-  if (n < 0)  n = 0;
-  if (n > 64) n = 64;
+  if (n < 0)
+    n = 0;
+  if (n > 64)
+    n = 64;
   return n;
 }
 
@@ -109,8 +103,7 @@ struct WindData {
 
 __device__ WindData MakeWindData(const float3& wind_force) {
   WindData w{};
-  w.m_strength = sqrtf((wind_force.x * wind_force.x) + (wind_force.y * wind_force.y) +
-                       (wind_force.z * wind_force.z));
+  w.m_strength = sqrtf((wind_force.x * wind_force.x) + (wind_force.y * wind_force.y) + (wind_force.z * wind_force.z));
 
   if (w.m_strength > 0.001F) {
     w.m_dir.x = wind_force.x / w.m_strength;
@@ -180,8 +173,8 @@ __device__ float ComputeHeatTransfer(float Tsrc, float Tdst, float distance, flo
 }
 
 // Проверка воспламенения точки по температуре
-__device__ void ApplyIgnition(float& intensity, float T, float fuel, float moisture,
-                              float ignition_temp, const FireSimulationParams& p, float dt) {
+__device__ void ApplyIgnition(float& intensity, float T, float fuel, float moisture, float ignition_temp, const FireSimulationParams& p,
+                              float dt) {
   if (fuel <= 0.0F) {
     return;
   }
@@ -218,17 +211,14 @@ __device__ void ApplyIgnition(float& intensity, float T, float fuel, float moist
 // -----------------------------------------------------------------------------
 
 // Шаг горения внутри агента (расход топлива, рост/затухание интенсивности, нагрев/остывание)
-__device__ void UpdateBurningPoints(Agent& agent, const WindData& wind, float dt,
-                                    const FireSimulationParams& params) {
+__device__ void UpdateBurningPoints(Agent& agent, const WindData& wind, float dt, const FireSimulationParams& params) {
   const float fire_eps = params.m_fire_intensity_min;
   const float max_I = params.m_max_intensity;
 
   // --- максимум температуры для этого агента ---
   // если у коллайдера задан свой max_temperature > 0, берём его,
   // иначе используем глобальный из параметров
-  const float base_max_T = (agent.fire_collider.max_temperature > 0.0f)
-                               ? agent.fire_collider.max_temperature
-                               : params.m_max_temperature;
+  const float base_max_T = (agent.fire_collider.max_temperature > 0.0f) ? agent.fire_collider.max_temperature : params.m_max_temperature;
 
   // --- поправка от силы ветра ---
   // wind.m_strength примерно в м/с, нормируем на "10" как условный максимум
@@ -272,188 +262,391 @@ __device__ void UpdateBurningPoints(Agent& agent, const WindData& wind, float dt
 }
 
 // Распространение огня между агентами с учётом ветра (по позициям, а не индексам)
-__device__ void SpreadBetweenAgents(Agent* agents,
-                                    int self_index,
-                                    int agent_count,
-                                    const FireGridParams& grid,
-                                    const int* cell_heads,
-                                    const int* cell_next,
-                                    const WindData& wind,
-                                    float dt,
-                                    const FireSimulationParams& params) {
+__device__ void SpreadBetweenAgents_Simple(Agent* agents, int self_index, int agent_count, const FireGridParams& grid,
+                                           const int* cell_heads, const int* cell_next, const WindData& wind, float dt,
+                                           const FireSimulationParams& params) {
+  const float fire_eps = params.m_fire_intensity_min;
+
+  Agent& self = agents[self_index];
+
+  int sp = ClampedPointCount(self.fire_collider);
+  if (sp <= 0)
+    return;
+
+  float maxI = 0.f, maxT = 0.f, avgM = 0.f;
+  for (int i = 0; i < sp; ++i) {
+    maxI = fmaxf(maxI, self.fire_collider.intensities[i]);
+    maxT = fmaxf(maxT, self.fire_collider.temperatures[i]);
+    avgM += self.fire_collider.moisture[i];
+  }
+  avgM /= sp;
+
+  if (maxI <= params.m_spread_intensity_threshold)
+    return;
+
+  Float3 spc = self.position;
+  float3 C{spc.x, spc.y, spc.z};
+
+  GridIndex gi;
+  if (GetCellIndexDevice(spc.x, spc.z, grid, &gi) < 0)
+    return;
+
+  float effM = Clamp01(avgM * Clamp01(params.m_global_moisture_scale));
+
+  constexpr int MAX_NEI = 64;
+
+  for (int dz = -1; dz <= 1; ++dz)
+    for (int dx = -1; dx <= 1; ++dx) {
+      int nx = gi.x + dx, nz = gi.z + dz;
+      if (nx < 0 || nx >= grid.grid_size_x || nz < 0 || nz >= grid.grid_size_z)
+        continue;
+
+      int cell_idx = nz * grid.grid_size_x + nx;
+
+      int processed = 0;
+      for (int oi = cell_heads[cell_idx]; oi != -1 && processed < MAX_NEI; oi = cell_next[oi]) {
+        if (oi == self_index)
+          continue;
+        if (oi < 0 || oi >= agent_count)
+          break;
+
+        Agent* other = &agents[oi];
+        if (other->type == FireAgentState::Burned)
+          continue;
+
+        Float3 op = other->position;
+        float3 diff{op.x - C.x, op.y - C.y, op.z - C.z};
+
+        float d2 = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+        if (d2 <= 1e-6f)
+          continue;
+
+        float d = sqrtf(d2);
+        diff.x /= d;
+        diff.y /= d;
+        diff.z /= d;
+
+        float wind_dot = diff.x * wind.m_dir.x + diff.y * wind.m_dir.y + diff.z * wind.m_dir.z;
+
+        float wind_sp = (wind_dot > 0.3f) ? (1.f + wind.m_strength * 1.5f * wind_dot) : (wind_dot < -0.3f ? 0.5f : 1.f);
+
+        float max_d = params.m_base_spread_distance * wind_sp;
+        if (d >= max_d)
+          continue;
+
+        float df = 1.f - d / max_d;
+        if (df < 0)
+          df = 0;
+
+        int opcnt = ClampedPointCount(other->fire_collider);
+        if (opcnt <= 0)
+          continue;
+
+        float avgT = 0.f;
+        for (int j = 0; j < opcnt; ++j)
+          avgT += other->fire_collider.temperatures[j];
+        avgT /= opcnt;
+
+        float cond = other->fire_collider.conductivity > 0.f ? other->fire_collider.conductivity : params.m_base_conductivity;
+
+        float heat = ComputeHeatTransfer(maxT, avgT, d, cond, wind_dot, effM, other->fire_collider.ignition_temp, params);
+
+        float wb = (wind_dot > 0.1f) ? (1.f + wind.m_strength * 2.f * wind_dot) : (wind_dot < -0.1f ? 0.5f : 1.f);
+
+        heat *= df * wb * Clamp01(maxI) * params.m_cross_agent_spread_strength * dt;
+
+        if (heat > 0) {
+          for (int j = 0; j < opcnt; ++j) {
+            if (other->fire_collider.intensities[j] > fire_eps)
+              continue;
+            other->fire_collider.temperatures[j] += heat;
+          }
+        }
+
+        ++processed;
+      }
+    }
+}
+
+__device__ void SpreadBetweenAgents_Full(Agent* agents, int self_index, int agent_count, const FireGridParams& grid, const int* cell_heads,
+                                         const int* cell_next, const WindData& wind, float dt, const FireSimulationParams& params) {
   Agent& self = agents[self_index];
 
   const Float3 self_pos = self.position;
   const float3 self_center{self_pos.x, self_pos.y, self_pos.z};
 
   const float spread_threshold = params.m_spread_intensity_threshold;
-  const float fire_eps         = params.m_fire_intensity_min;
+  const float fire_eps = params.m_fire_intensity_min;
 
-  // определяем ячейку текущего агента
   GridIndex self_gi;
   int self_cell_idx = GetCellIndexDevice(self_pos.x, self_pos.z, grid, &self_gi);
-  if (self_cell_idx < 0) {
+  if (self_cell_idx < 0)
     return;
-  }
 
   const int self_points = ClampedPointCount(self.fire_collider);
-  for (int i = 0; i < self_points; ++i) {
-    if (self.fire_collider.intensities[i] <= spread_threshold) {
-      continue;
-    }
 
-    const glm::vec3 point_pos(self.fire_collider.heat_points[i].x,
-                              self.fire_collider.heat_points[i].y,
+  for (int i = 0; i < self_points; ++i) {
+    if (self.fire_collider.intensities[i] <= spread_threshold)
+      continue;
+
+    const glm::vec3 point_pos(self.fire_collider.heat_points[i].x, self.fire_collider.heat_points[i].y,
                               self.fire_collider.heat_points[i].z);
 
-    // перебираем соседние ячейки (3x3 по XZ)
-    for (int dz = -1; dz <= 1; ++dz) {
+    for (int dz = -1; dz <= 1; ++dz)
       for (int dx = -1; dx <= 1; ++dx) {
         int nx = self_gi.x + dx;
         int nz = self_gi.z + dz;
-        if (nx < 0 || nx >= grid.grid_size_x || nz < 0 || nz >= grid.grid_size_z) {
+
+        if (nx < 0 || nx >= grid.grid_size_x || nz < 0 || nz >= grid.grid_size_z)
           continue;
-        }
 
-        int cell_idx = nz * grid.grid_size_x + nx;
+        const int cell_idx = nz * grid.grid_size_x + nx;
 
-        // пробегаем связный список агентов в этой ячейке
         for (int other_idx = cell_heads[cell_idx]; other_idx != -1; other_idx = cell_next[other_idx]) {
-          if (other_idx < 0 || other_idx >= agent_count) {
+          if (other_idx < 0 || other_idx >= agent_count)
             break;
-          }
-          if (other_idx == self_index) continue;
+          if (other_idx == self_index)
+            continue;
 
           Agent* other = &agents[other_idx];
-          if (other->type == FireAgentState::Burned) {
+          if (other->type == FireAgentState::Burned)
             continue;
-          }
 
           const Float3 other_pos = other->position;
           const float3 other_center{other_pos.x, other_pos.y, other_pos.z};
 
-          float3 to_other_dir{other_center.x - self_center.x,
-                              other_center.y - self_center.y,
-                              other_center.z - self_center.z};
+          float3 dir{other_center.x - self_center.x, other_center.y - self_center.y, other_center.z - self_center.z};
 
-          float to_other_length =
-              sqrtf(to_other_dir.x * to_other_dir.x +
-                    to_other_dir.y * to_other_dir.y +
-                    to_other_dir.z * to_other_dir.z);
-
-          if (to_other_length <= 0.001f) {
+          float len = sqrtf(dir.x * dir.x + dir.y * dir.y + dir.z * dir.z);
+          if (len <= 0.001f)
             continue;
-          }
 
-          // Нормализуем
-          to_other_dir.x /= to_other_length;
-          to_other_dir.y /= to_other_length;
-          to_other_dir.z /= to_other_length;
+          dir.x /= len;
+          dir.y /= len;
+          dir.z /= len;
 
-          const float base_check_distance = params.m_base_check_distance;
+          float wind_dot = dir.x * wind.m_dir.x + dir.y * wind.m_dir.y + dir.z * wind.m_dir.z;
 
-          const float wind_dot =
-              to_other_dir.x * wind.m_dir.x +
-              to_other_dir.y * wind.m_dir.y +
-              to_other_dir.z * wind.m_dir.z;
+          float wind_dist = (wind_dot > 0.3f) ? (1.f + wind.m_strength * 2.f * wind_dot) : (wind_dot < -0.3f ? 0.7f : 1.f);
 
-          float wind_distance_effect = 1.0f;
-          if (wind_dot > 0.3f) {
-            wind_distance_effect = 1.0f + wind.m_strength * 2.0f * wind_dot;
-          } else if (wind_dot < -0.3f) {
-            wind_distance_effect = 0.7f;
-          }
-
-          const float max_check_distance = base_check_distance * wind_distance_effect;
-          const float box_dist = to_other_length;
-
-          if (box_dist >= max_check_distance) {
+          float max_check_dist = params.m_base_check_distance * wind_dist;
+          if (len >= max_check_dist)
             continue;
-          }
 
-          float agent_distance_factor = 1.0f - (box_dist / max_check_distance);
-          if (agent_distance_factor < 0.0f) agent_distance_factor = 0.0f;
+          float dist_factor = 1.f - (len / max_check_dist);
+          if (dist_factor < 0)
+            dist_factor = 0;
 
-          // --- перебор точек другого агента ---
-          const int other_points = ClampedPointCount(other->fire_collider);
+          int other_points = ClampedPointCount(other->fire_collider);
+
           for (int j = 0; j < other_points; ++j) {
-            if (other->fire_collider.intensities[j] > fire_eps) {
+            if (other->fire_collider.intensities[j] > fire_eps)
               continue;
-            }
 
-            const glm::vec3 other_point_pos(other->fire_collider.heat_points[j].x,
-                                            other->fire_collider.heat_points[j].y,
-                                            other->fire_collider.heat_points[j].z);
+            glm::vec3 op(other->fire_collider.heat_points[j].x, other->fire_collider.heat_points[j].y,
+                         other->fire_collider.heat_points[j].z);
 
-            const float point_dist =
-                Distance3d(point_pos.x, point_pos.y, point_pos.z,
-                           other_point_pos.x, other_point_pos.y, other_point_pos.z);
+            float pd = Distance3d(point_pos.x, point_pos.y, point_pos.z, op.x, op.y, op.z);
 
-            float wind_spread_effect = 1.0f;
-            if (wind_dot > 0.3f) {
-              wind_spread_effect = 1.0f + wind.m_strength * 1.5f * wind_dot;
-            } else if (wind_dot < -0.3f) {
-              wind_spread_effect = 0.5f;
-            }
+            float wind_spread = (wind_dot > 0.3f) ? (1.f + wind.m_strength * 1.5f * wind_dot) : (wind_dot < -0.3f ? 0.5f : 1.f);
 
-            const float max_spread_distance = params.m_base_spread_distance * wind_spread_effect;
-
-            if (point_dist >= max_spread_distance) {
+            float max_spread = params.m_base_spread_distance * wind_spread;
+            if (pd >= max_spread)
               continue;
-            }
 
-            float distance_factor = 1.0f - point_dist / max_spread_distance;
-            if (distance_factor < 0.0f) distance_factor = 0.0f;
+            float pd_factor = 1.f - pd / max_spread;
+            if (pd_factor < 0)
+              pd_factor = 0;
 
-            float wind_spread_bias = 1.0f;
-            if (wind_dot > 0.1f) {
-              wind_spread_bias = 1.0f + wind.m_strength * 2.0f * wind_dot;
-            } else if (wind_dot < -0.1f) {
-              wind_spread_bias = 0.5f;
-            }
+            float wind_bias = (wind_dot > 0.1f) ? (1.f + wind.m_strength * 2.f * wind_dot) : (wind_dot < -0.1f ? 0.5f : 1.f);
 
             const float Tsrc = self.fire_collider.temperatures[i];
-            float&      Tdst = other->fire_collider.temperatures[j];
+            float& Tdst = other->fire_collider.temperatures[j];
 
-            if (Tsrc <= Tdst) {
+            if (Tsrc <= Tdst)
               continue;
-            }
 
-            const float conductivity =
-                other->fire_collider.conductivity > 0.0f
-                    ? other->fire_collider.conductivity
-                    : params.m_base_conductivity;
+            float cond = (other->fire_collider.conductivity > 0) ? other->fire_collider.conductivity : params.m_base_conductivity;
 
-            const float src_moisture = self.fire_collider.moisture[i];
-            const float global_moist = Clamp01(params.m_global_moisture_scale);
-            const float eff_moisture = Clamp01(src_moisture * global_moist);
+            float effM = Clamp01(self.fire_collider.moisture[i] * Clamp01(params.m_global_moisture_scale));
 
-            float heat = ComputeHeatTransfer(
-                Tsrc, Tdst, point_dist, conductivity,
-                wind_dot,
-                eff_moisture,
-                other->fire_collider.ignition_temp,
-                params);
+            float heat = ComputeHeatTransfer(Tsrc, Tdst, pd, cond, wind_dot, effM, other->fire_collider.ignition_temp, params);
 
-            heat *= distance_factor * wind_spread_bias *
-                    params.m_cross_agent_spread_strength * dt;
+            heat *= pd_factor * wind_bias * params.m_cross_agent_spread_strength * dt;
 
-            if (heat > 0.0f) {
+            if (heat > 0)
               Tdst += heat;
-            }
-          } // for each point j
-        }   // for each agent in cell
-      }     // dx
-    }       // dz
-  }         // for each source point i
+          }
+        }
+      }
+  }
+}
+
+// Более "умная" быстрая версия:
+// - считаем minT по целевому агенту (самые холодные точки)
+// - считаем общий heat_total для пары агентов
+// - распределяем heat_total по точкам цели так, чтобы более холодные
+//   получали больше тепла (по весам)
+__device__ void SpreadBetweenAgents_ColdSpots(Agent* agents, int self_index, int agent_count, const FireGridParams& grid,
+                                              const int* cell_heads, const int* cell_next, const WindData& wind, float dt,
+                                              const FireSimulationParams& params) {
+  if (!cell_heads || !cell_next)
+    return;
+
+  const float fire_eps = params.m_fire_intensity_min;
+  Agent& self = agents[self_index];
+  const int self_points = ClampedPointCount(self.fire_collider);
+  if (self_points <= 0)
+    return;
+
+  // Агрегируем источник
+  float self_max_I = 0.0f;
+  float self_max_T = 0.0f;
+  float self_avg_moist = 0.0f;
+
+  for (int i = 0; i < self_points; ++i) {
+    self_max_I = fmaxf(self_max_I, self.fire_collider.intensities[i]);
+    self_max_T = fmaxf(self_max_T, self.fire_collider.temperatures[i]);
+    self_avg_moist += self.fire_collider.moisture[i];
+  }
+  self_avg_moist /= self_points;
+
+  if (self_max_I <= params.m_spread_intensity_threshold)
+    return;
+
+  const Float3 self_pos = self.position;
+  GridIndex gi;
+  if (GetCellIndexDevice(self_pos.x, self_pos.z, grid, &gi) < 0)
+    return;
+
+  const float global_moist = Clamp01(params.m_global_moisture_scale);
+  const float eff_moisture = Clamp01(self_avg_moist * global_moist);
+
+  for (int dz = -1; dz <= 1; ++dz) {
+    for (int dx = -1; dx <= 1; ++dx) {
+      int nx = gi.x + dx, nz = gi.z + dz;
+      if (nx < 0 || nx >= grid.grid_size_x || nz < 0 || nz >= grid.grid_size_z)
+        continue;
+
+      const int cell_idx = nz * grid.grid_size_x + nx;
+
+      for (int other_idx = cell_heads[cell_idx]; other_idx != -1; other_idx = cell_next[other_idx]) {
+        if (other_idx < 0 || other_idx >= agent_count || other_idx == self_index)
+          continue;
+
+        Agent* other = &agents[other_idx];
+        if (other->type == FireAgentState::Burned)
+          continue;
+
+        const Float3 other_pos = other->position;
+        float3 diff{other_pos.x - self_pos.x, other_pos.y - self_pos.y, other_pos.z - self_pos.z};
+
+        float dist_sq = diff.x * diff.x + diff.y * diff.y + diff.z * diff.z;
+        if (dist_sq <= 1e-6f)
+          continue;
+
+        float dist = sqrtf(dist_sq);
+        diff.x /= dist;
+        diff.y /= dist;
+        diff.z /= dist;
+
+        const float wind_dot = diff.x * wind.m_dir.x + diff.y * wind.m_dir.y + diff.z * wind.m_dir.z;
+
+        float wind_spread_effect = (wind_dot > 0.3f) ? (1.0f + wind.m_strength * 1.5f * wind_dot) : (wind_dot < -0.3f ? 0.5f : 1.0f);
+
+        float max_spread_distance = params.m_base_spread_distance * wind_spread_effect;
+        if (dist >= max_spread_distance)
+          continue;
+
+        float distance_factor = 1.0f - dist / max_spread_distance;
+        if (distance_factor < 0.0f)
+          distance_factor = 0.0f;
+
+        const int other_points = ClampedPointCount(other->fire_collider);
+        if (other_points <= 0)
+          continue;
+
+        // 🔥 ИСПРАВЛЕНИЕ: ищем minT по ВСЕМ точкам, даже горящим!
+        float minT = 1e9f;
+        bool has_valid_points = false;
+        for (int j = 0; j < other_points; ++j) {
+          float T = other->fire_collider.temperatures[j];
+          if (T < minT) {
+            minT = T;
+            has_valid_points = true;
+          }
+        }
+
+        if (!has_valid_points)
+          continue;  // только если вообще нет точек
+
+        const float conductivity =
+            (other->fire_collider.conductivity > 0.0f) ? other->fire_collider.conductivity : params.m_base_conductivity;
+
+        // 🔥 ИСПРАВЛЕНИЕ 2: используем minT для базового расчета
+        float base_heat =
+            ComputeHeatTransfer(self_max_T, minT, dist, conductivity, wind_dot, eff_moisture, other->fire_collider.ignition_temp, params);
+
+        float wind_bias = (wind_dot > 0.1f) ? (1.0f + wind.m_strength * 3.0f * wind_dot) : (wind_dot < -0.1f ? 0.3f : 1.0f);
+
+        const float intensity_factor = Clamp01(self_max_I);
+
+        // 🔥 ИСПРАВЛЕНИЕ 3: правильное распределение тепла
+        float heat_total = base_heat * distance_factor * wind_bias * intensity_factor * params.m_cross_agent_spread_strength * dt;
+
+        if (heat_total <= 0.0f)
+          continue;
+
+        // Распределяем heat_total по всем точкам с приоритетом холодных
+        const float Tref = minT + 50.0f;
+        float weight_sum = 0.0f;
+        float weights[64];
+
+        for (int j = 0; j < other_points; ++j) {
+          float Tj = other->fire_collider.temperatures[j];
+          float w = Tref - Tj;
+          if (w < 0.0f)
+            w = 0.0f;
+          weights[j] = w;
+          weight_sum += w;
+        }
+
+        if (weight_sum <= 1e-6f) {
+          // Равномерное распределение
+          float dT = heat_total / other_points;
+          for (int j = 0; j < other_points; ++j) {
+            other->fire_collider.temperatures[j] += dT;
+          }
+        } else {
+          // Распределение по весам
+          for (int j = 0; j < other_points; ++j) {
+            float share = weights[j] / weight_sum;
+            float dT = heat_total * share;
+            other->fire_collider.temperatures[j] += dT;
+          }
+        }
+      }
+    }
+  }
+}
+
+__device__ void SpreadBetweenAgents(Agent* agents, int self_index, int agent_count, const FireGridParams& grid, const int* cell_heads,
+                                    const int* cell_next, const WindData& wind, float dt, const FireSimulationParams& params) {
+  // Полная физика (медленно)
+  SpreadBetweenAgents_Full(agents, self_index, agent_count, grid, cell_heads, cell_next, wind, dt, params);
+
+  // ⚡ Быстрая версия (быстро)
+  // SpreadBetweenAgents_Simple(agents, self_index, agent_count, grid, cell_heads, cell_next, wind, dt, params);
+
+  // 🥷 Быстрая версия с учётом холодных точек (средне)
+  SpreadBetweenAgents_ColdSpots(agents, self_index, agent_count, grid, cell_heads, cell_next, wind, dt, params);
 }
 
 // Теплопередача внутри одного агента (крона/ствол)
 __device__ void SpreadWithinAgent(Agent& agent, float dt, const FireSimulationParams& params) {
   const int point_count = ClampedPointCount(agent.fire_collider);
   for (int i = 0; i < point_count; ++i) {
-    const glm::vec3 point_pos(agent.fire_collider.heat_points[i].x,
-                              agent.fire_collider.heat_points[i].y,
+    const glm::vec3 point_pos(agent.fire_collider.heat_points[i].x, agent.fire_collider.heat_points[i].y,
                               agent.fire_collider.heat_points[i].z);
 
     for (int j = 0; j < point_count; ++j) {
@@ -461,12 +654,10 @@ __device__ void SpreadWithinAgent(Agent& agent, float dt, const FireSimulationPa
         continue;
       }
 
-      const glm::vec3 other_point_pos(agent.fire_collider.heat_points[j].x,
-                                      agent.fire_collider.heat_points[j].y,
+      const glm::vec3 other_point_pos(agent.fire_collider.heat_points[j].x, agent.fire_collider.heat_points[j].y,
                                       agent.fire_collider.heat_points[j].z);
 
-      const float point_dist = Distance3d(point_pos.x, point_pos.y, point_pos.z, other_point_pos.x,
-                                          other_point_pos.y, other_point_pos.z);
+      const float point_dist = Distance3d(point_pos.x, point_pos.y, point_pos.z, other_point_pos.x, other_point_pos.y, other_point_pos.z);
 
       const float max_local_dist = params.m_local_spread_distance;
       if (point_dist >= max_local_dist) {
@@ -485,20 +676,17 @@ __device__ void SpreadWithinAgent(Agent& agent, float dt, const FireSimulationPa
         continue;
       }
 
-      const float conductivity = agent.fire_collider.conductivity > 0.0f
-                                     ? agent.fire_collider.conductivity
-                                     : params.m_base_conductivity;
+      const float conductivity = agent.fire_collider.conductivity > 0.0f ? agent.fire_collider.conductivity : params.m_base_conductivity;
 
       const float src_moisture = agent.fire_collider.moisture[i];
       const float global_moist = Clamp01(params.m_global_moisture_scale);
       const float eff_moisture = Clamp01(src_moisture * global_moist);
 
-      float heat =
-          ComputeHeatTransfer(Tsrc, Tdst, point_dist, conductivity,
-                              /*wind_factor=*/0.0f,  // внутри агента ветер не учитываем
-                              eff_moisture,
-                              agent.fire_collider.ignition_temp,  // порог этого же материала
-                              params);
+      float heat = ComputeHeatTransfer(Tsrc, Tdst, point_dist, conductivity,
+                                       /*wind_factor=*/0.0f,  // внутри агента ветер не учитываем
+                                       eff_moisture,
+                                       agent.fire_collider.ignition_temp,  // порог этого же материала
+                                       params);
 
       heat *= distance_factor * params.m_local_spread_strength * dt;
 
@@ -558,7 +746,6 @@ __device__ void CoolBurnedAgent(Agent& agent, float dt, const FireSimulationPara
   }
 }
 
-
 __device__ void IgnitePoints(Agent& agent, float dt, const FireSimulationParams& params) {
   const float fire_eps = params.m_fire_intensity_min;
 
@@ -567,7 +754,7 @@ __device__ void IgnitePoints(Agent& agent, float dt, const FireSimulationParams&
     float& I = agent.fire_collider.intensities[i];
     float& F = agent.fire_collider.fuels[i];
     float& T = agent.fire_collider.temperatures[i];
-    float  M = agent.fire_collider.moisture[i];
+    float M = agent.fire_collider.moisture[i];
     const float global_moist = Clamp01(params.m_global_moisture_scale);
     M = Clamp01(M * global_moist);
 
@@ -584,14 +771,8 @@ __device__ void IgnitePoints(Agent& agent, float dt, const FireSimulationParams&
 // CUDA kernel
 // -----------------------------------------------------------------------------
 
-__global__ void UpdateAgentsKernel(Agent* agents,
-                                   int count,
-                                   float dt,
-                                   float3 wind_force,
-                                   FireSimulationParams params,
-                                   FireGridParams grid,
-                                   const int* cell_heads,
-                                   const int* cell_next) {
+__global__ void UpdateAgentsKernel(Agent* agents, int count, float dt, float3 wind_force, FireSimulationParams params, FireGridParams grid,
+                                   const int* cell_heads, const int* cell_next) {
   const int IDX = threadIdx.x + (blockIdx.x * blockDim.x);
   if (IDX >= count) {
     return;
@@ -621,18 +802,12 @@ __global__ void UpdateAgentsKernel(Agent* agents,
   UpdateAgentType(agent, params);
 }
 
-
 // -----------------------------------------------------------------------------
 // Host API
 // -----------------------------------------------------------------------------
 
-void SimulationStep(Agent* agents,
-                    int count,
-                    float dt,
-                    const glm::vec3& wind_force,
-                    const FireSimulationParams& params,
-                    const FireGridParams& grid)
-{
+void SimulationStep(Agent* agents, int count, float dt, const glm::vec3& wind_force, const FireSimulationParams& params,
+                    const FireGridParams& grid) {
   if (!agents || count <= 0) {
     return;
   }
@@ -642,10 +817,10 @@ void SimulationStep(Agent* agents,
 
   const float3 f{wind_force.x, wind_force.y, wind_force.z};
 
-  static int* d_cell_heads      = nullptr;
-  static int* d_cell_next       = nullptr;
-  static int  allocated_agents  = 0;
-  static int  allocated_cells   = 0;
+  static int* d_cell_heads = nullptr;
+  static int* d_cell_next = nullptr;
+  static int allocated_agents = 0;
+  static int allocated_cells = 0;
 
   const int num_cells = grid.grid_size_x * grid.grid_size_z;
 
@@ -656,41 +831,56 @@ void SimulationStep(Agent* agents,
     return;
   }
 
-  // d_cell_next: по числу агентов
+  auto checkedMalloc = [](void** ptr, size_t bytes, const char* what) -> bool {
+    cudaError_t err = cudaMalloc(ptr, bytes);
+    if (err != cudaSuccess) {
+      std::cerr << "cudaMalloc failed for " << what << " (" << bytes << " bytes): " << cudaGetErrorString(err) << "\n";
+      *ptr = nullptr;
+      return false;
+    }
+    return true;
+  };
+
+  // d_cell_next
   if (allocated_agents < count) {
-    if (d_cell_next) cudaFree(d_cell_next);
-    cudaMalloc(&d_cell_next, count * sizeof(int));
+    if (d_cell_next)
+      cudaFree(d_cell_next);
+    if (!checkedMalloc((void**)&d_cell_next, count * sizeof(int), "d_cell_next")) {
+      allocated_agents = 0;
+      return;  // дальше не идём
+    }
     allocated_agents = count;
   }
 
-  // d_cell_heads: по числу ячеек
+  // d_cell_heads
   if (allocated_cells < num_cells) {
-    if (d_cell_heads) cudaFree(d_cell_heads);
-    cudaMalloc(&d_cell_heads, num_cells * sizeof(int));
+    if (d_cell_heads)
+      cudaFree(d_cell_heads);
+    if (!checkedMalloc((void**)&d_cell_heads, num_cells * sizeof(int), "d_cell_heads")) {
+      allocated_cells = 0;
+      return;
+    }
     allocated_cells = num_cells;
   }
 
   // Обнуляем (и next, и heads), чтобы не тащить мусор между кадрами
-  cudaMemset(d_cell_heads, 0xFF, num_cells * sizeof(int));     // -1
-  cudaMemset(d_cell_next,  0xFF, allocated_agents * sizeof(int));
+  cudaMemset(d_cell_heads, 0xFF, num_cells * sizeof(int));  // -1
+  cudaMemset(d_cell_next, 0xFF, allocated_agents * sizeof(int));
 
   cudaError_t err;
 
   // 1) строим грид
-  BuildGridKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(agents, count, grid,
-                                               d_cell_heads, d_cell_next);
+  BuildGridKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(agents, count, grid, d_cell_heads, d_cell_next);
   err = cudaDeviceSynchronize();
   if (err != cudaSuccess) {
     printf("BuildGridKernel launch error: %s\n", cudaGetErrorString(err));
-    return; // дальше идти смысла нет
+    return;  // дальше идти смысла нет
   }
 
   // 2) основное ядро
-  UpdateAgentsKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(
-      agents, count, dt, f, params, grid, d_cell_heads, d_cell_next);
+  UpdateAgentsKernel<<<GRID_SIZE, K_BLOCK_SIZE>>>(agents, count, dt, f, params, grid, d_cell_heads, d_cell_next);
   err = cudaDeviceSynchronize();
   if (err != cudaSuccess) {
     printf("UpdateAgentsKernel launch error: %s\n", cudaGetErrorString(err));
   }
 }
-
