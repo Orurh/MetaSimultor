@@ -1,32 +1,23 @@
 #pragma once
-#include "OpenGL/OpenGLTexture.h"
-#include "Shader.h"
+
 #include <glm/glm.hpp>
 #include <memory>
 
 namespace engine {
-
+class Texture;
+class Shader;
 class Material {
-public:
+  public:
   Material() = default;
-  static std::shared_ptr<Material>
-  Create(const std::string &diffusePath = "",
-         const std::string &specularPath = "",
-         const std::string &normalPath = "",
-         const glm::vec3 &diffuseColor = glm::vec3(0.8f),
-         const glm::vec3 &specularColor = glm::vec3(0.5f),
-         float shininess = 32.0f);
+  static std::shared_ptr<Material> Create(const std::string &diffusePath = "", const std::string &specularPath = "",
+                                          const std::string &normalPath = "",
+                                          const glm::vec3 &diffuseColor = glm::vec3(0.8f),
+                                          const glm::vec3 &specularColor = glm::vec3(0.5f), float shininess = 32.0f);
   // Установка текстур
 
-  void SetDiffuseTexture(const std::shared_ptr<Texture> &texture) {
-    m_diffuseTexture = texture;
-  }
-  void SetSpecularTexture(const std::shared_ptr<Texture> &texture) {
-    m_specularTexture = texture;
-  }
-  void SetNormalTexture(const std::shared_ptr<Texture> &texture) {
-    m_normalTexture = texture;
-  }
+  void SetDiffuseTexture(const std::shared_ptr<Texture> &texture) { m_diffuseTexture = texture; }
+  void SetSpecularTexture(const std::shared_ptr<Texture> &texture) { m_specularTexture = texture; }
+  void SetNormalTexture(const std::shared_ptr<Texture> &texture) { m_normalTexture = texture; }
 
   // Установка цветов
   void SetDiffuseColor(const glm::vec3 &color) { m_diffuseColor = color; }
@@ -41,7 +32,7 @@ public:
     m_normalTexture.reset();
   }
 
-private:
+  private:
   std::shared_ptr<Texture> m_diffuseTexture;
   std::shared_ptr<Texture> m_specularTexture;
   std::shared_ptr<Texture> m_normalTexture;
@@ -51,4 +42,4 @@ private:
   float m_shininess = 32.0f;
 };
 
-} // namespace engine
+}  // namespace engine

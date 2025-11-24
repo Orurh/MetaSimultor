@@ -4,15 +4,16 @@
 #include "ui/panels/FireDebugPanel.h"
 #include "ui/panels/FireParamsPanel.h"
 #include "ui/panels/FireStatsPanel.h"
+#include "ui/panels/HeatMapPanel.h"
 #include "ui/panels/ParticleSystemPanel.h"
-
 namespace ui {
 
-void FireUIModule::Startup(Editor& editor) {
+void FireUIModule::Startup(Editor &editor) {
   editor.RegisterPanel(std::make_unique<FireDebugPanel>());
   editor.RegisterPanel(std::make_unique<FireParamsPanel>());
   editor.RegisterPanel(std::make_unique<ParticleSystemPanel>());
   editor.RegisterPanel(std::make_unique<FireStatsPanel>());
+  editor.RegisterPanel(std::make_unique<HeatMapPanel>());
 }
 
-} // namespace ui
+}  // namespace ui
