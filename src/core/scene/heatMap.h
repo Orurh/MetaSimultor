@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -11,29 +12,36 @@
 namespace engine {
 
 class HeatMap {
-  public:
+public:
   struct Grid {
-    int width = 0;
-    int height = 0;
-    float worldMinX = 0.0f;
-    float worldMaxX = 0.0f;
-    float worldMinZ = 0.0f;
-    float worldMaxZ = 0.0f;
-    std::vector<float> cells;
+    int m_width = 0;
+    int m_height = 0;
+
+    float m_worldMinX = 0.0F;
+    float m_worldMaxX = 0.0F;
+    float m_worldMinZ = 0.0F;
+    float m_worldMaxZ = 0.0F;
+
+    // В Кельвинах, либо специальное отрицательное значение для выгоревших.
+    std::vector<float> m_cells;
 
     void Resize(int w, int h) {
-      width = w;
-      height = h;
-      cells.assign(static_cast<size_t>(w) * static_cast<size_t>(h), 0.0f);
+      m_width = w;
+      m_height = h;
+      m_cells.assign(static_cast<size_t>(w) * static_cast<size_t>(h), 0.0F);
     }
   };
 
   struct Stats {
-    float minT = 0.0f;
-    float maxT = 0.0f;
+    float m_ambientT = 0.0F; // температура среды (К)
+    float m_minCellT = 0.0F; // минимум по ячейкам (К, без выгоревших)
+    float m_maxCellT = 0.0F; // максимум по ячейкам (К, без выгоревших)
+    int m_cooledPoints = 0;  // сколько точек дали ощутимое охлаждение
+    int m_burnedAgents = 0;  // сколько агентов полностью выгорели
   };
 
   HeatMap() = default;
+
   void Init(int width, int height) {
     m_grid.Resize(width, height);
 
@@ -46,44 +54,50 @@ class HeatMap {
     m_texture = Texture::Create(spec);
   }
 
-  // Настройка world-границ, в которые будем вписывать XZ-координаты
+  // Настройка world-границ, в которые вписываем XZ-координаты
   void SetWorldBounds(float minX, float maxX, float minZ, float maxZ) {
-    m_grid.worldMinX = minX;
-    m_grid.worldMaxX = maxX;
-    m_grid.worldMinZ = minZ;
-    m_grid.worldMaxZ = maxZ;
+    m_grid.m_worldMinX = minX;
+    m_grid.m_worldMaxX = maxX;
+    m_grid.m_worldMinZ = minZ;
+    m_grid.m_worldMaxZ = maxZ;
   }
 
-  void UpdateFromAgents(const std::vector<Agent> &agents, float ambientTemperature) {
+  // Обновляем карту по состоянию агентов
+  void UpdateFromAgents(const std::vector<Agent> &agents,
+                        float ambientTemperatureK) {
     if (!m_texture) {
       Init(256, 256);
     }
 
-    BuildGridFromAgents(agents, ambientTemperature);
+    BuildGridFromAgents(agents, ambientTemperatureK);
     UploadToTexture();
   }
 
-  std::shared_ptr<Texture> GetTexture() const { return m_texture; }
-  Stats GetStats() const { return m_stats; }
-  glm::vec2 GetWorldMinXZ() const { return {m_grid.worldMinX, m_grid.worldMinZ}; }
-  glm::vec2 GetWorldMaxXZ() const { return {m_grid.worldMaxX, m_grid.worldMaxZ}; }
-  const Grid &GetGrid() const { return m_grid; }
+  [[nodiscard]] std::shared_ptr<Texture> GetTexture() const {
+    return m_texture;
+  }
+  [[nodiscard]] Stats GetStats() const { return m_stats; }
 
-  private:
+  [[nodiscard]] glm::vec2 GetWorldMinXZ() const {
+    return {m_grid.m_worldMinX, m_grid.m_worldMinZ};
+  }
+
+  [[nodiscard]] glm::vec2 GetWorldMaxXZ() const {
+    return {m_grid.m_worldMaxX, m_grid.m_worldMaxZ};
+  }
+
+  [[nodiscard]] const Grid &GetGrid() const { return m_grid; }
+
+private:
   Grid m_grid;
-  Stats m_stats;
+  Stats m_stats{};
   std::shared_ptr<Texture> m_texture;
 
-  bool m_useGPU = false;
-  bool m_gpuInitialized = false;
-
-  static constexpr float MIN_TEMPERATURE = 0.0f;
-  static constexpr float MAX_TEMPERATURE = 1560.0f;
   static int WorldToGrid(float x, float worldMin, float worldMax, int size) {
     const float len = worldMax - worldMin;
-    if (len <= 1e-5f) {
+    if (len <= 1e-5f)
       return 0;
-    }
+
     float t = (x - worldMin) / len;
     int i = static_cast<int>(t * static_cast<float>(size));
     if (i < 0)
@@ -92,135 +106,230 @@ class HeatMap {
       i = size - 1;
     return i;
   }
-  void BuildGridFromAgents(const std::vector<Agent> &agents, float ambientTemperature) {
-    const int W = m_grid.width;
-    const int H = m_grid.height;
 
+  // Градиент "холодно → горячо":
+  // 0   – тёмно-синий,
+  // 0.25– циан,
+  // 0.5 – зелёный,
+  // 0.75– жёлто-оранжевый,
+  // 1   – ярко-красный.
+  static glm::vec3 ColorFromHeat01(float t) {
+    t = glm::clamp(t, 0.0F, 1.0F);
+
+    if (t < 0.25F) {
+      float k = t / 0.25F;
+      return glm::mix(glm::vec3(0.0F, 0.0F, 0.4F), glm::vec3(0.0F, 0.8F, 1.0F),
+                      k); // dark blue → cyan
+    }
+    if (t < 0.5F) {
+      float k = (t - 0.25F) / 0.25F;
+      return glm::mix(glm::vec3(0.0F, 0.8F, 1.0F), glm::vec3(0.0F, 1.0F, 0.0F),
+                      k); // cyan → green
+    }
+    if (t < 0.75F) {
+      float k = (t - 0.5F) / 0.25F;
+      return glm::mix(glm::vec3(0.0F, 1.0F, 0.0F), glm::vec3(1.0F, 0.8F, 0.0F),
+                      k); // green → yellow/orange
+    }
+    float k = (t - 0.75F) / 0.25F;
+    return glm::mix(glm::vec3(1.0F, 0.8F, 0.0F), glm::vec3(1.0F, 0.1F, 0.0F),
+                    k); // orange → red
+  }
+
+  void BuildGridFromAgents(const std::vector<Agent> &agents,
+                           float ambientTemperatureK) {
+    const int W = m_grid.m_width;
+    const int H = m_grid.m_height;
     if (W <= 0 || H <= 0) {
       return;
     }
 
-    m_grid.cells.assign(static_cast<size_t>(W) * H, ambientTemperature);
+    // Фон – чистая температура среды.
+    m_grid.m_cells.assign(static_cast<size_t>(W) * H, ambientTemperatureK);
 
-    int totalPoints = 0;
+    float minCellT = std::numeric_limits<float>::max();
+    float maxCellT = std::numeric_limits<float>::lowest();
     int cooledPoints = 0;
     int burnedAgents = 0;
+
+    // Порог "горит/не горит" в °C
+    constexpr float BURN_DELTA_C = 50.0F;
+    // Максимальное охлаждение негорящих деревьев (в °C)
+    constexpr float MAX_COOLING_C = 10.0F;
+    constexpr int STAMP_RADIUS = 2;
+    constexpr float AMBIENT_EPS_K = 1.0F; // было 0.25f — делаем помягче
+
+    const float AMBIENT_C = ambientTemperatureK - 273.15F;
 
     for (const Agent &a : agents) {
       const FireCollider &c = a.fire_collider;
       const int N = c.point_count;
-      if (N <= 0)
+      if (N <= 0) {
         continue;
+      }
 
-      // Проверяем сгорел ли агент
-      bool isBurned = (a.type == FireAgentState::Burned);
-      if (isBurned)
-        burnedAgents++;
+      bool isBurnedAgent = (a.type == FireAgentState::Burned);
+      if (isBurnedAgent) {
+        ++burnedAgents;
+      }
 
       for (int i = 0; i < N; ++i) {
-        totalPoints++;
         const Float3 &p = c.heat_points[i];
-        float T = c.temperatures[i];
-        float moisture = c.moisture[i];
+        float rawT = c.temperatures[i]; // К
+        float M = glm::clamp(c.moisture[i], 0.0F, 1.0F);
 
-        float coolingEffect = moisture * moisture * 50.0f;
-        float adjustedT = T - coolingEffect;
+        int gx = WorldToGrid(p.x, m_grid.m_worldMinX, m_grid.m_worldMaxX, W);
+        int gz = WorldToGrid(p.z, m_grid.m_worldMinZ, m_grid.m_worldMaxZ, H);
+        if (gx < 0 || gx >= W || gz < 0 || gz >= H) {
+          continue;
+        }
 
-        if (coolingEffect > 1.0f)
-          cooledPoints++;
+        const int IDX = (gz * W) + gx;
 
-        int gx = WorldToGrid(p.x, m_grid.worldMinX, m_grid.worldMaxX, W);
-        int gz = WorldToGrid(p.z, m_grid.worldMinZ, m_grid.worldMaxZ, H);
+        if (isBurnedAgent) {
+          m_grid.m_cells[IDX] = -100.0F;
+          continue;
+        }
+        // Перевод в °C
+        float rawC = rawT - 273.15F;
+        float deltaC = rawC - AMBIENT_C;
+        bool isBurningPoint = (deltaC > BURN_DELTA_C);
+        float baseVisualT = rawT;
 
-        const int idx = gz * W + gx;
+        if (!isBurningPoint) {
+          // Негорящие деревья ВСЕГДА чуть холоднее воздуха.
+          float factor = 0.3F + (0.7F * M);
+          float coolingC = factor * MAX_COOLING_C;
+          float biasC = -coolingC;
 
-        if (isBurned) {
-          m_grid.cells[idx] = -100.0f;
-        } else {
-          m_grid.cells[idx] += (adjustedT - ambientTemperature) * 0.1f;
+          baseVisualT = ambientTemperatureK + biasC;
+
+          if (coolingC > 0.5f)
+            ++cooledPoints;
+        }
+
+        for (int dz = -STAMP_RADIUS; dz <= STAMP_RADIUS; ++dz) {
+          int nz = gz + dz;
+          if (nz < 0 || nz >= H) {
+            continue;
+          }
+          for (int dx = -STAMP_RADIUS; dx <= STAMP_RADIUS; ++dx) {
+            int nx = gx + dx;
+            if (nx < 0 || nx >= W) {
+              continue;
+            }
+
+            auto dist2 = static_cast<float>(dx * dx + dz * dz);
+            float falloff = 1.0f / (1.0f + dist2); // 0.2..1
+
+            float tToWrite = ambientTemperatureK +
+                             (baseVisualT - ambientTemperatureK) * falloff;
+
+            float &cellT = m_grid.m_cells[nz * W + nx];
+
+            if (cellT < 0.0f) {
+              continue;
+            }
+
+            if (isBurningPoint) {
+              if (tToWrite > cellT) {
+                cellT = tToWrite;
+              }
+            } else {
+              if (std::abs(cellT - ambientTemperatureK) < AMBIENT_EPS_K &&
+                  tToWrite < cellT) {
+                cellT = tToWrite;
+              }
+            }
+          }
         }
       }
     }
 
-    m_stats.minT = MIN_TEMPERATURE;
-    m_stats.maxT = MAX_TEMPERATURE;
-  }
-  static glm::vec3 ColorFrom01(float t) {
-    if (t < -0.1f) {
-      return glm::vec3(0.2, 0.2f, 0.2f);
+    for (float T : m_grid.m_cells) {
+      if (T < 0.0F) // burned
+        continue;
+      if (T < minCellT) {
+        minCellT = T;
+      }
+      if (T > maxCellT) {
+        maxCellT = T;
+      }
     }
 
-    t = glm::clamp(t, 0.0f, 1.0f);
-
-    float hue = 240.0f * (1.0f - t);
-    float saturation = 1.0f;
-    float lightness = 0.5f;
-
-    return HSLtoRGB(hue, saturation, lightness);
-  }
-
-  static glm::vec3 HSLtoRGB(float h, float s, float l) {
-    h = glm::mod(h, 360.0f);
-    s = glm::clamp(s, 0.0f, 1.0f);
-    l = glm::clamp(l, 0.0f, 1.0f);
-
-    float c = (1.0f - glm::abs(2.0f * l - 1.0f)) * s;
-    float x = c * (1.0f - glm::abs(glm::mod(h / 60.0f, 2.0f) - 1.0f));
-    float m = l - c / 2.0f;
-
-    glm::vec3 rgb;
-    if (h < 60.0f) {
-      rgb = glm::vec3(c, x, 0.0f);
-    } else if (h < 120.0f) {
-      rgb = glm::vec3(x, c, 0.0f);
-    } else if (h < 180.0f) {
-      rgb = glm::vec3(0.0f, c, x);
-    } else if (h < 240.0f) {
-      rgb = glm::vec3(0.0f, x, c);
-    } else if (h < 300.0f) {
-      rgb = glm::vec3(x, 0.0f, c);
-    } else {
-      rgb = glm::vec3(c, 0.0f, x);
+    if (minCellT == std::numeric_limits<float>::max()) {
+      minCellT = maxCellT = ambientTemperatureK;
     }
 
-    return rgb + glm::vec3(m);
+    m_stats.m_ambientT = ambientTemperatureK;
+    m_stats.m_minCellT = minCellT;
+    m_stats.m_maxCellT = maxCellT;
+    m_stats.m_cooledPoints = cooledPoints;
+    m_stats.m_burnedAgents = burnedAgents;
   }
+
   void UploadToTexture() {
-    if (!m_texture)
+    if (!m_texture) {
       return;
+    }
 
-    const int W = m_grid.width;
-    const int H = m_grid.height;
+    const int W = m_grid.m_width;
+    const int H = m_grid.m_height;
     const int N = W * H;
-
-    if (W <= 0 || H <= 0 || m_grid.cells.size() != static_cast<size_t>(N))
+    if (W <= 0 || H <= 0 || m_grid.m_cells.size() != static_cast<size_t>(N)) {
       return;
+    }
 
-    std::vector<unsigned char> pixels;
-    pixels.resize(static_cast<size_t>(N) * 4u);
+    std::vector<unsigned char> pixels(static_cast<size_t>(N) * 4U);
 
+    const float AMBIENT_C = m_stats.m_ambientT - 273.15F;
+
+    constexpr float COLD_RANGE_C = 20.0F;
+    constexpr float WARM_RANGE_C = 60.0F;
+    constexpr float FIRE_RANGE_C = 800.0F;
     for (int i = 0; i < N; ++i) {
-      float T = m_grid.cells[i];
+      float T = m_grid.m_cells[i];
+      glm::vec3 color;
 
-      glm::vec3 c;
-
-      if (T < -50.0f) {
-        c = glm::vec3(0.2f, 0.2f, 0.2f);
+      if (T < 0.0F) {
+        // выгоревшие – тёмно-серые
+        color = glm::vec3(0.15F, 0.15F, 0.15F);
       } else {
-        // Нормализуем обычные температуры
-        float t01 = (T - MIN_TEMPERATURE) / (MAX_TEMPERATURE - MIN_TEMPERATURE);
-        t01 = glm::clamp(t01, 0.0f, 1.0f);
-        c = ColorFrom01(t01);
+        float Tc = T - 273.15F;
+        float deltaC = Tc - AMBIENT_C;
+        float t01 = 0.5F; // центр по умолчанию
+
+        if (deltaC <= -COLD_RANGE_C) {
+          t01 = 0.0f;
+        } else if (deltaC < 0.0F) {
+          float k = (deltaC + COLD_RANGE_C) / COLD_RANGE_C; // 0..1
+          t01 = 0.25F * k;
+        } else if (deltaC < WARM_RANGE_C) {
+          float k = deltaC / WARM_RANGE_C; // 0..1
+          t01 = 0.25F + (0.25F * k);
+        } else {
+          float fireDelta =
+              glm::clamp(deltaC - WARM_RANGE_C, 0.0F, FIRE_RANGE_C);
+          float k = fireDelta / FIRE_RANGE_C;
+          k = std::sqrt(k);
+          t01 = 0.5F + (0.5F * k);
+        }
+
+        color = ColorFromHeat01(t01);
       }
 
-      pixels[4 * i + 0] = static_cast<unsigned char>(c.r * 255.0f);
-      pixels[4 * i + 1] = static_cast<unsigned char>(c.g * 255.0f);
-      pixels[4 * i + 2] = static_cast<unsigned char>(c.b * 255.0f);
-      pixels[4 * i + 3] = static_cast<unsigned char>(0.6f * 255.0f);
+      pixels[(4 * i) + 0] =
+          static_cast<unsigned char>(glm::clamp(color.r, 0.0F, 1.0F) * 255.0F);
+      pixels[(4 * i) + 1] =
+          static_cast<unsigned char>(glm::clamp(color.g, 0.0F, 1.0F) * 255.0F);
+      pixels[(4 * i) + 2] =
+          static_cast<unsigned char>(glm::clamp(color.b, 0.0F, 1.0F) * 255.0F);
+      pixels[(4 * i) + 3] =
+          static_cast<unsigned char>(0.8F * 255.0F); // прозрачноcть оверлея
     }
 
     m_texture->SetData(pixels.data(), static_cast<uint32_t>(pixels.size()));
   }
 };
 
-}  // namespace engine
+} // namespace engine

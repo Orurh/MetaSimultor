@@ -15,6 +15,6 @@ class HeatMapPanel final : public IPanel {
 
   private:
   std::shared_ptr<engine::Texture> m_texture;
-  engine::HeatMap::Stats m_stats;
+  engine::HeatMap::Stats m_stats{};
 };
 }  // namespace ui

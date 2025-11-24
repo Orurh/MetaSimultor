@@ -34,7 +34,7 @@ add_library(imgui STATIC
 )
 target_compile_definitions(imgui PUBLIC
     IMGUI_IMPL_OPENGL_LOADER_GLAD
-    IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+    
 )
 target_include_directories(imgui PUBLIC
     ${IMGUI_DIR}

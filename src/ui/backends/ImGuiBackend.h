@@ -13,5 +13,6 @@ public:
   // NEW
   void SaveLayout(const char* path) override;
   void LoadLayout(const char* path) override;
+  void UpdateUIScale(GLFWwindow* window) override;
 };
 } // namespace ui
