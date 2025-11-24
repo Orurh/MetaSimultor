@@ -24,6 +24,8 @@ public:
 
   virtual const TextureSpecification &GetSpecification() const = 0;
 
+  virtual void SetData(const void* data, uint32_t size) = 0;
+
   static std::shared_ptr<Texture> Create(const std::string &path);
   static std::shared_ptr<Texture> Create(const TextureSpecification &spec);
 };

@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include "Camera.h"
 #include "Terrain.h"
 #include "configs/WindConfig.h"
@@ -6,12 +7,12 @@
 #include "core/fire/FireConfig.h"
 #include "data/PrefabSystem.h"
 #include "graphics/ParticleSystem/ParticleSystem.h"
-#include <memory>
 
 #include "Components.h"
 #include "core/fire/FireModule.h"
 #include "entt.hpp"
 #include "sceneObj/ObjectModelStore.h"
+#include "core/scene/heatMap.h"
 
 #include "SimulationTime.h"
 
@@ -21,29 +22,27 @@ class Entity;
 class Material;
 class Scene {
 
-  public:
+ public:
   Scene();
   void Init();
   void Update(float dt);
-  auto CreateEntity(const std::string &id) -> Entity;
+  auto CreateEntity(const std::string& id) -> Entity;
   void Render();
-  void AddTree(float x, float z, const std::string &tree_type = "default_tree", float scale = 1.F);
+  void AddTree(float x, float z, const std::string& tree_type = "default_tree", float scale = 1.F);
   void AddFire(float x, float z, float intensity = 1.0F);
 
-  void AddFireAt(const glm::vec3 &world, float intensity = 1.0F);
-  void IgniteNearest(const glm::vec3 &worldPos, float maxDist);
+  void AddFireAt(const glm::vec3& world, float intensity = 1.0F);
+  void IgniteNearest(const glm::vec3& worldPos, float maxDist);
   void Generate();
   void Clear();
   void Shutdown();
   void SetFireIntensity(float v) { m_fireIntensity = v; }
   std::vector<Agent> LoadAgentsFromGPU();
-  auto GetSceneObjectsView() const {
-    return m_registry.view<TransformComponent, RenderComponent, AgentLinkComponent>();
-  }
+  auto GetSceneObjectsView() const { return m_registry.view<TransformComponent, RenderComponent, AgentLinkComponent>(); }
 
   glm::mat4 GetViewMatrix() { return m_camera.GetViewMatrix(); }
   glm::mat4 GetProjMatrix(int w, int h);
-  AgentManager &GetAgentManager() { return m_agentManager; }
+  AgentManager& GetAgentManager() { return m_agentManager; }
 
   void SetViewportRect(int x, int y, int w, int h) {
     m_vpX = x;
@@ -56,47 +55,52 @@ class Scene {
     m_vpScaleY = sy;
   }
 
-  void AddPrefab(const std::string &prefab_id, float x, float z, float scale);
-  bool RemoveNearestAt(const glm::vec3 &world, float maxXZDist);
+  void AddPrefab(const std::string& prefab_id, float x, float z, float scale);
+  bool RemoveNearestAt(const glm::vec3& world, float maxXZDist);
 
-  const std::vector<std::string> &ListPrefabIds() const;
+  const std::vector<std::string>& ListPrefabIds() const;
 
-  engine::data::PrefabSystem &GetPrefabSystem() { return m_prefabSystem; }
-  const engine::data::PrefabSystem &GetPrefabSystem() const { return m_prefabSystem; }
+  engine::data::PrefabSystem& GetPrefabSystem() { return m_prefabSystem; }
+  const engine::data::PrefabSystem& GetPrefabSystem() const { return m_prefabSystem; }
 
-  WindConfig &GetWindConfig() { return m_windConfig; }
-  const WindConfig &GetWindConfig() const { return m_windConfig; }
+  WindConfig& GetWindConfig() { return m_windConfig; }
+  const WindConfig& GetWindConfig() const { return m_windConfig; }
 
   float GetWindTime() const { return m_windTime; }
-  void ReloadModelForPrefab(const std::string &prefab_id, const engine::data::AgentPrefab &prefab);
-  void GenerateTerrain(const TerrainGenerationSettings &s);
+  void ReloadModelForPrefab(const std::string& prefab_id, const engine::data::AgentPrefab& prefab);
+  void GenerateTerrain(const TerrainGenerationSettings& s);
 
-  Terrain *GetTerrain() { return m_terrain.get(); }
-  const Terrain *GetTerrain() const { return m_terrain.get(); }
+  Terrain* GetTerrain() { return m_terrain.get(); }
+  const Terrain* GetTerrain() const { return m_terrain.get(); }
   float GetGroundHeight(float x, float z) const;
   size_t GetAgentCount() const { return m_agentManager.GetAgentCount(); }
-  void AddParticleSystem(const std::shared_ptr<ParticleSystem> &system);
-  void RemoveParticleSystem(const std::shared_ptr<ParticleSystem> &system);
-  const std::vector<std::shared_ptr<ParticleSystem>> &GetParticleSystems() const { return m_particleSystems; }
+  void AddParticleSystem(const std::shared_ptr<ParticleSystem>& system);
+  void RemoveParticleSystem(const std::shared_ptr<ParticleSystem>& system);
+  const std::vector<std::shared_ptr<ParticleSystem>>& GetParticleSystems() const { return m_particleSystems; }
 
-  FireModule &GetFireModule() { return m_fire; }
-  const FireModule &GetFireModule() const { return m_fire; }
+  FireModule& GetFireModule() { return m_fire; }
+  const FireModule& GetFireModule() const { return m_fire; }
 
-
-  SimulationTime &GetTime() { return m_time; }
-  const SimulationTime &GetTime() const { return m_time; }
+  SimulationTime& GetTime() { return m_time; }
+  const SimulationTime& GetTime() const { return m_time; }
 
   double GetSimTimeSeconds() const { return m_time.GetSimTime(); }
   double GetRealTimeSeconds() const { return m_time.GetRealTimeSinceStart(); }
 
-  private:
-  void EnsureModelsForPrefab(const std::string &id, const engine::data::AgentPrefab &prefab);
-  void LoadObjectModels(const std::string &object_name, const std::string &normal_path, const std::string &burning_path,
-                        const std::string &burned_path);
-  void RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>> &instanceData);
 
-  Model *GetModelForState(const ObjectModels *models, FireAgentState state);
-  glm::mat4 CalculateModelMatrix(const glm::vec3 &position, const glm::vec3 &scale) const;
+  void ToggleHeatMap() { m_showHeatMap = !m_showHeatMap; }
+  bool IsHeatMapVisible() const { return m_showHeatMap; }
+  void SetHeatMapVisible(bool visible) { m_showHeatMap = visible; }
+  HeatMap& GetHeatMap() { return m_heatMap; }
+
+ private:
+  void EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab);
+  void LoadObjectModels(const std::string& object_name, const std::string& normal_path, const std::string& burning_path,
+                        const std::string& burned_path);
+  void RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>>& instanceData);
+
+  Model* GetModelForState(const ObjectModels* models, FireAgentState state);
+  glm::mat4 CalculateModelMatrix(const glm::vec3& position, const glm::vec3& scale) const;
   AgentManager m_agentManager;
   std::vector<std::shared_ptr<ParticleSystem>> m_particleSystems;
 
@@ -122,5 +126,8 @@ class Scene {
 
   FireModule m_fire;
   SimulationTime m_time;
+  HeatMap m_heatMap; 
+  bool m_showHeatMap = true;
+  float m_heatMapHeight = 50.0f;
 };
 }  // namespace engine

@@ -48,6 +48,9 @@ public:
   void SetEffectParams(const std::string &uniformName,
                        const FireParams::EffectParams &params);
 
+  void DrawHeatMap(const std::shared_ptr<Texture>& heatmapTexture, 
+                  const glm::vec2& worldMinXZ, const glm::vec2& worldMaxXZ, float height);
+
 private:
   Renderer() = default;
   struct UniversalParticleData {
@@ -92,5 +95,12 @@ private:
   std::shared_ptr<VertexBuffer> m_instanceVBO;
   std::shared_ptr<VertexArrayObject> m_instanceVAO;
   std::unordered_map<Model *, std::vector<glm::mat4>> m_instanceBatch;
+
+  void InitializeHeatMapResources();
+  
+  std::shared_ptr<Shader> m_heatmapShader;
+  std::shared_ptr<VertexArrayObject> m_heatmapVAO;
+  std::shared_ptr<VertexBuffer> m_heatmapVBO;
+  std::shared_ptr<IndexBuffer> m_heatmapEBO;
 };
 } // namespace engine

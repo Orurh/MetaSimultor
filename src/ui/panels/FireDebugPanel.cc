@@ -313,4 +313,7 @@ void FireDebugPanel::DrawAgentInfo() {
   ImGui::Text("  Moisture: %.3f", c.moisture[i]);
 }
 
+
+
+
 } // namespace ui

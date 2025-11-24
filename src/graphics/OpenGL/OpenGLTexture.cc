@@ -44,7 +44,87 @@ OpenGLTexture::OpenGLTexture(const std::string &path) {
     throw std::runtime_error("Failed to load texture: " + path);
   }
 }
-OpenGLTexture::OpenGLTexture(const TextureSpecification &spec) {}
+OpenGLTexture::OpenGLTexture(const TextureSpecification &spec) 
+  : m_specification(spec), m_width(spec.Width), m_height(spec.Height) {
+  
+  GLenum internalFormat = 0, dataFormat = 0;
+  
+  switch (spec.Format) {
+    case ImageFormat::RGBA8:
+      internalFormat = GL_RGBA8;
+      dataFormat = GL_RGBA;
+      break;
+    case ImageFormat::RGB8:
+      internalFormat = GL_RGB8;
+      dataFormat = GL_RGB;
+      break;
+    case ImageFormat::R8:
+      internalFormat = GL_R8;
+      dataFormat = GL_RED;
+      break;
+    default:
+      throw std::runtime_error("Unsupported texture format in specification");
+  }
+  
+  glGenTextures(1, &m_rendererID);
+  glBindTexture(GL_TEXTURE_2D, m_rendererID);
+  
+  // Создаем текстуру с пустыми данными
+  glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, m_width, m_height, 0, dataFormat, GL_UNSIGNED_BYTE, nullptr);
+  
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+  
+  if (spec.GenerateMips) {
+    glGenerateMipmap(GL_TEXTURE_2D);
+  }
+}
+
+
+void OpenGLTexture::SetData(const void* data, uint32_t size) {
+  GLenum dataFormat = GL_RGBA;
+  GLenum internalFormat = GL_RGBA8;
+
+  // Определяем формат данных на основе спецификации текстуры
+  switch (m_specification.Format) {
+    case ImageFormat::RGBA8:
+      internalFormat = GL_RGBA8;
+      dataFormat = GL_RGBA;
+      break;
+    case ImageFormat::RGB8:
+      internalFormat = GL_RGB8;
+      dataFormat = GL_RGB;
+      break;
+    case ImageFormat::R8:
+      internalFormat = GL_R8;
+      dataFormat = GL_RED;
+      break;
+    default:
+      throw std::runtime_error("Unsupported texture format for SetData");
+  }
+
+  // Проверяем, что размер данных соответствует ожидаемому
+  uint32_t bpp = 4; // байт на пиксель для RGBA
+  if (m_specification.Format == ImageFormat::RGB8) bpp = 3;
+  else if (m_specification.Format == ImageFormat::R8) bpp = 1;
+  
+  uint32_t expectedSize = m_width * m_height * bpp;
+  if (size != expectedSize) {
+    throw std::runtime_error("Texture data size does not match texture dimensions");
+  }
+
+  glBindTexture(GL_TEXTURE_2D, m_rendererID);
+  glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, m_width, m_height, dataFormat, GL_UNSIGNED_BYTE, data);
+  
+  if (m_specification.GenerateMips) {
+    glGenerateMipmap(GL_TEXTURE_2D);
+  }
+}
+
+
+
 OpenGLTexture::~OpenGLTexture() { glDeleteTextures(1, &m_rendererID); }
 void OpenGLTexture::Bind(uint32_t slot) const {
   glActiveTexture(GL_TEXTURE0 + slot);

@@ -26,6 +26,10 @@ void Scene::Init() {
   GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
   engine::Renderer::Instance().Init();
   ParticleSystemPool::Initialize(1000);
+
+
+  m_heatMap.Init(256, 256); // 256x256 resolution
+  m_heatMap.SetWorldBounds(-100.0f, 1000.0f, -100.0f, 1000.0f); // Настройте под ваш террейн
 }
 
 auto Scene::CreateEntity(const std::string& id) -> Entity {
@@ -38,6 +42,10 @@ auto Scene::CreateEntity(const std::string& id) -> Entity {
 
 void Scene::GenerateTerrain(const TerrainGenerationSettings& s) {
   m_terrain->GenerateRandom(s);
+
+    float padding = 50.0f; // Небольшой отступZZ
+    m_heatMap.SetWorldBounds(-padding, s.width * s.scale + padding,
+                            -padding, s.depth * s.scale + padding);
 }
 
 void Scene::EnsureModelsForPrefab(const std::string& id, const engine::data::AgentPrefab& prefab) {
@@ -101,6 +109,8 @@ void Scene::Update(float dt) {
     }
   }
   auto agents = LoadAgentsFromGPU();
+  float ambientTemp = m_fire.Config().m_env.m_ambient_temperature;
+  m_heatMap.UpdateFromAgents(agents, ambientTemp);
 
   auto particleAgentView = m_registry.view<ParticleSystemComponent, AgentLinkComponent>();
   for (auto [entity, particleComp, link] : particleAgentView.each()) {
@@ -134,6 +144,8 @@ void Scene::Update(float dt) {
       }
     }
   }
+
+  
 
   for (auto& system : m_particleSystems) {
     system->SetWind(currentWind);
@@ -194,6 +206,16 @@ void Scene::Render() {
     system->Render(view, projection);
   }
   Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
+
+if (m_showHeatMap) {
+        auto heatmapTexture = m_heatMap.GetTexture();
+        if (heatmapTexture) {
+            Renderer::Instance().DrawHeatMap(heatmapTexture, 
+                                           m_heatMap.GetWorldMinXZ(), 
+                                           m_heatMap.GetWorldMaxXZ(), m_heatMapHeight);
+        }
+    }
+
 
   Renderer::Instance().EndScene();
 }
@@ -499,5 +521,8 @@ glm::mat4 Scene::CalculateModelMatrix(const glm::vec3& position, const glm::vec3
   modelMatrix = glm::scale(modelMatrix, scale);
   return modelMatrix;
 }
+
+
+
 
 }  // namespace engine

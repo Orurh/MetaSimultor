@@ -69,6 +69,7 @@ void Renderer::Init() {
                             {ShaderDataType::Float, "a_effect_type"}});
   m_particleVAO->AddVertexBuffer(m_particleVBO);
   SetFireParams({});
+  InitializeHeatMapResources();
 }
 
 void Renderer::Shutdown() {
@@ -93,6 +94,12 @@ void Renderer::Shutdown() {
   m_sparksTexture.reset();
   m_ashTexture.reset();
   m_heatTexture.reset();
+
+
+  m_heatmapShader.reset();
+  m_heatmapVAO.reset();
+  m_heatmapVBO.reset();
+  m_heatmapEBO.reset();
 }
 
 void Renderer::DrawCube(const glm::vec3 &position, const glm::vec3 &color,
@@ -419,4 +426,81 @@ void Renderer::SetFireParams(const FireParams &params) {
     m_universalParticleShader->Unbind();
   }
 }
+
+
+void Renderer::InitializeHeatMapResources()
+{
+    // Шейдер для heatmap
+    m_heatmapShader = Shader::Create("res/shaders/heatmap.sh");
+    
+    if (!m_heatmapShader) {
+        std::cout << "Failed to create heatmap shader!" << std::endl;
+        return;
+    }
+    
+    // Вершины для квада (позиции в UV-координатах 0-1)
+    float vertices[] = {
+        0.0f, 0.0f,  // нижний левый
+        1.0f, 0.0f,  // нижний правый  
+        1.0f, 1.0f,  // верхний правый
+        0.0f, 1.0f   // верхний левый
+    };
+    
+    unsigned int indices[] = {
+        0, 1, 2,  // первый треугольник
+        2, 3, 0   // второй треугольник
+    };
+    
+    // Используем правильные фабричные методы
+    m_heatmapVBO = VertexBuffer::Create(vertices, sizeof(vertices));
+    m_heatmapVBO->SetLayout({
+        {ShaderDataType::Float2, "a_Position"}
+    });
+    
+    m_heatmapEBO = IndexBuffer::Create(indices, 6);
+    m_heatmapVAO = VertexArrayObject::Create();
+    m_heatmapVAO->AddVertexBuffer(m_heatmapVBO);
+    m_heatmapVAO->SetIndexBuffer(m_heatmapEBO);
+}
+
+void Renderer::DrawHeatMap(const std::shared_ptr<Texture>& heatmapTexture, 
+                          const glm::vec2& worldMinXZ, const glm::vec2& worldMaxXZ, float height)
+{
+    if (!heatmapTexture || !m_heatmapShader) {
+        std::cout << "Heatmap: no texture or shader!" << std::endl;
+        return;
+    }
+    
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glDepthMask(GL_FALSE);
+    
+    m_heatmapShader->Bind();
+    
+    m_heatmapShader->SetMat4("u_View", m_viewMat);
+    m_heatmapShader->SetMat4("u_Projection", m_projectionMat);
+    
+    m_heatmapShader->SetFloat("u_WorldMinX", worldMinXZ.x);
+    m_heatmapShader->SetFloat("u_WorldMinZ", worldMinXZ.y);
+    m_heatmapShader->SetFloat("u_WorldMaxX", worldMaxXZ.x);
+    m_heatmapShader->SetFloat("u_WorldMaxZ", worldMaxXZ.y);
+    
+    // Добавляем установку высоты
+    m_heatmapShader->SetFloat("u_Height", height);
+    
+    m_heatmapShader->SetFloat("u_Alpha", 0.6f);
+    
+    heatmapTexture->Bind(0);
+    m_heatmapShader->SetInt("u_HeatmapTexture", 0);
+    
+    m_heatmapVAO->Bind();
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+    m_heatmapVAO->Unbind();
+    
+    m_heatmapShader->Unbind();
+    
+    glDepthMask(GL_TRUE);
+    glDisable(GL_BLEND);
+}
+
 } // namespace engine

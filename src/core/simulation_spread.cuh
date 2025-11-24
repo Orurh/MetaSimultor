@@ -500,8 +500,7 @@ __device__ void SpreadBetweenAgents(Agent* agents, int self_index, int agent_cou
   // SpreadBetweenAgents_Simple(agents, self_index, agent_count, grid, cell_heads, cell_next, wind, dt, params);
 
   // Быстрая версия с учётом холодных точек (средне)
-  // SpreadBetweenAgents_ColdSpots(agents, self_index, agent_count, grid, cell_heads, cell_next, wind, dt, params);
-    SpreadBetweenAgents_ColdSpots1(agents, self_index, agent_count, grid, cell_heads, cell_next, wind, dt, params);
+  SpreadBetweenAgents_ColdSpots(agents, self_index, agent_count, grid, cell_heads, cell_next, wind, dt, params);
 }
 
 __device__ void SpreadWithinAgent(Agent& agent, float dt, const FireSimulationParams& params) {

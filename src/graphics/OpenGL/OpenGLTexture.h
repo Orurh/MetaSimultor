@@ -19,6 +19,8 @@ public:
     return m_specification;
   }
 
+  virtual void SetData(const void* data, uint32_t size) override;
+  
 private:
   uint32_t m_width, m_height;
   uint32_t m_rendererID;
