@@ -1,8 +1,8 @@
 // Application.cc
 #include "Application.h"
 #include "app/IAppExtension.h"
+#include "core/snapshot/SceneRecorder.h"
 #include "ui/EditorContext.h"
-
 // clang-format off
 // NOLINTBEGIN(llvm-include-order)
 #ifndef GLFW_INCLUDE_NONE
@@ -25,21 +25,21 @@
 
 namespace engine {
 Application::Application(int width, int height, const char *title)
-    : m_last_frame_time(static_cast<float>(glfwGetTime())), m_width(width),
-      m_height(height) {
+    : m_last_frame_time(static_cast<float>(glfwGetTime())), m_width(width), m_height(height) {
   m_window = std::make_unique<Window>(width, height, std::string(title));
   InitGL();
 
   // Сцена
   m_scene = std::make_unique<Scene>();
   m_scene->Init();
+  m_sceneRecorder = std::make_unique<SceneRecorder>(m_scene.get());
 }
 
 engine::Application::~Application() { m_scene->Shutdown(); }
 
 void engine::Application::Shutdown() {
   if (m_scene) {
-    m_scene->Shutdown(); // Должен очищать ВСЕ материалы, текстуры, VAO, VBO
+    m_scene->Shutdown();  // Должен очищать ВСЕ материалы, текстуры, VAO, VBO
   }
 
   // 2. Очищаем кэш текстур (после очистки сцены)
@@ -51,9 +51,7 @@ void engine::Application::Shutdown() {
   m_window.reset();
 }
 
-void Application::AddExtension(std::unique_ptr<IAppExtension> ext) {
-  m_extensions.push_back(std::move(ext));
-}
+void Application::AddExtension(std::unique_ptr<IAppExtension> ext) { m_extensions.push_back(std::move(ext)); }
 
 void Application::Run() {
   for (auto &e : m_extensions)
@@ -79,7 +77,9 @@ void Application::Run() {
     // Теперь ImGui::GetIO().WantCaptureMouse/Keyboard — АКТУАЛЬНЫЕ
     UpdateScene();
     RenderScene();
-
+    if (m_sceneRecorder && m_sceneRecorder->IsRecording()) {
+      m_sceneRecorder->Update(m_dt);
+    }
     // Завершаем UI (Render + RenderDrawData)
     for (auto &e : m_extensions)
       e->OnEndUI(*this, ctx);
@@ -120,9 +120,7 @@ void Application::SwapBuffers() { m_window->SwapBuffers(); }
 
 bool Application::ShouldClose() const { return m_window->ShouldClose(); }
 
-GLFWwindow *engine::Application::GetNativeWindow() const {
-  return m_window->GetWindow();
-}
+GLFWwindow *engine::Application::GetNativeWindow() const { return m_window->GetWindow(); }
 
 int Application::GetViewportWidth() const { return m_width; }
 int Application::GetViewportHeight() const { return m_height; }
@@ -142,4 +140,4 @@ void Application::LoadScene(const std::string &path) {
   }
   m_serializer->Deserialize(path);
 }
-} // namespace engine
+}  // namespace engine

@@ -1,6 +1,5 @@
 // src/editor/EditorExtension.cpp
 #include "EditorExtension.h"
-#include <GLFW/glfw3.h>
 #include "core/Application.h"
 #include "core/Input.h"
 #include "core/scene/Scene.h"
@@ -10,12 +9,13 @@
 #include "ui/backends/ImGuiBackend.h"
 #include "ui/modules/FireUIModule.h"
 #include "ui/modules/PrefabModule.h"
+#include "ui/modules/RecorderModule.h"
 #include "ui/modules/SceneModule.h"
 #include "ui/modules/TerrainModule.h"
-
+#include <GLFW/glfw3.h>
 EditorExtension::~EditorExtension() noexcept = default;
 
-void EditorExtension::OnInit(engine::Application& app) {
+void EditorExtension::OnInit(engine::Application &app) {
   m_imgui = std::make_unique<ui::ImGuiBackend>();
   m_imgui->Init(app.GetNativeWindow(), "#version 330");
 
@@ -24,7 +24,8 @@ void EditorExtension::OnInit(engine::Application& app) {
   m_editor->RegisterModule(std::make_unique<ui::TerrainModule>());
   m_editor->RegisterModule(std::make_unique<ui::PrefabModule>());
   m_editor->RegisterModule(std::make_unique<ui::FireUIModule>());
-  
+  m_editor->RegisterModule(std::make_unique<ui::RecorderModule>());
+
   ui::EditorContext ec{};
   ec.m_app = &app;
   ec.m_window = app.GetNativeWindow();
@@ -32,13 +33,13 @@ void EditorExtension::OnInit(engine::Application& app) {
   m_editor->SetActiveTool(ui::ToolType::PLACE_ON_GROUND, ec);
 }
 
-void EditorExtension::OnBeginUI(engine::Application& /*app*/, ui::EditorContext& ctx) {
+void EditorExtension::OnBeginUI(engine::Application & /*app*/, ui::EditorContext &ctx) {
   // 1) начинаем кадр ImGui
   m_imgui->BeginFrame();
   m_imgui->DrawDockspace();
 
   // 2) Получаем актуальный viewport из ImGui
-  ImGuiViewport* vp = ImGui::GetMainViewport();
+  ImGuiViewport *vp = ImGui::GetMainViewport();
   ctx.vpX = static_cast<int>(vp->WorkPos.x);
   ctx.vpY = static_cast<int>(vp->WorkPos.y);
   ctx.vpW = static_cast<int>(vp->WorkSize.x);
@@ -67,19 +68,19 @@ void EditorExtension::OnBeginUI(engine::Application& /*app*/, ui::EditorContext&
   m_editor->DrawUI(ctx);
 
   // 8) Обновляем состояние захвата ввода
-  const ImGuiIO& io = ImGui::GetIO();
+  const ImGuiIO &io = ImGui::GetIO();
   engine::InputSystem::Instance().SetUICapture(io.WantCaptureMouse, io.WantCaptureKeyboard);
 
   // 9) Обновляем активные инструменты
   m_editor->TickTools(ctx);
 }
 
-void EditorExtension::OnEndUI(engine::Application&, ui::EditorContext&) {
+void EditorExtension::OnEndUI(engine::Application &, ui::EditorContext &) {
   // 3) завершаем кадр ImGui (Render + RenderDrawData + платформенные окна)
   m_imgui->EndFrame();
 }
 
-void EditorExtension::OnShutdown(engine::Application&) {
+void EditorExtension::OnShutdown(engine::Application &) {
   m_editor.reset();  // сначала редактор
   if (m_imgui) {
     m_imgui->Shutdown();

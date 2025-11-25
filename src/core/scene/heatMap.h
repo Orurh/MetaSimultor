@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <memory>
 #include <vector>
 
@@ -58,7 +59,6 @@ class HeatMap {
     if (!m_texture) {
       Init(256, 256);
     }
-
     BuildGridFromAgents(agents, ambientTemperature);
     UploadToTexture();
   }
@@ -111,12 +111,10 @@ class HeatMap {
       const int N = c.point_count;
       if (N <= 0)
         continue;
-
       // Проверяем сгорел ли агент
       bool isBurned = (a.type == FireAgentState::Burned);
       if (isBurned)
         burnedAgents++;
-
       for (int i = 0; i < N; ++i) {
         totalPoints++;
         const Float3 &p = c.heat_points[i];

@@ -56,6 +56,7 @@ endif()
 # 3) Источники приложения
 file(GLOB_RECURSE SOURCE_FILES 
     src/main.cc
+    src/core/snapshot/*.cc 
     src/core/*.cc
     src/data/*.cc
     src/core/simulation.cu

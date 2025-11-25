@@ -11,7 +11,6 @@
 
 #include "graphics/ParticleSystem/ParticleSystemPool.h"
 #include "utils/ScopeTimer.h"
-#include <chrono>
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <memory>
@@ -68,8 +67,10 @@ void Scene::Update(float dt) {
   m_windTime += simNow;
   glm::vec3 currentWind = m_windConfig.getCurrentWind(m_windTime);
   if (m_agentManager.GetAgentCount() > 0 && simDt > 0.0f) {
-    ScopeTimer timer("Simulation step profiling");
-    m_fire.Step(m_agentManager, simDt, currentWind);
+    if (!m_paused) {
+      //   ScopeTimer timer("Simulation step profiling");
+      m_fire.Step(m_agentManager, simDt, currentWind);
+    }
   }
 
   const bool UI_MOUSE = engine::InputSystem::Instance().UIMouseCaptured();
@@ -104,8 +105,10 @@ void Scene::Update(float dt) {
     }
   }
   auto agents = LoadAgentsFromGPU();
-  float ambientTemp = m_fire.Config().m_env.m_ambient_temperature;
-  m_heatMap.UpdateFromAgents(agents, ambientTemp);
+  if (!m_paused) {
+    float ambientTemp = m_fire.Config().m_env.m_ambient_temperature;
+    m_heatMap.UpdateFromAgents(agents, ambientTemp);
+  }
 
   auto particleAgentView = m_registry.view<ParticleSystemComponent, AgentLinkComponent>();
   for (auto [entity, particleComp, link] : particleAgentView.each()) {
@@ -145,7 +148,7 @@ void Scene::Update(float dt) {
 }
 
 void Scene::Render() {
-  ScopeTimer timer("Render Time:");
+  // ScopeTimer timer("Render Time:");
 
   const int FB_W = static_cast<int>(m_vpW * m_vpScaleX);
   const int FB_H = static_cast<int>(m_vpH * m_vpScaleY);
@@ -182,9 +185,11 @@ void Scene::Render() {
   RenderInstancedModels(instanceData);
 
   Renderer::Instance().UploadAgentsData(agents);
+  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
+
   auto particleView = m_registry.view<ParticleSystemComponent, TransformComponent>();
   {
-    ScopeTimer timer("ParticleSystem::Render All Systems");
+    //  ScopeTimer timer("ParticleSystem::Render All Systems");
     for (auto [entity, particleComp, transform] : particleView.each()) {
       if (particleComp.isActive) {
         particleComp.system->SetPosition(transform.position);
@@ -192,11 +197,6 @@ void Scene::Render() {
       }
     }
   }
-
-  for (auto &system : m_particleSystems) {
-    system->Render(view, projection);
-  }
-  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
 
   Renderer::Instance().EndScene();
 }
@@ -453,6 +453,7 @@ void Scene::IgniteNearest(const glm::vec3 &worldPos, float maxDist) {
   m_agentManager.SetAgents(agents);
 }
 void Scene::RenderInstancedModels(const std::unordered_map<std::string, std::vector<glm::mat4>> &instanceData) {
+
   for (const auto &[key, matrices] : instanceData) {
     // Разбираем ключ на prefab_id и состояние
     size_t underscorePos = key.find_last_of('_');

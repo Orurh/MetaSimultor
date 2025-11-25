@@ -17,7 +17,7 @@ void HeatMapPanel::Draw(EditorContext &ctx) {
   ImGui::Separator();
 
   if (m_texture) {
-    static float displayScale = 0.5f;
+    static float displayScale = 1.0f;
     ImGui::SliderFloat("Scale", &displayScale, 0.1f, 2.0f);
 
     uint32_t texWidth = m_texture->GetWidth();
