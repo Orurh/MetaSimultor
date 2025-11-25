@@ -14,5 +14,6 @@ public:
   // NEW: раскладки
   virtual void SaveLayout(const char* path) { /* optional */ }
   virtual void LoadLayout(const char* path) { /* optional */ }
+  virtual void UpdateUIScale(GLFWwindow* window) { /* optional */ }
 };
 } // namespace ui
