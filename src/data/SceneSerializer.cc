@@ -14,18 +14,16 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
     YAML::Emitter out;
     out << YAML::BeginMap;
 
-    // Метаданные
     out << YAML::Key << "metadata" << YAML::Value;
     out << YAML::BeginMap;
-    out << YAML::Key << "version" << YAML::Value << "1.0";
+    out << YAML::Key << "version" << YAML::Value << "1.1";
     out << YAML::Key << "date" << YAML::Value << getCurrentDateTime();
     out << YAML::EndMap;
 
-    // Агенты
     out << YAML::Key << "agents" << YAML::Value;
     out << YAML::BeginSeq;
     auto agents = m_scene->LoadAgentsFromGPU();
-    for (int i = 0; i < agents.size(); i++) {
+    for (int i = 0; i < static_cast<int>(agents.size()); i++) {
       SerializeAgent(out, agents[i], i);
     }
     out << YAML::EndSeq;
@@ -33,23 +31,41 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
     // SceneObject'ы
     out << YAML::Key << "scene_objects" << YAML::Value << YAML::BeginSeq;
     auto view = m_scene->GetSceneObjectsView();
+    const auto &prefabSystem = m_scene->GetPrefabSystem();
+
     for (auto [entity, transform, render, link] : view.each()) {
       SceneObject obj;
       obj.m_agent_id = link.gpu_index;
       obj.m_object_type = render.prefab_id;
       obj.m_position = transform.position;
-      obj.m_scale = render.scale;
       obj.m_is_visible = render.is_visible;
+
+      const auto &prefab = prefabSystem.GetPrefab(render.prefab_id);
+
+      const glm::vec3 FINAL_SCALE = render.scale; 
+      const glm::vec3 BASE_SCALE = prefab.m_modelScale;
+
+      glm::vec3 instanceScale(1.0F);
+
+      instanceScale.x =
+          (BASE_SCALE.x != 0.0F) ? FINAL_SCALE.x / BASE_SCALE.x : 1.0F;
+      instanceScale.y =
+          (BASE_SCALE.y != 0.0F) ? FINAL_SCALE.y / BASE_SCALE.y : 1.0F;
+      instanceScale.z =
+          (BASE_SCALE.z != 0.0F) ? FINAL_SCALE.z / BASE_SCALE.z : 1.0F;
+
+      obj.m_scale = instanceScale;
 
       SerializeSceneObject(out, obj, link.gpu_index);
     }
     out << YAML::EndSeq;
+
+    // Террейн
     out << YAML::Key << "terrain" << YAML::Value;
     out << YAML::BeginMap;
 
-    // Получаем настройки из текущего террейна
-    auto terrain = m_scene->GetTerrain();
-    if (terrain) {
+    auto *terrain = m_scene->GetTerrain();
+    if (terrain != nullptr) {
       out << YAML::Key << "width" << YAML::Value << terrain->GetWidth();
       out << YAML::Key << "depth" << YAML::Value << terrain->GetDepth();
       out << YAML::Key << "scale" << YAML::Value << terrain->GetScale();
@@ -66,16 +82,16 @@ bool SceneSerializer::Serialize(const std::string &filepath) {
           << terrain->GetPosition().y << terrain->GetPosition().z
           << YAML::EndSeq;
     }
-    out << YAML::EndMap;
-    out << YAML::EndMap;
+    out << YAML::EndMap; // terrain
+    out << YAML::EndMap; // root
 
     std::ofstream file(filepath);
     file << out.c_str();
-    std::cout << "Scene saved to: " << filepath << std::endl;
+    std::cout << "Scene saved to: " << filepath << '\n';
     return true;
 
   } catch (const std::exception &e) {
-    std::cerr << "Failed to serialize scene: " << e.what() << std::endl;
+    std::cerr << "Failed to serialize scene: " << e.what() << '\n';
     return false;
   }
 }
@@ -175,18 +191,22 @@ void SceneSerializer::Deserialize(const std::string &filename) {
   try {
     YAML::Node scene_data = YAML::LoadFile(filename);
 
-    // Очищаем сцену
-    m_scene->Clear();
-
-    // 1. Загружаем агентов
-    const YAML::Node &agents_node = scene_data["agents"];
-    std::vector<Agent> agents;
-
-    for (const YAML::Node &agent_node : agents_node) {
-      agents.push_back(DeserializeAgent(agent_node));
+    // Читаем версию формата (по умолчанию 1.0, чтобы поддерживать старые сцены)
+    std::string version = "1.0";
+    if (auto meta = scene_data["metadata"]) {
+      if (auto ver = meta["version"]) {
+        version = ver.as<std::string>();
+      }
     }
 
-    // Загружаем агентов в GPU
+    m_scene->Clear();
+
+    std::vector<Agent> agents;
+    if (auto agents_node = scene_data["agents"]) {
+      for (const YAML::Node &agent_node : agents_node) {
+        agents.push_back(DeserializeAgent(agent_node));
+      }
+    }
     m_scene->GetAgentManager().SetAgents(agents);
 
     const YAML::Node &terrain_node = scene_data["terrain"];
@@ -201,30 +221,54 @@ void SceneSerializer::Deserialize(const std::string &filename) {
       s.octaves = terrain_node["octaves"].as<int>();
       s.persistence = terrain_node["persistence"].as<float>();
       s.lacunarity = terrain_node["lacunarity"].as<float>();
+
+      m_scene->GenerateTerrain(s);
+
       const YAML::Node &pos_node = terrain_node["position"];
       if (pos_node) {
         glm::vec3 pos(pos_node[0].as<float>(), pos_node[1].as<float>(),
                       pos_node[2].as<float>());
-        m_scene->GetTerrain()->SetPosition(pos);
+        if (auto *terrain = m_scene->GetTerrain()) {
+          terrain->SetPosition(pos);
+        }
       }
-      m_scene->GenerateTerrain(s);
     }
-  for (const auto &node : scene_data["scene_objects"]) {
-    SceneObject obj = DeserializeSceneObject(node);
 
-    float loaded_scale = obj.m_scale.x; // если scale равномерный
+    const auto &prefabSystem = m_scene->GetPrefabSystem();
+    if (auto objs = scene_data["scene_objects"]) {
+      for (const auto &node : objs) {
+        SceneObject obj = DeserializeSceneObject(node);
 
-    // здесь AddPrefab внутри создаст агент через PrefabSystem,
-    // а в Scene::AddPrefab ты уже вызываешь:
-    // m_fire.ApplyMaterialToAgent(agent, prefab.m_fireMaterialId);
-    m_scene->AddPrefab(obj.m_object_type, obj.m_position.x,
-                       obj.m_position.z, loaded_scale);
-  }
+        glm::vec3 instanceScale(1.0F);
+
+        if (version == "1.0") {
+          const auto &prefab = prefabSystem.GetPrefab(obj.m_object_type);
+          const glm::vec3 FINAL_SCALE = obj.m_scale;
+          const glm::vec3 BASE_SCALE = prefab.m_modelScale;
+
+          instanceScale.x =
+              (BASE_SCALE.x != 0.0F) ? FINAL_SCALE.x / BASE_SCALE.x : 1.0F;
+          instanceScale.y =
+              (BASE_SCALE.y != 0.0F) ? FINAL_SCALE.y / BASE_SCALE.y : 1.0F;
+          instanceScale.z =
+              (BASE_SCALE.z != 0.0F) ? FINAL_SCALE.z / BASE_SCALE.z : 1.0F;
+        } else {
+          instanceScale = obj.m_scale;
+        }
+
+        float loaded_scale = instanceScale.x;
+        `
+
+            m_scene->AddPrefab(obj.m_object_type, obj.m_position.x,
+                               obj.m_position.z, loaded_scale);
+      }
+    }
 
   } catch (const std::exception &e) {
-    std::cerr << "Failed to deserialize scene: " << e.what() << std::endl;
+    std::cerr << "Failed to deserialize scene: " << e.what() << '\n';
   }
 }
+
 SceneObject
 SceneSerializer::DeserializeSceneObject(const YAML::Node &obj_node) {
   SceneObject obj;

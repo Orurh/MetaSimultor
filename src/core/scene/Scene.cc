@@ -316,13 +316,13 @@ void Scene::ReloadModelForPrefab(const std::string &prefab_id, const engine::dat
   system_prefab.normalMaterial = prefab.normalMaterial;
   system_prefab.burningMaterial = prefab.burningMaterial;
   system_prefab.burnedMaterial = prefab.burnedMaterial;
-
-  auto view = m_registry.view<RenderComponent>();
-  for (auto [entity, render] : view.each()) {
-    if (render.prefab_id == prefab_id) {
-      render.scale = prefab.m_modelScale;
-    }
-  }
+  system_prefab.m_modelScale    = prefab.m_modelScale;
+  // auto view = m_registry.view<RenderComponent>();
+  // for (auto [entity, render] : view.each()) {
+  //   if (render.prefab_id == prefab_id) {
+  //     render.scale = prefab.m_modelScale;
+  //   }
+  // }
 
   std::cout << "[Scene] Reloaded model for prefab '" << prefab_id << "'\n";
 }
