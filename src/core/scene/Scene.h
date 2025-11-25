@@ -5,6 +5,7 @@
 #include "configs/WindConfig.h"
 #include "core/AgentManager.h"
 #include "core/fire/FireConfig.h"
+#include "core/scene/risk_predictor.h"
 #include "data/PrefabSystem.h"
 #include "graphics/ParticleSystem/ParticleSystem.h"
 
@@ -127,6 +128,7 @@ class Scene {
   FireModule m_fire;
   SimulationTime m_time;
   HeatMap m_heatMap; 
+  RiskPredictor m_riskPredictor;
   bool m_showHeatMap = true;
   float m_heatMapHeight = 50.0f;
 };

@@ -257,7 +257,7 @@ void SceneSerializer::Deserialize(const std::string &filename) {
         }
 
         float loaded_scale = instanceScale.x;
-        `
+        
 
             m_scene->AddPrefab(obj.m_object_type, obj.m_position.x,
                                obj.m_position.z, loaded_scale);
