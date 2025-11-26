@@ -2,7 +2,7 @@
 #include <glm/glm.hpp>
 struct WindConfig {
   glm::vec3 direction = glm::vec3(1.0f, 0.0f, 0.0f);  // Направление ветра
-  float strength = 10.0f;                             // Сила ветра (0-1)
+  float strength = 3.0f;                             // Сила ветра (0-1)
   float gustiness = 0.3f;                             // Порывистость
   float change_speed = 0.1f;                          // Скорость изменения
 

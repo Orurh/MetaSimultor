@@ -176,19 +176,19 @@ void FoliageBrushTool::DrawControls(EditorContext& ctx) {
   dirty |= ImGui::RadioButton("Rect", &shape, 1);
   m_settings.shape = (shape == 0 ? Shape::Circle : Shape::Rect);
   if (m_settings.shape == Shape::Circle) {
-    dirty |= ImGui::SliderFloat("Radius (m)", &m_settings.radius, 1.f, 200.f);
+    dirty |= ImGui::SliderFloat("Radius (m)", &m_settings.radius, 1.f, 400.f);
   } else {
-    dirty |= ImGui::SliderFloat("Width (m)", &m_settings.width, 1.f, 400.f);
-    dirty |= ImGui::SliderFloat("Height (m)", &m_settings.height, 1.f, 400.f);
+    dirty |= ImGui::SliderFloat("Width (m)", &m_settings.width, 1.f, 800.f);
+    dirty |= ImGui::SliderFloat("Height (m)", &m_settings.height, 1.f, 800.f);
   }
   ImGui::Separator();
   dirty |= ImGui::SliderFloat("Density (per m^2)", &m_settings.density, 0.0f, 1.0f);
-  dirty |= ImGui::SliderFloat("Min Spacing (m)", &m_settings.minSpacing, 0.0f, 10.0f);
+  dirty |= ImGui::SliderFloat("Min Spacing (m)", &m_settings.minSpacing, 0.0f, 20.0f);
   dirty |= ImGui::SliderFloat("Jitter [0..1]", &m_settings.jitter, 0.0f, 1.0f);
   ImGui::Separator();
   dirty |= ImGui::InputInt("Seed", (int*)&m_settings.seed);
-  dirty |= ImGui::SliderFloat("Scale min", &m_settings.scaleMin, 0.2f, 5.0f);
-  dirty |= ImGui::SliderFloat("Scale max", &m_settings.scaleMax, 0.2f, 5.0f);
+  dirty |= ImGui::SliderFloat("Scale min", &m_settings.scaleMin, 0.2f, 10.0f);
+  dirty |= ImGui::SliderFloat("Scale max", &m_settings.scaleMax, 0.2f, 10.0f);
   dirty |= ImGui::SliderFloat("Yaw min", &m_settings.yawMinDeg, 0.f, 360.f);
   dirty |= ImGui::SliderFloat("Yaw max", &m_settings.yawMaxDeg, 0.f, 360.f);
 

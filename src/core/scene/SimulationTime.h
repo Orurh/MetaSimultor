@@ -94,6 +94,6 @@ private:
   double m_lastRealDt{0.0};
   double m_lastSimDt{0.0};
 
-  double m_timeScale{1.0}; // 1.0 = realtime, 10.0 = в 10 раз быстрее
+  double m_timeScale{0.3}; // 1.0 = realtime, 10.0 = в 10 раз быстрее
   bool   m_paused{false};
 };

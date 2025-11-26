@@ -1,10 +1,10 @@
 name: default_house
 type: 0
-model_path: res/models/house/house.obj
+model_path: res/models/OBJFILES/HOUSE1/HOUSE1.obj
 model_scale:
-  - 0.300000012
-  - 0.300000012
-  - 0.300000012
+  - 0.002
+  - 0.002
+  - 0.002
 bounds_min:
   - -1
   - 0
@@ -15,6 +15,12 @@ bounds_max:
   - 1
 physics:
   intensity: 0.800000012
+fire:
+  material: wood
+  ignition_mult: 1
+  humidity_offset: 0
+  moisture_offset: 0
+  fuel_mult: 1
 fire_points:
   - position:
       - 0
@@ -291,38 +297,20 @@ materials:
     diffuse_path: res/textures/fire_texture3.png
     specular_path: res/textures/fire_texture3.png
     normal_path: res/textures/fire_texture3.png
-    diffuse_color:
-      - 0.818627477
-      - 0.754185319
-      - 0.714292586
-    specular_color:
-      - 0.5
-      - 0.5
-      - 0.5
+    diffuse_color: [0.362745106, 0.311492205, 0.275615156]
+    specular_color: [0.5, 0.5, 0.5]
     shininess: 32
   burning:
     diffuse_path: res/textures/fire_texture3.png
     specular_path: res/textures/fire_texture3.png
     normal_path: res/textures/fire_texture3.png
-    diffuse_color:
-      - 0.906862736
-      - 0.861914754
-      - 0.849072456
-    specular_color:
-      - 0.501960814
-      - 0.501960814
-      - 0.784313738
+    diffuse_color: [1, 0.300000012, 0.100000001]
+    specular_color: [0.5, 0.5, 0.5]
     shininess: 64
   burned:
     diffuse_path: res/textures/fire_texture3.png
     specular_path: res/textures/fire_texture3.png
     normal_path: res/textures/fire_texture3.png
-    diffuse_color:
-      - 0.200000003
-      - 0.200000003
-      - 0.200000003
-    specular_color:
-      - 0.5
-      - 0.5
-      - 0.5
+    diffuse_color: [0.200000003, 0.200000003, 0.200000003]
+    specular_color: [0.5, 0.5, 0.5]
     shininess: 8
