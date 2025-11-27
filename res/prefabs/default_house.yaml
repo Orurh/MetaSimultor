@@ -2,9 +2,9 @@ name: default_house
 type: 0
 model_path: res/models/OBJFILES/HOUSE1/HOUSE1.obj
 model_scale:
-  - 0.002
-  - 0.002
-  - 0.002
+  - 0.0199999996
+  - 0.0199999996
+  - 0.0199999996
 bounds_min:
   - -1
   - 0

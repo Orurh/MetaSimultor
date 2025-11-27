@@ -2,9 +2,9 @@ name: trunk
 type: 0
 model_path: res/models/Trunk/Trunk.obj
 model_scale:
-  - 0.300000012
-  - 0.300000012
-  - 0.300000012
+  - 0.100000001
+  - 0.100000001
+  - 0.100000001
 bounds_min:
   - -1
   - 0

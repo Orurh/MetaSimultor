@@ -209,17 +209,23 @@ void SceneSerializer::Deserialize(const std::string &filename) {
       }
       m_scene->GenerateTerrain(s);
     }
-  for (const auto &node : scene_data["scene_objects"]) {
-    SceneObject obj = DeserializeSceneObject(node);
+for (const auto &node : scene_data["scene_objects"]) {
+  SceneObject obj = DeserializeSceneObject(node);
 
-    float loaded_scale = obj.m_scale.x; // если scale равномерный
+  const auto &prefab = m_scene->GetPrefabSystem().GetPrefab(obj.m_object_type);
 
-    // здесь AddPrefab внутри создаст агент через PrefabSystem,
-    // а в Scene::AddPrefab ты уже вызываешь:
-    // m_fire.ApplyMaterialToAgent(agent, prefab.m_fireMaterialId);
-    m_scene->AddPrefab(obj.m_object_type, obj.m_position.x,
-                       obj.m_position.z, loaded_scale);
-  }
+  // базовый масштаб из префаба
+  float base = (prefab.m_modelScale.x != 0.0f) ? prefab.m_modelScale.x : 1.0f;
+
+  // в YAML лежит finalScale, восстанавливаем instanceScale
+  float instanceScale = obj.m_scale.x / base;
+
+  m_scene->AddPrefab(obj.m_object_type,
+                     obj.m_position.x,
+                     obj.m_position.z,
+                     instanceScale);
+}
+
 
   } catch (const std::exception &e) {
     std::cerr << "Failed to deserialize scene: " << e.what() << std::endl;

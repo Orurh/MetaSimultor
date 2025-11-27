@@ -2,9 +2,9 @@ name: elka
 type: 0
 model_path: res/models/elka/elka.obj
 model_scale:
-  - 0.999999978
-  - 0.999999978
-  - 0.999999978
+  - 0.00499999989
+  - 0.00499999989
+  - 0.00499999989
 bounds_min:
   - -2
   - 0

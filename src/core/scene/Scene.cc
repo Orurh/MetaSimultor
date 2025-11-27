@@ -40,7 +40,8 @@ void Scene::GenerateTerrain(const TerrainGenerationSettings &s) {
   m_terrain->GenerateRandom(s);
 
   float padding = 50.0f;  // Небольшой отступZZ
-  m_heatMap.SetWorldBounds(-padding, s.width * s.scale + padding, -padding, s.depth * s.scale + padding);
+  ScopeTimer timer("HeatMap SetWorldBounds:");
+  m_heatMap.SetWorldBounds(-padding, (s.width * s.scale) + padding, -padding, (s.depth * s.scale) + padding);
 }
 
 void Scene::EnsureModelsForPrefab(const std::string &id, const engine::data::AgentPrefab &prefab) {
@@ -107,6 +108,7 @@ void Scene::Update(float dt) {
   auto agents = LoadAgentsFromGPU();
   if (!m_paused) {
     float ambientTemp = m_fire.Config().m_env.m_ambient_temperature;
+    ScopeTimer timer("HeatMap Update:");
     m_heatMap.UpdateFromAgents(agents, ambientTemp);
   }
 
