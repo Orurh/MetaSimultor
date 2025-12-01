@@ -10,18 +10,20 @@
 #include "graphics/Renderer.h"
 
 #include "graphics/ParticleSystem/ParticleSystemPool.h"
+#include "graphics/RenderPolicy/OpenGLPolicy.h"
 #include "utils/ScopeTimer.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 #include <memory>
 namespace engine {
+using OpenGLRenderer = Renderer<graphics::OpenGLPolicy>;
 
 Scene::Scene() : m_agentManager(1000000), m_camera(glm::vec3(500.0F, 100.0F, 600.0F)) { m_time.InitToNow(); }
 
 void Scene::Init() {
   m_terrain = std::make_unique<Terrain>();
   GetPrefabSystem().LoadAllFromDirectory("res/prefabs");
-  engine::Renderer::Instance().Init();
+  OpenGLRenderer::Instance().Init();
   ParticleSystemPool::Initialize(1000);
 
   m_heatMap.Init(256, 256);                                      // 256x256 resolution
@@ -158,7 +160,7 @@ void Scene::Render() {
   auto projection = glm::perspective(m_camera.GetZoom(), aspect, 0.1f, 2000.0f);
   auto view = m_camera.GetViewMatrix();
 
-  Renderer::Instance().BeginScene(view, projection);
+  OpenGLRenderer::Instance().BeginScene(view, projection);
   auto agents = LoadAgentsFromGPU();
 
   std::unordered_map<std::string, std::vector<glm::mat4>> instanceData;
@@ -184,8 +186,8 @@ void Scene::Render() {
 
   RenderInstancedModels(instanceData);
 
-  Renderer::Instance().UploadAgentsData(agents);
-  Renderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
+  OpenGLRenderer::Instance().UploadAgentsData(agents);
+  OpenGLRenderer::Instance().DrawTerrain(m_terrain->GetVAO(), m_terrain->GetPosition(), m_terrain->GetDiffuseTexture());
 
   auto particleView = m_registry.view<ParticleSystemComponent, TransformComponent>();
   {
@@ -198,7 +200,7 @@ void Scene::Render() {
     }
   }
 
-  Renderer::Instance().EndScene();
+  OpenGLRenderer::Instance().EndScene();
 }
 
 void Scene::AddParticleSystem(const std::shared_ptr<ParticleSystem> &system) { m_particleSystems.push_back(system); }
@@ -246,7 +248,7 @@ void Scene::Shutdown() {
 
   m_agentManager.Clear();
   m_terrain->Cleanup();
-  Renderer::Instance().Shutdown();
+  OpenGLRenderer::Instance().Shutdown();
 }
 
 void Scene::AddPrefab(const std::string &prefab_id, float x, float z, float scale) {
@@ -466,7 +468,7 @@ void Scene::RenderInstancedModels(const std::unordered_map<std::string, std::vec
     if (model && material) {
       auto *draw_model = GetModelForState(model, state);
       if (draw_model) {
-        Renderer::Instance().DrawModelInstanced(*draw_model, matrices, m_camera.GetPosition(), material);
+        OpenGLRenderer::Instance().DrawModelInstanced(*draw_model, matrices, m_camera.GetPosition(), material);
       }
     }
   }

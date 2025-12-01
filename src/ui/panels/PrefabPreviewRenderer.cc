@@ -1,11 +1,12 @@
 #include "PrefabPreviewRenderer.h"
+#include "graphics/RenderPolicy/OpenGLPolicy.h"
 #include "graphics/Renderer.h"
 #include <glm/gtc/matrix_transform.hpp>
 #include <iostream>
 namespace ui {
+using OpenGLRenderer = engine::Renderer<engine::graphics::OpenGLPolicy>;
 
-PrefabPreviewRenderer::PrefabPreviewRenderer(int w, int h)
-    : m_width(w), m_height(h) {
+PrefabPreviewRenderer::PrefabPreviewRenderer(int w, int h) : m_width(w), m_height(h) {
   SetupFBO();
   UpdateCamera();
 }
@@ -22,19 +23,15 @@ void PrefabPreviewRenderer::SetupFBO() {
 
   glGenTextures(1, &m_texture);
   glBindTexture(GL_TEXTURE_2D, m_texture);
-  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_width, m_height, 0, GL_RGB,
-               GL_UNSIGNED_BYTE, nullptr);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_width, m_height, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D,
-                         m_texture, 0);
+  glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_texture, 0);
 
   glGenRenderbuffers(1, &m_rbo);
   glBindRenderbuffer(GL_RENDERBUFFER, m_rbo);
-  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_width,
-                        m_height);
-  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                            GL_RENDERBUFFER, m_rbo);
+  glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, m_width, m_height);
+  glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, m_rbo);
 
   if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
     std::cerr << "FBO incomplete!\n";
@@ -53,15 +50,13 @@ void PrefabPreviewRenderer::Resize(int w, int h) {
 }
 
 void PrefabPreviewRenderer::UpdateCamera() {
-  glm::vec3 front(cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch)),
-                  sin(glm::radians(m_pitch)),
+  glm::vec3 front(cos(glm::radians(m_yaw)) * cos(glm::radians(m_pitch)), sin(glm::radians(m_pitch)),
                   sin(glm::radians(m_yaw)) * cos(glm::radians(m_pitch)));
   front = glm::normalize(front);
   glm::vec3 pos = m_target - front * m_distance;
 
   m_view = glm::lookAt(pos, m_target, glm::vec3(0, 1, 0));
-  m_proj = glm::perspective(glm::radians(45.0f), (float)m_width / m_height,
-                            0.1f, 100.0f);
+  m_proj = glm::perspective(glm::radians(45.0f), (float)m_width / m_height, 0.1f, 100.0f);
 }
 
 void PrefabPreviewRenderer::Rotate(float dyaw, float dpitch) {
@@ -94,20 +89,20 @@ void PrefabPreviewRenderer::Render(const engine::data::AgentPrefab &P) {
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glEnable(GL_DEPTH_TEST);
 
-  engine::Renderer::Instance().BeginScene(m_view, m_proj);
-  engine::Renderer::Instance().DrawModelWithMaterial(
-      *m_model, glm::vec3(0, 0, -10), P.m_modelScale, m_target, m_material);
+  OpenGLRenderer::Instance().BeginScene(m_view, m_proj);
+  OpenGLRenderer::Instance().DrawModelWithMaterial(*m_model, glm::vec3(0, 0, -10), P.m_modelScale, m_target,
+                                                   m_material);
 
   // Bounds wireframe
   glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
   glm::vec3 center = (P.m_bounds_min + P.m_bounds_max) * 0.5f;
   center.z -= 10;
   glm::vec3 size = P.m_bounds_max - P.m_bounds_min;
-  engine::Renderer::Instance().DrawCube(center, glm::vec3(1, 0, 0), size);
+  OpenGLRenderer::Instance().DrawCube(center, glm::vec3(1, 0, 0), size);
   glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-  engine::Renderer::Instance().EndScene();
+  OpenGLRenderer::Instance().EndScene();
   glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-} // namespace ui
+}  // namespace ui

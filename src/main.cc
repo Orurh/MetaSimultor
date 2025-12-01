@@ -5,7 +5,7 @@
 int main() {
   engine::Application app(1920, 1080, "Sim");
 
-  app.AddExtension(std::make_unique<EditorExtension>()); // ← редактор
+  app.AddExtension(std::make_unique<EditorExtension>());  // ← редактор
   // app.AddExtension(std::make_unique<PerfOverlayExtension>()); // ← потом
   // добавишь любые
 
