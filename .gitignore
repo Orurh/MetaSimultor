@@ -3,3 +3,8 @@ build/
 .clang-format
 .clang-tidy
 .clang
+# Generated caches and local-only artifacts
+/.cache/
+/imgui.ini
+/combined_code.txt
+/et --hard *
